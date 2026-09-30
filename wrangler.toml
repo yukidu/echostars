@@ -1,5 +1,5 @@
 #:schema node_modules/wrangler/config-schema.json
-name = "echoes-of-stars"
+name = "echostars"
 main = "worker/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
@@ -9,21 +9,22 @@ compatibility_flags = ["nodejs_compat"]
 directory = "./dist"
 binding = "ASSETS"
 
-# 1. Cloudflare D1 資料庫 (SQLite)
-[[d1_databases]]
-binding = "DB"
-database_name = "echoes_db"
-database_id = "your-d1-database-id-here"
+# [選用] 待建立好 D1 資料庫後，可解除註解並填入實際 database_id:
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "echoes_db"
+# database_id = "填入真實-d1-database-id"
 
-# 2. Cloudflare R2 物件儲存桶 (音檔與圖檔直傳)
-[[r2_buckets]]
-binding = "R2_BUCKET"
-bucket_name = "echoes-audio-bucket"
+# [選用] 待建立好 R2 儲存桶後，可解除註解並填入真實 bucket_name (如 audio-files):
+# [[r2_buckets]]
+# binding = "R2_BUCKET"
+# bucket_name = "audio-files"
 
-# 3. Cloudflare KV 快取與連線狀態儲存庫
-[[kv_namespaces]]
-binding = "KV"
-id = "your-kv-namespace-id-here"
+# [選用] 待建立好 KV 命名空間後，可解除註解並填入真實 id:
+# [[kv_namespaces]]
+# binding = "KV"
+# id = "填入真實-kv-namespace-id"
 
 [vars]
 ENVIRONMENT = "production"
+
