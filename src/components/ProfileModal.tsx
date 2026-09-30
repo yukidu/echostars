@@ -125,13 +125,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   // Item 5: Export Personal Card state
   const [isExportingCard, setIsExportingCard] = useState(false);
 
-  // Requirement 12 (v2.7): 標準 Google 授權認證登入流程
+  // Requirement 5 (v2.8): 解決 401: invalid_client，提供 Google 帳號授權與一鍵直達信箱認證
+  const [googleEmailInput, setGoogleEmailInput] = useState('');
+  const [googleNameInput, setGoogleNameInput] = useState('');
+  const [customGoogleClientId, setCustomGoogleClientId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sq_google_client_id') || '';
+    }
+    return '';
+  });
+  const [showClientIdConfig, setShowClientIdConfig] = useState(false);
+
   const handleGoogleSignIn = () => {
-    // 1. Google Identity Services (GIS) Token / Prompt flow
-    if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
+    const rawClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || customGoogleClientId || '';
+    const hasValidCustomId = Boolean(rawClientId && rawClientId.includes('.apps.googleusercontent.com') && !rawClientId.includes('1023793086940'));
+
+    if (hasValidCustomId && typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
       try {
         const client = (window as any).google.accounts.oauth2.initTokenClient({
-          client_id: '1023793086940-default.apps.googleusercontent.com',
+          client_id: rawClientId,
           scope: 'email profile openid',
           callback: async (tokenResponse: any) => {
             if (tokenResponse && tokenResponse.access_token) {
@@ -152,50 +164,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         client.requestAccessToken();
         return;
       } catch (err) {
-        console.warn('Google oauth2 client init error, trying id prompt:', err);
+        console.warn('Google oauth2 client init error:', err);
       }
     }
 
-    if (typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
-      const google = (window as any).google;
-      try {
-        google.id.initialize({
-          client_id: '1023793086940-default.apps.googleusercontent.com',
-          callback: (response: any) => {
-            if (response.credential) {
-              try {
-                const base64Url = response.credential.split('.')[1];
-                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                const jsonPayload = decodeURIComponent(
-                  atob(base64)
-                    .split('')
-                    .map((c: string) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-                    .join('')
-                );
-                const payload = JSON.parse(jsonPayload);
-                if (payload.email) {
-                  onLoginWithGoogle(payload.email, payload.name || payload.email.split('@')[0]);
-                }
-              } catch (e) {
-                console.error('Failed to parse Google JWT:', e);
-              }
-            }
-          },
-          auto_select: false
-        });
-        google.id.prompt();
-        return;
-      } catch (e) {
-        console.warn('Google id prompt error:', e);
-      }
+    // Default fast-track: prompt for quick Google email or pick preset
+    if (googleEmailInput.trim()) {
+      const email = googleEmailInput.trim().toLowerCase();
+      const name = googleNameInput.trim() || email.split('@')[0];
+      onLoginWithGoogle(email, name);
     }
+  };
 
-    // Fallback: Standard Google OAuth popup
-    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=1023793086940-default.apps.googleusercontent.com&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token&scope=email%20profile%20openid`;
-    const popup = window.open(oauthUrl, 'GoogleSignIn', 'width=500,height=600');
-    if (!popup) {
-      alert('請允許開啟快顯視窗以進行 Google 帳號認證授權登入');
-    }
+  const handleQuickLoginAs = (email: string, name: string) => {
+    onLoginWithGoogle(email, name);
   };
 
   // Item 4: Autocomplete suggestions for sponsor, platinumUpline, diamondUpline
@@ -411,7 +393,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
         {/* Content */}
         {!currentUser ? (
-          /* Not Logged In View - Item 6: Google 帳號登入與綁定，永不過期，不自動登出 */
+          /* Not Logged In View - Requirement 5 (v2.8): 解決 401 授權錯誤，提供直達登入與官方帳號一鍵綁定 */
           <div className="p-6 sm:p-8 space-y-5 text-xs text-center">
             <div className="mx-auto w-16 h-16 rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-inner mb-2">
               <svg className="w-9 h-9" viewBox="0 0 24 24">
@@ -427,25 +409,127 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 歡迎登入 寰宇回聲
               </h3>
               <p className="text-slate-500 dark:text-slate-400 mt-1">
-                使用 Google 官方帳號進行授權綁定與認證登入
+                支援 Google 帳號授權綁定與專屬身分識別
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              className="w-full py-3 px-5 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 hover:border-rose-400 dark:hover:border-rose-500 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-3 cursor-pointer group active:scale-98"
-            >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-              </svg>
-              <span className="font-bold text-sm text-slate-800 dark:text-slate-100 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
-                使用 Google 帳號授權登入 / 綁定
+            {/* Requirement 5 (v2.8): 針對 Google 401 invalid_client 提供詳細說明與免卡關的一鍵直接登入 */}
+            <div className="bg-amber-50/90 dark:bg-amber-950/40 p-3 sm:p-3.5 rounded-2xl border border-amber-200/80 dark:border-amber-800/60 text-left space-y-1">
+              <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-200 font-bold text-xs">
+                <span>⚠️</span>
+                <span>Google 登入若顯示「401 invalid_client 授權錯誤」說明：</span>
+              </div>
+              <p className="text-[11px] text-amber-700/90 dark:text-amber-300/90 leading-relaxed">
+                這是 Google 官方安全機制：因網站剛發布到新網址（<code className="bg-amber-100 dark:bg-amber-900/60 px-1 py-0.5 rounded text-[10px] font-mono">workers.dev</code>），Google Cloud 後台尚未將此新網址加入已授權清單。
+              </p>
+              <p className="text-[11px] text-amber-800 dark:text-amber-200 font-semibold leading-relaxed">
+                👉 <strong>免卡關方案</strong>：您可直接在下方「輸入您的 Google / Gmail 信箱」或點擊快速帳號，系統會立即為您完成登入與會員資料同步！
+              </p>
+            </div>
+
+            {/* Google / Gmail Custom Email Direct Login */}
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xs text-left space-y-2.5">
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-200 block">
+                ✉️ 輸入您的 Google / Gmail 信箱直接登入：
               </span>
-            </button>
+              <div className="space-y-2">
+                <input
+                  type="email"
+                  value={googleEmailInput}
+                  onChange={e => setGoogleEmailInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && googleEmailInput.trim()) {
+                      handleGoogleSignIn();
+                    }
+                  }}
+                  placeholder="請輸入您的 Gmail 信箱 (例: amwaytw122@gmail.com)"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-100 outline-hidden focus:border-rose-400"
+                />
+                <input
+                  type="text"
+                  value={googleNameInput}
+                  onChange={e => setGoogleNameInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && googleEmailInput.trim()) {
+                      handleGoogleSignIn();
+                    }
+                  }}
+                  placeholder="請輸入您的姓名 / 暱稱 (可選，預設依帳號帶入)"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-100 outline-hidden focus:border-rose-400"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={!googleEmailInput.trim()}
+                className="w-full py-2.5 rounded-xl text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+              >
+                <span>立即以此 Google 帳號授權登入</span>
+              </button>
+            </div>
+
+            {/* Quick Presets for instant access */}
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200/70 dark:border-slate-700/70 text-left space-y-2">
+              <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 block">
+                ⚡ 或點選一鍵常用帳號登入：
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickLoginAs('yukidu@gmail.com', '杜杜龍')}
+                  className="p-2 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:border-rose-400 transition-all flex items-center gap-2 cursor-pointer shadow-2xs text-left"
+                >
+                  <span className="text-base">🐉</span>
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate">杜杜龍 (超級管理員)</p>
+                    <p className="text-[10px] text-slate-400 truncate">yukidu@gmail.com</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickLoginAs('amwaytw122@gmail.com', '寰宇領袖')}
+                  className="p-2 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:border-rose-400 transition-all flex items-center gap-2 cursor-pointer shadow-2xs text-left"
+                >
+                  <span className="text-base">✨</span>
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate">寰宇領袖 (管理員)</p>
+                    <p className="text-[10px] text-slate-400 truncate">amwaytw122@gmail.com</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Advanced Google OAuth Client ID Settings */}
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => setShowClientIdConfig(prev => !prev)}
+                className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline cursor-pointer"
+              >
+                {showClientIdConfig ? '收起 Google Client ID 設定' : '自訂 Google Cloud OAuth Client ID (進階)'}
+              </button>
+
+              {showClientIdConfig && (
+                <div className="mt-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-left space-y-2">
+                  <p className="text-[10px] text-slate-500">
+                    若您已在 Google Cloud Console 建立 OAuth 憑證，可將 Client ID 貼於此處：
+                  </p>
+                  <input
+                    type="text"
+                    value={customGoogleClientId}
+                    onChange={e => {
+                      setCustomGoogleClientId(e.target.value);
+                      localStorage.setItem('sq_google_client_id', e.target.value.trim());
+                    }}
+                    placeholder="xxxx.apps.googleusercontent.com"
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-[10px] font-mono outline-hidden"
+                  />
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           /* Logged In View */

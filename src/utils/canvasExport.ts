@@ -64,10 +64,10 @@ export async function exportMemberProfileAndListeningImage(
   ctx.fillStyle = '#222222';
   ctx.fillText(`推薦人：${user.sponsor || '-'}   上手白金：${user.platinumUpline || '-'}   上手鑽石：${user.diamondUpline || '-'}`, padding + 12, profileBoxY + 54);
 
-  ctx.fillText(`聯絡電話：${user.phone || '-'}   居住地區：${user.residence || '-'}`, padding + 12, profileBoxY + 78);
+  ctx.fillText(`居住地區：${user.residence || '-'}   所屬中心：${user.center || '無'}`, padding + 12, profileBoxY + 78);
 
   ctx.fillStyle = '#444444';
-  ctx.fillText(`西元生日：${user.birthday || '未設定'} (${user.zodiac || '-'})   天賦數：${user.talentNumber || '-'}   主命數：${user.lifeNumber ? `${user.lifeNumber} 號人` : '-'}`, padding + 12, profileBoxY + 104);
+  ctx.fillText(`所屬星座：${user.zodiac || '-'}   天賦數：${user.talentNumber || '-'}   主命數：${user.lifeNumber ? `${user.lifeNumber} 號人` : '-'}`, padding + 12, profileBoxY + 104);
 
   const cleanJoin = user.joinReason ? (user.joinReason.length > 28 ? user.joinReason.substring(0, 28) + '...' : user.joinReason) : '-';
   ctx.fillText(`初次認識安麗：${cleanJoin}`, padding + 12, profileBoxY + 130);
@@ -710,15 +710,17 @@ export async function exportTrackFullCardImage(
 }
 
 export async function shareOrDownloadImage(blob: Blob, filename: string, title: string) {
-  const file = new File([blob], filename, { type: 'image/jpeg' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (typeof navigator !== 'undefined' && typeof navigator.canShare === 'function') {
     try {
-      await navigator.share({
-        files: [file],
-        title,
-        text: '來自繁星的回聲的演講完整資訊圖卡'
-      });
-      return;
+      const file = new File([blob], filename, { type: 'image/jpeg' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title,
+          text: '來自繁星的回聲的演講完整資訊圖卡'
+        });
+        return;
+      }
     } catch {
       // fallback to download if cancelled or fails
     }
@@ -732,7 +734,7 @@ export async function shareOrDownloadImage(blob: Blob, filename: string, title: 
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**
@@ -810,12 +812,12 @@ export async function exportPersonalProfileCard(user: UserProfile): Promise<Blob
   ctx.lineTo(width - padding - 10, py);
   ctx.stroke();
 
-  // Row 2: 安麗編號 & 聯絡電話
+  // Row 2: 安麗編號 & 所屬中心
   py += 24;
   ctx.font = '13px "PingFang TC", "Microsoft JhengHei", sans-serif';
   ctx.fillStyle = '#111111';
   ctx.fillText(`安麗編號：${user.amwayId || '-'}`, col1, py);
-  ctx.fillText(`聯絡電話：${user.phone || '-'}`, col2, py);
+  ctx.fillText(`所屬中心：${user.center || '無'}`, col2, py);
 
   // Divider
   py += 10;
@@ -824,10 +826,10 @@ export async function exportPersonalProfileCard(user: UserProfile): Promise<Blob
   ctx.lineTo(width - padding - 10, py);
   ctx.stroke();
 
-  // Row 3: 居住地區 & 所屬中心
+  // Row 3: 居住地區 & 推薦人
   py += 24;
   ctx.fillText(`居住地區：${user.residence || '-'}`, col1, py);
-  ctx.fillText(`所屬中心：${user.center || '無'}`, col2, py);
+  ctx.fillText(`推薦人：${user.sponsor || '-'}`, col2, py);
 
   // Divider
   py += 10;
@@ -839,7 +841,7 @@ export async function exportPersonalProfileCard(user: UserProfile): Promise<Blob
   // Row 4: 初次認識 & 留在安麗原因
   py += 24;
   ctx.fillText(`初次認識：${user.joinReason || '事業'} • 留安麗：${(user as any).stayReason || '事業'}`, col1, py);
-  ctx.fillText(`推薦人：${user.sponsor || '-'}`, col2, py);
+  ctx.fillText(`上手白金：${user.platinumUpline || '-'}`, col2, py);
 
   // Divider
   py += 10;
@@ -848,22 +850,22 @@ export async function exportPersonalProfileCard(user: UserProfile): Promise<Blob
   ctx.lineTo(width - padding - 10, py);
   ctx.stroke();
 
-  // Row 5: 上手白金 & 上手鑽石
+  // Row 5: 上手鑽石 & 註冊日期
   py += 24;
-  ctx.fillText(`上手白金：${user.platinumUpline || '-'}`, col1, py);
-  ctx.fillText(`上手鑽石：${user.diamondUpline || '-'}`, col2, py);
-
-  // Divider
-  py += 10;
-  ctx.beginPath();
-  ctx.moveTo(padding + 10, py);
-  ctx.lineTo(width - padding - 10, py);
-  ctx.stroke();
-
-  // Row 6: 西元生日 & 註冊日期
-  py += 24;
-  ctx.fillText(`西元生日：${user.birthday || '-'} (${user.zodiac || '-'})`, col1, py);
+  ctx.fillText(`上手鑽石：${user.diamondUpline || '-'}`, col1, py);
   ctx.fillText(`註冊日期：${user.registerDate || '-'}`, col2, py);
+
+  // Divider
+  py += 10;
+  ctx.beginPath();
+  ctx.moveTo(padding + 10, py);
+  ctx.lineTo(width - padding - 10, py);
+  ctx.stroke();
+
+  // Row 6: 所屬星座 & 主命數
+  py += 24;
+  ctx.fillText(`所屬星座：${user.zodiac || '-'}`, col1, py);
+  ctx.fillText(`主命數：${user.lifeNumber ? `${user.lifeNumber} 號人` : '-'}`, col2, py);
 
   // Divider
   py += 10;

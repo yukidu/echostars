@@ -128,7 +128,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-3 py-1.5 sm:px-5 flex items-center justify-between gap-2">
+      <div className="max-w-4xl mx-auto px-2.5 py-1 sm:px-4 sm:py-1.5 flex items-center justify-between gap-1.5 sm:gap-2">
         {/* Left: Thumbnail, Title, Speaker & Time (Clicking opens expanded DetailView) */}
         <div
           className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer"
@@ -136,7 +136,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           title="點擊展開詳細播放器"
         >
           <div
-            className={`w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full overflow-hidden shadow-2xs ring-1 ring-white/40 ${
+            className={`w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-full overflow-hidden shadow-2xs ring-1 ring-white/40 ${
               isPlaying ? 'animate-spin-slow' : ''
             }`}
             style={{
@@ -154,7 +154,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             <h4 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 truncate leading-tight">
               {track.title}
             </h4>
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate font-mono">
+            <div className="flex items-center gap-1.5 text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 truncate font-mono">
               {/* Requirement 4: 底部播放器，演講者後面要接著顯示「獎銜」，一樣字體格式 */}
               <span className="truncate max-w-[110px] sm:max-w-[160px] font-sans">
                 {track.speaker}{track.speakerRank ? ` · ${track.speakerRank}` : ''}
@@ -172,45 +172,45 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           <button
             onClick={() => onSkip(-10)}
             title="倒轉 10 秒"
-            className="relative w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors"
+            className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors"
           >
-            <RotateCcw className="w-4 h-4" />
-            <span className="absolute text-[8px] font-black font-mono leading-none">10</span>
+            <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="absolute text-[7px] sm:text-[8px] font-black font-mono leading-none">10</span>
           </button>
 
           <button
             onClick={onTogglePlay}
-            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full text-white flex items-center justify-center shadow-xs active:scale-95 transition-transform"
+            className="w-7 h-7 sm:w-8.5 sm:h-8.5 rounded-full text-white flex items-center justify-center shadow-xs active:scale-95 transition-transform"
             style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
           >
             {isPlaying ? (
-              <Pause className="w-4 h-4 fill-white" />
+              <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white" />
             ) : (
-              <Play className="w-4 h-4 fill-white ml-0.5" />
+              <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white ml-0.5" />
             )}
           </button>
 
           <button
             onClick={() => onSkip(10)}
             title="快進 10 秒"
-            className="relative w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors"
+            className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center transition-colors"
           >
-            <RotateCw className="w-4 h-4" />
-            <span className="absolute text-[8px] font-black font-mono leading-none">10</span>
+            <RotateCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="absolute text-[7px] sm:text-[8px] font-black font-mono leading-none">10</span>
           </button>
         </div>
 
         {/* Right: Speed pills (Mobile: 1X, 1.5X, 2X; Desktop: full) + 3-state control */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {/* Small screens: 1X, 1.5X, 2X (Requirement 16) */}
-          <div className="flex sm:hidden items-center gap-0.5 text-[9px]">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          {/* Small screens: 1X, 1.5X, 2X - Requirement 4: 字體縮小 */}
+          <div className="flex sm:hidden items-center gap-0.5 text-[8px]">
             {[1.0, 1.5, 2.0].map(s => (
               <button
                 key={s}
                 onClick={() => onChangeSpeed(s)}
-                className={`px-1.5 py-0.5 rounded font-mono font-bold transition-all ${
+                className={`px-1 py-0.5 rounded font-mono font-medium transition-all ${
                   playbackRate === s
-                    ? 'bg-[var(--color-primary,#c06c84)] text-white shadow-2xs'
+                    ? 'bg-[var(--color-primary,#c06c84)] text-white shadow-2xs font-bold'
                     : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
                 }`}
               >
@@ -219,13 +219,13 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             ))}
           </div>
 
-          {/* Larger screens: all speeds (Requirement 8: 刪除2.5X播放速度選項) */}
-          <div className="hidden sm:flex items-center gap-1 text-[10px]">
+          {/* Larger screens: all speeds - Requirement 4: 字體縮小 */}
+          <div className="hidden sm:flex items-center gap-0.5 text-[9px]">
             {[0.7, 1.0, 1.25, 1.5, 2.0].map(s => (
               <button
                 key={s}
                 onClick={() => onChangeSpeed(s)}
-                className={`px-1.5 py-0.5 rounded font-mono font-semibold transition-all ${
+                className={`px-1 py-0.5 rounded font-mono font-medium transition-all ${
                   playbackRate === s
                     ? 'bg-[var(--color-primary,#c06c84)] text-white font-bold shadow-2xs'
                     : 'text-slate-400 hover:text-slate-700 dark:text-slate-400'

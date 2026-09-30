@@ -20,7 +20,8 @@ import {
   Hash,
   Image as ImageIcon,
   RotateCcw,
-  RotateCw
+  RotateCw,
+  Loader2
 } from 'lucide-react';
 import { Track, Comment, UserProfile, PlayerDisplayMode, ExternalLinkItem } from '../types';
 import { formatTime, formatRemainingTime, AudioMemory } from '../utils/audio';
@@ -106,6 +107,13 @@ export const DetailView: React.FC<DetailViewProps> = ({
 }) => {
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
+  const [optimisticRating, setOptimisticRating] = useState<number | null>(null);
+
+  useEffect(() => {
+    setOptimisticRating(null);
+  }, [track.id, userRating]);
+
+  const effectiveUserRating = optimisticRating !== null ? optimisticRating : (userRating || 0);
 
   // Requirement 5.9 (v2.7): 演講資訊與備註新增上傳者姓名
   const uploaderUser = allUsers.find(
@@ -366,13 +374,18 @@ export const DetailView: React.FC<DetailViewProps> = ({
 
   const safeDuration = duration > 0 ? duration : (track.durationSeconds || 600);
 
-  // Requirement 11: 任何地方，五顆星星的評價按鈕，如果原地相同評價再點一次，代表取消不評價。
+  // Requirement 11 & Requirement 4 (v2.8): 五星評價功能修復，點擊即時響應，原地再點一次取消評價
   const handleStarClick = async (score: number) => {
+    const currentScore = effectiveUserRating;
+    const finalScore = currentScore === score ? 0 : score;
+    setOptimisticRating(finalScore);
     if (isRatingSubmitting) return;
     setIsRatingSubmitting(true);
     try {
-      const finalScore = userRating === score ? 0 : score;
       await onRate(finalScore);
+    } catch (e) {
+      console.error('Star rating error:', e);
+      setOptimisticRating(null); // revert on error
     } finally {
       setIsRatingSubmitting(false);
     }
@@ -647,13 +660,13 @@ export const DetailView: React.FC<DetailViewProps> = ({
             {track.speaker} · {track.speakerRank}
           </p>
 
-          {/* Requirement 5.6 (v2.7): 評價、留言、按讚排列更緊密，五星靠更近，留言移到按讚前面 */}
-          <div className="flex items-center justify-center gap-2 sm:gap-2.5 text-xs text-slate-600 dark:text-slate-400 bg-white/80 dark:bg-slate-800/60 py-1.5 px-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-2xs select-none">
-            {/* Direct 5-star interactive rating */}
-            <div className="flex items-center gap-0.5">
+          {/* Requirement 4 (v2.8): 評價、留言、按讚排列極致緊密，星星更緊密，留言顯示 icon+數字，刪除「則留言」，圖標放大與愛心星星一致 */}
+          <div className="flex items-center justify-center gap-1.5 sm:gap-2.5 text-xs text-slate-600 dark:text-slate-400 bg-white/85 dark:bg-slate-800/80 py-1 sm:py-1.5 px-2.5 sm:px-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-2xs select-none">
+            {/* Direct 5-star interactive rating (星星更緊密排列) */}
+            <div className="flex items-center gap-0 -space-x-1">
               {[1, 2, 3, 4, 5].map(star => {
-                const currentEffectiveRating = (userRating && userRating > 0) ? userRating : 0;
-                const active = hoverRating > 0 ? star <= hoverRating : (currentEffectiveRating > 0 && star <= currentEffectiveRating);
+                const currentScore = effectiveUserRating;
+                const active = hoverRating > 0 ? star <= hoverRating : (currentScore > 0 && star <= currentScore);
                 return (
                   <button
                     key={star}
@@ -661,26 +674,26 @@ export const DetailView: React.FC<DetailViewProps> = ({
                     onMouseEnter={() => setHoverRating(star)}
                     onMouseLeave={() => setHoverRating(0)}
                     onClick={() => handleStarClick(star)}
-                    title={userRating === star ? '點擊此星星可取消評價' : `給予 ${star} 星評價`}
-                    className="p-0 hover:scale-125 transition-transform"
+                    title={currentScore === star ? '點擊此星星可取消評價' : `給予 ${star} 星評價`}
+                    className="p-0 sm:p-0.5 hover:scale-125 transition-transform cursor-pointer"
                   >
                     <Star
-                      className={`w-3.5 h-3.5 ${
+                      className={`w-4.5 h-4.5 sm:w-5 sm:h-5 ${
                         active ? 'fill-amber-400 text-amber-400' : 'text-slate-300 dark:text-slate-600'
                       }`}
                     />
                   </button>
                 );
               })}
-              <span className="font-bold text-slate-900 dark:text-slate-100 ml-1 text-xs tabular-nums">
-                {(userRating && userRating > 0) ? userRating.toFixed(1) : (track.rating > 0 ? track.rating.toFixed(1) : '-')}
+              <span className="font-bold text-slate-900 dark:text-slate-100 ml-1 text-xs tabular-nums whitespace-nowrap">
+                {effectiveUserRating > 0 ? effectiveUserRating.toFixed(1) : (track.rating > 0 ? track.rating.toFixed(1) : '-')}
                 <span className="text-slate-400 font-normal ml-0.5 text-[10px]">({track.ratingCount})</span>
               </span>
             </div>
 
             <span className="text-slate-300 dark:text-slate-600 text-[10px]">|</span>
 
-            {/* Requirement 5.6: 留言按鈕順序往前移到按讚的前面 */}
+            {/* Requirement 4: 顯示X留言，改成 「icon+數字」 即可，後面中文三個字「則留言」刪除，icon放大跟愛心、星星一樣大 */}
             <button
               type="button"
               onClick={() => {
@@ -689,11 +702,11 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   el.scrollIntoView({ behavior: 'smooth' });
                 }
               }}
-              className="inline-flex items-center gap-1 hover:text-rose-600 transition-colors cursor-pointer text-xs"
-              title="點擊前往下方留言區"
+              className="inline-flex items-center gap-1 hover:text-rose-600 transition-colors cursor-pointer text-xs font-semibold tabular-nums whitespace-nowrap"
+              title="查看留言區"
             >
-              <MessageSquare className="w-3.5 h-3.5 text-slate-400" />
-              <span>{comments.length} 則留言</span>
+              <MessageSquare className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-slate-500 dark:text-slate-400 shrink-0" />
+              <span>{comments.length}</span>
             </button>
 
             <span className="text-slate-300 dark:text-slate-600 text-[10px]">|</span>
@@ -701,15 +714,14 @@ export const DetailView: React.FC<DetailViewProps> = ({
             {/* Interactive Heart */}
             <button
               onClick={handleToggleLikeClick}
-              className="inline-flex items-center gap-1 transition-transform active:scale-95 cursor-pointer text-slate-500 text-xs"
+              className="inline-flex items-center gap-1 transition-transform active:scale-95 cursor-pointer text-slate-500 text-xs font-semibold tabular-nums whitespace-nowrap"
               style={{
-                color: localLiked ? 'var(--color-primary, #c06c84)' : undefined,
-                fontWeight: localLiked ? 'bold' : 'normal'
+                color: localLiked ? 'var(--color-primary, #c06c84)' : undefined
               }}
               title={localLiked ? '已按讚，點擊收回讚' : '給予這部演講一個愛心按讚'}
             >
               <Heart
-                className="w-3.5 h-3.5 transition-colors"
+                className="w-4.5 h-4.5 sm:w-5 sm:h-5 transition-colors shrink-0"
                 style={{
                   color: localLiked ? 'var(--color-primary, #c06c84)' : undefined,
                   fill: localLiked ? 'var(--color-primary, #c06c84)' : 'none'
@@ -721,10 +733,10 @@ export const DetailView: React.FC<DetailViewProps> = ({
         </div>
       </div>
 
-      {/* Audio Player Card */}
-      <div className="bg-white/90 dark:bg-slate-900/90 rounded-3xl p-4 sm:p-5 border border-rose-100/70 dark:border-slate-800 shadow-md space-y-3">
+      {/* Audio Player Card - Requirement 4 (v2.8): 播放器高度、上下行距更緊密，倍速字體縮小 */}
+      <div className="bg-white/90 dark:bg-slate-900/90 rounded-3xl p-3 sm:p-4 border border-rose-100/70 dark:border-slate-800 shadow-md space-y-2">
         {/* Progress Bar & Time */}
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <input
             type="range"
             min={0}
@@ -732,7 +744,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
             step={0.5}
             value={currentTime}
             onChange={e => onSeek(Number(e.target.value))}
-            className="audio-scrubber w-full h-1.5"
+            className="audio-scrubber w-full h-1.5 cursor-pointer"
           />
           <div className="flex justify-between items-center text-xs font-mono text-slate-500 dark:text-slate-400 px-0.5">
             <span>{formatTime(currentTime)} / {formatTime(safeDuration)}</span>
@@ -742,29 +754,29 @@ export const DetailView: React.FC<DetailViewProps> = ({
           </div>
         </div>
 
-        {/* Controls: Requirement 5.12: 刪除30秒按鈕，放大10秒符號 */}
-        <div className="flex items-center justify-center gap-6 sm:gap-8 py-1.5">
+        {/* Controls: 倒退10秒、播放/暫停、快轉10秒 (緊湊高度) */}
+        <div className="flex items-center justify-center gap-5 sm:gap-7 py-0.5">
           <button
             type="button"
             onClick={() => onSkip(-10)}
             title="倒退 10 秒"
-            className="w-12 h-12 rounded-full flex flex-col items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 transition-all border border-slate-200/80 dark:border-slate-700 shadow-2xs cursor-pointer group"
+            className="w-10 h-10 rounded-full flex flex-col items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 transition-all border border-slate-200/80 dark:border-slate-700 shadow-2xs cursor-pointer group"
           >
-            <RotateCcw className="w-5 h-5 text-slate-700 dark:text-slate-200 group-hover:scale-110 transition-transform" />
-            <span className="text-[9px] font-black -mt-0.5 font-mono">10</span>
+            <RotateCcw className="w-4.5 h-4.5 text-slate-700 dark:text-slate-200 group-hover:scale-110 transition-transform" />
+            <span className="text-[8px] font-black -mt-0.5 font-mono">10</span>
           </button>
 
           <button
             type="button"
             onClick={handlePlayClick}
             title={isPlaying ? '暫停' : '播放'}
-            className="w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center text-white shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer"
+            className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer"
             style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
           >
             {isPlaying ? (
-              <Pause className="w-7 h-7 fill-white text-white" />
+              <Pause className="w-6 h-6 fill-white text-white" />
             ) : (
-              <Play className="w-7 h-7 fill-white text-white ml-0.5" />
+              <Play className="w-6 h-6 fill-white text-white ml-0.5" />
             )}
           </button>
 
@@ -772,20 +784,20 @@ export const DetailView: React.FC<DetailViewProps> = ({
             type="button"
             onClick={() => onSkip(10)}
             title="快轉 10 秒"
-            className="w-12 h-12 rounded-full flex flex-col items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 transition-all border border-slate-200/80 dark:border-slate-700 shadow-2xs cursor-pointer group"
+            className="w-10 h-10 rounded-full flex flex-col items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 transition-all border border-slate-200/80 dark:border-slate-700 shadow-2xs cursor-pointer group"
           >
-            <RotateCw className="w-5 h-5 text-slate-700 dark:text-slate-200 group-hover:scale-110 transition-transform" />
-            <span className="text-[9px] font-black -mt-0.5 font-mono">10</span>
+            <RotateCw className="w-4.5 h-4.5 text-slate-700 dark:text-slate-200 group-hover:scale-110 transition-transform" />
+            <span className="text-[8px] font-black -mt-0.5 font-mono">10</span>
           </button>
         </div>
 
-        {/* Speed Control Row (0.7x ~ 2.0x) */}
-        <div className="flex items-center justify-center gap-1.5 pt-1">
+        {/* Speed Control Row (0.7x ~ 2.0x) - Requirement 4 (v2.8): 倍速調整字體縮小 */}
+        <div className="flex items-center justify-center gap-1 pt-0">
           {[0.7, 1.0, 1.25, 1.5, 2.0].map(rate => (
             <button
               key={rate}
               onClick={() => onChangeSpeed(rate)}
-              className={`px-2.5 py-1 rounded-xl text-xs font-mono font-semibold transition-all ${
+              className={`px-1.5 py-0.5 rounded-md text-[9px] font-mono font-medium transition-all cursor-pointer ${
                 playbackRate === rate
                   ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 shadow-2xs font-bold'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -900,12 +912,18 @@ export const DetailView: React.FC<DetailViewProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => onOpenBwExport('rated')}
-          className="px-3.5 py-2 rounded-xl text-xs font-bold text-white shadow-2xs hover:brightness-105 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+          onClick={handleExportCard}
+          disabled={isExportingCard}
+          className="px-3.5 py-2 rounded-xl text-xs font-bold text-white shadow-2xs hover:brightness-105 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
           style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+          title="匯出此音檔演講完整知識圖卡"
         >
-          <FileText className="w-3.5 h-3.5" />
-          <span>匯出圖卡</span>
+          {isExportingCard ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <FileText className="w-3.5 h-3.5" />
+          )}
+          <span>{isExportingCard ? '匯出中...' : '匯出圖卡'}</span>
         </button>
       </div>
 

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, ChevronDown, Check, X, ShieldAlert, UploadCloud, Mic, ArrowDown, ArrowUp } from 'lucide-react';
+import { Search, ChevronDown, Check, X, ShieldAlert, UploadCloud, Mic, ArrowDown, ArrowUp, Hash } from 'lucide-react';
 import {
   Track,
   Comment,
@@ -274,6 +274,61 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Requirement 6 (v2.8): 多組網友關鍵字交叉複合搜尋 (Selected Keywords Chips)
+  const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
+  const [showKeywordsDrawer, setShowKeywordsDrawer] = useState(false);
+
+  // Collect all unique keywords across all tracks
+  const allAvailableKeywords = useMemo(() => {
+    const kwSet = new Set<string>();
+    tracks.forEach(t => {
+      (t.keywords || []).forEach((k: string) => { if (k && k.trim()) kwSet.add(k.trim()); });
+      (t.tags || []).forEach((k: string) => { if (k && k.trim()) kwSet.add(k.trim()); });
+    });
+    return Array.from(kwSet).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+  }, [tracks]);
+
+  // Requirement 7 (v2.8): 字體縮放控制 (針對 1272x2800 等超高解析度手機支援放大3倍)
+  const [fontScale, setFontScale] = useState<'1x' | '1.5x' | '2x' | '3x'>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('sq_font_scale');
+      if (stored === '1x' || stored === '1.5x' || stored === '2x' || stored === '3x') {
+        return stored;
+      }
+    }
+    return '1x';
+  });
+
+  const handleToggleFontScale = () => {
+    setFontScale(prev => {
+      let next: '1x' | '1.5x' | '2x' | '3x' = '1x';
+      if (prev === '1x') next = '1.5x';
+      else if (prev === '1.5x') next = '2x';
+      else if (prev === '2x') next = '3x';
+      else next = '1x';
+      localStorage.setItem('sq_font_scale', next);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const root = document.documentElement;
+    // Requirement 7 (v2.8): 針對 1272x2800 等旗艦手機支援放大 3 倍
+    if (fontScale === '3x') {
+      root.style.fontSize = '48px'; // 16px * 3 = 48px (三倍放大)
+      root.style.setProperty('--font-scale-multiplier', '3');
+    } else if (fontScale === '2x') {
+      root.style.fontSize = '32px'; // 16px * 2 = 32px (雙倍放大)
+      root.style.setProperty('--font-scale-multiplier', '2');
+    } else if (fontScale === '1.5x') {
+      root.style.fontSize = '24px'; // 16px * 1.5 = 24px (1.5倍)
+      root.style.setProperty('--font-scale-multiplier', '1.5');
+    } else {
+      root.style.fontSize = '';
+      root.style.setProperty('--font-scale-multiplier', '1');
+    }
+  }, [fontScale]);
 
   // Requirement 8: 自動顯示相關的關鍵詞（包括：分類標籤、網友關鍵字、音檔詳細資料）
   const searchSuggestions = useMemo(() => {
@@ -652,6 +707,46 @@ export default function App() {
   const handleRateTrack = async (trackId: string, score: number) => {
     const idKey = currentUser ? currentUser.email : visitor.deviceId;
 
+    // 1. Optimistic instant local update
+    const updateTrackRating = (t: Track, newRating: number, newCount: number) => {
+      const nextRatings = { ...t.ratings };
+      if (score === 0) {
+        delete nextRatings[idKey];
+        if (currentUser) {
+          delete nextRatings[currentUser.email];
+          delete nextRatings[currentUser.id];
+        }
+        delete nextRatings[visitor.deviceId];
+        delete nextRatings['u-admin'];
+      } else {
+        if (currentUser) {
+          delete nextRatings[currentUser.id];
+          delete nextRatings['u-admin'];
+        }
+        nextRatings[idKey] = score;
+      }
+      return {
+        ...t,
+        rating: newRating,
+        ratingCount: newCount,
+        ratings: nextRatings
+      };
+    };
+
+    setTracks(prev => prev.map(t => {
+      if (t.id !== trackId) return t;
+      const hadRating = Boolean(t.ratings && (t.ratings[idKey] || (currentUser && t.ratings[currentUser.email])));
+      const newCount = score === 0 ? Math.max(1, (t.ratingCount || 1) - (hadRating ? 1 : 0)) : ((t.ratingCount || 0) + (hadRating ? 0 : 1));
+      return updateTrackRating(t, score > 0 ? score : t.rating, newCount);
+    }));
+
+    if (currentTrack?.id === trackId) {
+      setCurrentTrack(prev => prev ? updateTrackRating(prev, score > 0 ? score : prev.rating, prev.ratingCount || 1) : null);
+    }
+    if (selectedDetailTrack?.id === trackId) {
+      setSelectedDetailTrack(prev => prev ? updateTrackRating(prev, score > 0 ? score : prev.rating, prev.ratingCount || 1) : null);
+    }
+
     try {
       const res = await fetch(`/api/tracks/${trackId}/rate`, {
         method: 'POST',
@@ -667,59 +762,12 @@ export default function App() {
 
       if (res.ok) {
         const data = await res.json();
-        setTracks(prev =>
-          prev.map(t => {
-            if (t.id !== trackId) return t;
-            const nextRatings = { ...t.ratings };
-            if (score === 0 || data.canceled) {
-              delete nextRatings[idKey];
-              if (currentUser) {
-                delete nextRatings[currentUser.email];
-                delete nextRatings[currentUser.id];
-              }
-              delete nextRatings[visitor.deviceId];
-              delete nextRatings['u-admin'];
-            } else {
-              if (currentUser) {
-                delete nextRatings[currentUser.id];
-                delete nextRatings['u-admin'];
-              }
-              nextRatings[idKey] = score;
-            }
-            return {
-              ...t,
-              rating: data.rating,
-              ratingCount: data.ratingCount,
-              ratings: nextRatings
-            };
-          })
-        );
+        setTracks(prev => prev.map(t => t.id === trackId ? updateTrackRating(t, data.rating, data.ratingCount) : t));
         if (currentTrack?.id === trackId) {
-          setCurrentTrack(prev => {
-            if (!prev) return null;
-            const nextRatings = { ...prev.ratings };
-            if (score === 0 || data.canceled) {
-              delete nextRatings[idKey];
-              if (currentUser) {
-                delete nextRatings[currentUser.email];
-                delete nextRatings[currentUser.id];
-              }
-              delete nextRatings[visitor.deviceId];
-              delete nextRatings['u-admin'];
-            } else {
-              if (currentUser) {
-                delete nextRatings[currentUser.id];
-                delete nextRatings['u-admin'];
-              }
-              nextRatings[idKey] = score;
-            }
-            return {
-              ...prev,
-              rating: data.rating,
-              ratingCount: data.ratingCount,
-              ratings: nextRatings
-            };
-          });
+          setCurrentTrack(prev => prev ? updateTrackRating(prev, data.rating, data.ratingCount) : null);
+        }
+        if (selectedDetailTrack?.id === trackId) {
+          setSelectedDetailTrack(prev => prev ? updateTrackRating(prev, data.rating, data.ratingCount) : null);
         }
       }
     } catch (err) {
@@ -1144,7 +1192,7 @@ export default function App() {
     }
   };
 
-  // Filtered & Sorted Tracks List (Requirement 18 & 19)
+  // Filtered & Sorted Tracks List (Requirement 18 & 19 & Requirement 6: 多組網友關鍵字交叉複合搜尋)
   const filteredTracks = useMemo(() => {
     const trackList = Array.isArray(tracks) ? tracks : [];
     return trackList
@@ -1154,6 +1202,23 @@ export default function App() {
           const matchMultiple = t.categories && t.categories.includes(selectedCategory);
           if (!matchPrimary && !matchMultiple) return false;
         }
+
+        // Multi-keyword intersection cross-search (Requirement 6)
+        if (selectedKeywords.length > 0) {
+          const allKeywords = [...(t.keywords || []), ...(t.tags || [])].map(k => k.toLowerCase().trim());
+          const matchesAll = selectedKeywords.every(sk => {
+            const clean = sk.toLowerCase().trim();
+            return (
+              allKeywords.some(k => k.includes(clean)) ||
+              t.title.toLowerCase().includes(clean) ||
+              (t.speaker || '').toLowerCase().includes(clean) ||
+              (t.description || '').toLowerCase().includes(clean) ||
+              (t.series || '').toLowerCase().includes(clean)
+            );
+          });
+          if (!matchesAll) return false;
+        }
+
         if (searchQuery.trim()) {
           const tokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
           const allKeywords = [...(t.keywords || []), ...(t.tags || [])].map(k => k.toLowerCase());
@@ -1202,7 +1267,7 @@ export default function App() {
         }
         return sortDirection === 'desc' ? -diff : diff;
       });
-  }, [tracks, selectedCategory, searchQuery, sortField, sortDirection]);
+  }, [tracks, selectedCategory, selectedKeywords, searchQuery, sortField, sortDirection]);
 
   // Rated tracks by current user for BW export
   const userRatedTracks = useMemo(() => {
@@ -1285,6 +1350,8 @@ export default function App() {
         isAdmin={isAdmin}
         canUpload={canUpload}
         pendingNotificationsCount={pendingNotificationsCount}
+        fontScale={fontScale}
+        onToggleFontScale={handleToggleFontScale}
       />
 
       {/* Permission Alert Toast */}
@@ -1514,19 +1581,27 @@ export default function App() {
                           <span>網友關鍵字</span>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
-                          {searchSuggestions.keywords.map(kw => (
-                            <button
-                              key={`kw-${kw}`}
-                              type="button"
-                              onClick={() => {
-                                setSearchQuery(kw);
-                                setIsSearchFocused(false);
-                              }}
-                              className="px-2.5 py-1 rounded-xl text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                            >
-                              🔍 {kw}
-                            </button>
-                          ))}
+                          {searchSuggestions.keywords.map(kw => {
+                            const isSelected = selectedKeywords.includes(kw);
+                            return (
+                              <button
+                                key={`kw-${kw}`}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedKeywords(prev => isSelected ? prev.filter(k => k !== kw) : [...prev, kw]);
+                                  setIsSearchFocused(false);
+                                }}
+                                className={`px-2.5 py-1 rounded-xl text-xs font-medium transition-colors cursor-pointer flex items-center gap-1 ${
+                                  isSelected
+                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300 font-bold'
+                                    : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-slate-700'
+                                }`}
+                              >
+                                <span>🔍 {kw}</span>
+                                {isSelected && <span className="text-[10px] text-amber-600 font-bold">✓</span>}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -1545,6 +1620,105 @@ export default function App() {
                 <Search className="w-4 h-4" />
                 <span>搜尋</span>
               </button>
+            </div>
+
+            {/* Requirement 6 (v2.8): 多組網友關鍵字交叉複合搜尋 (Selected Keywords Chips & Tag Drawer) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2 px-1">
+                <button
+                  type="button"
+                  onClick={() => setShowKeywordsDrawer(prev => !prev)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 transition-colors cursor-pointer"
+                >
+                  <Hash className="w-3.5 h-3.5 text-amber-500" />
+                  <span>網友關鍵字交叉篩選</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-900/60 font-mono">
+                    {selectedKeywords.length > 0 ? `已選 ${selectedKeywords.length} 組` : `${allAvailableKeywords.length}組可選`}
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    {showKeywordsDrawer ? '▲ 收起' : '▼ 點擊展開標籤庫'}
+                  </span>
+                </button>
+
+                {selectedKeywords.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedKeywords([])}
+                    className="text-[11px] text-slate-400 hover:text-rose-500 underline cursor-pointer"
+                  >
+                    一鍵清除篩選 ({selectedKeywords.length})
+                  </button>
+                )}
+              </div>
+
+              {/* Expandable Keywords Tag Cloud Drawer for Multi-selection */}
+              {showKeywordsDrawer && (
+                <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-slate-800/80 border border-amber-200/70 dark:border-slate-700 animate-in fade-in space-y-2">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>點選多組標籤可進行「交叉交集」篩選（音檔須同時符合所有勾選標籤）：</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowKeywordsDrawer(false)}
+                      className="text-slate-400 hover:text-slate-600 text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+                    {allAvailableKeywords.length === 0 ? (
+                      <span className="text-xs text-slate-400 italic">尚無網友關鍵字</span>
+                    ) : (
+                      allAvailableKeywords.map(kw => {
+                        const isSelected = selectedKeywords.includes(kw);
+                        return (
+                          <button
+                            key={`drawer-kw-${kw}`}
+                            type="button"
+                            onClick={() => {
+                              setSelectedKeywords(prev =>
+                                isSelected ? prev.filter(k => k !== kw) : [...prev, kw]
+                              );
+                            }}
+                            className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
+                              isSelected
+                                ? 'bg-amber-600 text-white shadow-2xs font-bold ring-2 ring-amber-400/50'
+                                : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-amber-300'
+                            }`}
+                          >
+                            <span>#{kw}</span>
+                            {isSelected && <span className="text-[10px] font-bold">✓</span>}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Keyword Chips Indicator */}
+              {selectedKeywords.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 px-1 py-0.5">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
+                    <span>🎯 交集比對中：</span>
+                  </span>
+                  {selectedKeywords.map(kw => (
+                    <span
+                      key={kw}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700 shadow-2xs"
+                    >
+                      <span>💬 {kw}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedKeywords(prev => prev.filter(k => k !== kw))}
+                        className="hover:text-red-500 p-0.5 cursor-pointer"
+                        title="移除此關鍵字"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
@@ -1858,29 +2032,46 @@ export default function App() {
         />
       )}
 
-      {/* Black & White Minimalist Canvas Share Modal */}
-      {currentUser && (
-        <BwExportModal
-          isOpen={isBwExportOpen}
-          onClose={() => setIsBwExportOpen(false)}
-          mode={bwExportMode}
-          currentTrack={currentTrack || undefined}
-          comments={comments}
-          ratedTracks={userRatedTracks}
-          currentUser={currentUser}
-        />
-      )}
+      {/* Black & White Minimalist Canvas Share Modal - Requirement 4: 支援訪客與會員匯出圖卡 */}
+      <BwExportModal
+        isOpen={isBwExportOpen}
+        onClose={() => setIsBwExportOpen(false)}
+        mode={bwExportMode}
+        currentTrack={currentTrack || selectedDetailTrack || undefined}
+        comments={comments}
+        ratedTracks={userRatedTracks}
+        currentUser={currentUser || {
+          id: 'guest',
+          name: visitor.fullName || '學習夥伴',
+          email: '',
+          rank: '一般夥伴',
+          avatar: visitor.emoji || '👤',
+          playCount: 0,
+          isBlocked: false,
+          lastActive: '剛才'
+        }}
+      />
 
-      {/* Requirement 10: 網站最底部左下角，顯示一個驚嘆號（顏色低調不要太明顯），點擊驚嘆號顯示每次改版紀錄 */}
-      <button
-        type="button"
-        onClick={() => setIsChangelogOpen(true)}
-        className="fixed bottom-2.5 left-2.5 z-40 w-6 h-6 sm:w-6.5 sm:h-6.5 rounded-full bg-slate-300/35 hover:bg-slate-400/50 dark:bg-slate-700/30 dark:hover:bg-slate-600/50 text-slate-400/80 hover:text-slate-600 dark:text-slate-500/80 dark:hover:text-slate-300 flex items-center justify-center text-xs font-mono font-bold transition-all shadow-2xs backdrop-blur-xs cursor-pointer select-none border border-slate-300/25 dark:border-slate-700/25 active:scale-95"
-        title="版本改版歷程紀錄 (v2.5)"
-        aria-label="版本改版歷程紀錄"
-      >
-        !
-      </button>
+      {/* Requirement 3 (v2.8): 首頁播放清單和音檔詳細介紹畫面這二處，網頁左下角，新增：半透明浮動的向上箭頭按鈕，按了會回到頁面的最前面 */}
+      {(currentTab === 'home' || selectedDetailTrack !== null || playerMode === 'expanded') && (
+        <button
+          type="button"
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+            document.body.scrollTo({ top: 0, behavior: 'smooth' });
+            const mainContainer = document.querySelector('main');
+            if (mainContainer) mainContainer.scrollTo({ top: 0, behavior: 'smooth' });
+            const detailContainer = document.getElementById('detail-view-container');
+            if (detailContainer) detailContainer.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          aria-label="回到頁面最前面"
+          title="回到頁面最前面"
+          className="fixed bottom-16 sm:bottom-20 left-3.5 sm:left-5 z-40 w-11 h-11 rounded-full bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 backdrop-blur-md border border-slate-200/80 dark:border-slate-700/80 shadow-xl flex items-center justify-center transition-all cursor-pointer active:scale-90 hover:scale-105 touch-manipulation"
+        >
+          <ArrowUp className="w-5 h-5 text-[var(--color-primary,#c06c84)] stroke-[2.5]" />
+        </button>
+      )}
 
       {/* Version Changelog Modal */}
       <ChangelogModal

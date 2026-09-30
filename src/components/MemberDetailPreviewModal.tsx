@@ -140,7 +140,8 @@ export const MemberDetailPreviewModal: React.FC<MemberDetailPreviewModalProps> =
 
       ctx.font = '14px sans-serif';
       ctx.fillStyle = '#222222';
-      ctx.fillText(`安麗編號：${user.amwayId || '-'}  •  手機：${user.phone || '-'}  •  居住地：${user.residence || '-'}`, padding, 175);
+      // Requirement 4 (v2.8): 匯出個人圖卡時，不顯示生日和手機（這二項是個資）
+      ctx.fillText(`安麗編號：${user.amwayId || '-'}  •  居住地：${user.residence || '-'}`, padding, 175);
       ctx.fillText(`寰宇中心：${user.center || '-'}  •  上手白金：${user.platinumUpline || '-'}  •  上手鑽石：${user.diamondUpline || '-'}`, padding, 202);
       ctx.fillText(`初次認識：${user.joinReason || '-'}  •  留在安麗：${(user as any).stayReason || '-'}  •  命數：${user.lifeNumber || '-'}`, padding, 229);
 

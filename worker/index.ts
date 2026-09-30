@@ -462,6 +462,88 @@ export default {
           return jsonResponse({ success: true, track: newTrack });
         }
 
+        // 5.3.1 音檔評分 (POST /api/tracks/:id/rate)
+        if (path.match(/^\/api\/tracks\/[^/]+\/rate$/) && method === 'POST') {
+          const trackId = path.split('/')[3];
+          const body: any = await request.json().catch(() => ({}));
+          const { identifier, score } = body;
+
+          let rating = score || 5.0;
+          let ratingCount = 1;
+
+          if (env.DB && trackId) {
+            try {
+              const { results } = await env.DB.prepare('SELECT ratings, rating, ratingCount FROM tracks WHERE id = ?').bind(trackId).all();
+              if (results && results.length > 0) {
+                const row = results[0];
+                let ratingsMap: Record<string, number> = {};
+                try {
+                  ratingsMap = row.ratings ? JSON.parse(row.ratings) : {};
+                } catch {}
+
+                if (score === 0) {
+                  delete ratingsMap[identifier];
+                } else if (identifier) {
+                  ratingsMap[identifier] = score;
+                }
+
+                const scores = Object.values(ratingsMap);
+                ratingCount = scores.length > 0 ? scores.length : 1;
+                rating = scores.length > 0 
+                  ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+                  : (score > 0 ? score : 5.0);
+
+                await env.DB.prepare('UPDATE tracks SET rating = ?, ratingCount = ?, ratings = ? WHERE id = ?')
+                  .bind(rating, ratingCount, JSON.stringify(ratingsMap), trackId)
+                  .run();
+              }
+            } catch (e) {
+              console.error('D1 rate track error:', e);
+            }
+          }
+          return jsonResponse({ success: true, rating, ratingCount, canceled: score === 0 });
+        }
+
+        // 5.3.2 音檔按讚 (POST /api/tracks/:id/like)
+        if (path.match(/^\/api\/tracks\/[^/]+\/like$/) && method === 'POST') {
+          const trackId = path.split('/')[3];
+          const body: any = await request.json().catch(() => ({}));
+          const { identifier } = body;
+
+          let likes = 0;
+          let liked = false;
+
+          if (env.DB && trackId) {
+            try {
+              const { results } = await env.DB.prepare('SELECT likes, likedBy FROM tracks WHERE id = ?').bind(trackId).all();
+              if (results && results.length > 0) {
+                const row = results[0];
+                let likedBy: string[] = [];
+                try {
+                  likedBy = row.likedBy ? JSON.parse(row.likedBy) : [];
+                } catch {}
+
+                if (likedBy.includes(identifier)) {
+                  likedBy = likedBy.filter(x => x !== identifier);
+                  likes = Math.max(0, (row.likes || 1) - 1);
+                  liked = false;
+                } else {
+                  likedBy.push(identifier);
+                  likes = (row.likes || 0) + 1;
+                  liked = true;
+                }
+
+                await env.DB.prepare('UPDATE tracks SET likes = ?, likedBy = ? WHERE id = ?')
+                  .bind(likes, JSON.stringify(likedBy), trackId)
+                  .run();
+              }
+            } catch (e) {
+              console.error('D1 like track error:', e);
+            }
+          }
+          return jsonResponse({ success: true, likes, liked });
+        }
+
         if (method === 'DELETE') {
           const trackId = path.split('/api/tracks/')[1];
           if (env.DB && trackId) {
@@ -525,7 +607,7 @@ export default {
       }
 
       // 5.6 留言清單 (/api/comments)
-      if (path === '/api/comments') {
+      if (path === '/api/comments' || path.match(/^\/api\/tracks\/[^/]+\/comments$/)) {
         if (method === 'GET') {
           if (env.DB) {
             try {
@@ -602,10 +684,10 @@ export default {
           }
           return jsonResponse([
             {
-              version: 'v2.5',
+              version: 'v2.8',
               date: '2026/10/01',
-              title: 'Cloudflare D1 + R2 + KV 邊緣雲端全面整合上線',
-              description: '支援全球邊緣無伺服器架構，會員名冊、音訊直傳、收聽進度永久雲端儲存。',
+              title: 'v2.8 功能修正與全面體驗升級',
+              description: 'Cloudflare 邊緣雲端全面整合、音檔詳細頁全方位體驗升級（匯出圖卡、五星評價緊湊響應、留言圖示化）、小螢幕關閉防遮擋與訪客去暱稱化、播放器緊湊化、個人圖卡去生日電話、多組網友關鍵字交叉複合搜尋、首頁與詳細頁左下角浮動回頂按鈕，以及高解析度手機字體 3 倍放大適配。',
               author: '杜杜龍 (超級管理員)'
             }
           ]);

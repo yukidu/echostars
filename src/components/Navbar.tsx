@@ -17,6 +17,8 @@ interface NavbarProps {
   canUpload?: boolean;
   pendingNotificationsCount?: number;
   visitor?: VisitorIdentity;
+  fontScale?: '1x' | '1.5x' | '2x' | '3x';
+  onToggleFontScale?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -29,7 +31,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   isAdmin,
   canUpload = true,
   pendingNotificationsCount = 0,
-  visitor
+  visitor,
+  fontScale = '1x',
+  onToggleFontScale
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -238,6 +242,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
+          {/* Requirement 7: 字體縮放器 (1x / 1.5x / 2x / 3x) */}
+          {onToggleFontScale && (
+            <button
+              type="button"
+              onClick={onToggleFontScale}
+              title={`切換字體放大 (目前: ${fontScale}，支援最大 3 倍放大)`}
+              className="px-2 py-1 rounded-xl text-xs font-bold border border-slate-200/80 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-700 transition-all flex items-center gap-1 cursor-pointer select-none active:scale-95"
+            >
+              <span className="text-[10px] text-slate-400 font-mono">字體</span>
+              <span className="font-extrabold text-[var(--color-primary,#c06c84)]">{fontScale}</span>
+            </button>
+          )}
+
           {/* Divider */}
           <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
 
@@ -303,6 +320,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {pendingNotificationsCount}
                 </span>
               )}
+            </button>
+          )}
+
+          {/* Requirement 7: 手機版字體縮放按鈕 */}
+          {onToggleFontScale && (
+            <button
+              type="button"
+              onClick={onToggleFontScale}
+              className="px-1.5 py-0.5 rounded-lg text-[10px] font-bold border border-slate-200/80 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-0.5 active:scale-95 transition-all select-none"
+              title={`切換字體放大 (目前: ${fontScale}，支援最大 3 倍放大)`}
+            >
+              <span className="text-[8px] text-slate-400 font-mono">字</span>
+              <span className="font-extrabold text-[var(--color-primary,#c06c84)]">{fontScale}</span>
             </button>
           )}
 
