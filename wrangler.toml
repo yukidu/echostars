@@ -1,0 +1,29 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "echoes-of-stars"
+main = "worker/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# 靜態前端資源 (Vite build 產出之 dist 目錄)
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+# 1. Cloudflare D1 資料庫 (SQLite)
+[[d1_databases]]
+binding = "DB"
+database_name = "echoes_db"
+database_id = "your-d1-database-id-here"
+
+# 2. Cloudflare R2 物件儲存桶 (音檔與圖檔直傳)
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "echoes-audio-bucket"
+
+# 3. Cloudflare KV 快取與連線狀態儲存庫
+[[kv_namespaces]]
+binding = "KV"
+id = "your-kv-namespace-id-here"
+
+[vars]
+ENVIRONMENT = "production"

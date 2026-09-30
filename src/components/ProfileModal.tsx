@@ -1,0 +1,1253 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  User,
+  Star,
+  MessageSquare,
+  Headphones,
+  CheckCircle2,
+  Edit2,
+  Check,
+  X,
+  LogIn,
+  LogOut,
+  Shield,
+  Clock,
+  Sparkles,
+  Award,
+  MapPin,
+  Building,
+  Heart,
+  Calendar,
+  Camera,
+  Loader2,
+  Share2,
+  Search,
+  Download,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react';
+import {
+  UserProfile,
+  Track,
+  Comment,
+  CategoryType,
+  RESIDENCE_OPTIONS,
+  CENTER_OPTIONS,
+  RANK_ORDER,
+  JOIN_REASONS,
+  AmwayRank,
+  JoinReason,
+  STAY_REASONS,
+  StayReason,
+  UserListeningRecord
+} from '../types';
+import { calculateNumerology } from '../utils/numerology';
+import { exportPersonalProfileCard, shareOrDownloadProfileCard } from '../utils/canvasExport';
+import { NumerologyGrid } from './NumerologyGrid';
+import { AvatarCropModal } from './AvatarCropModal';
+
+interface ProfileModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  currentUser: UserProfile | null;
+  tracks: Track[];
+  comments: Comment[];
+  onLoginWithGoogle: (email?: string, name?: string) => void;
+  onLogout: () => void;
+  onUpdateProfile: (updatedData: Partial<UserProfile>) => void;
+  onSelectTrack: (track: Track) => void;
+  onSelectCategory?: (category: CategoryType) => void;
+  onRateTrack?: (trackId: string, rating: number) => void;
+  allUsers?: UserProfile[];
+}
+
+export const ProfileModal: React.FC<ProfileModalProps> = ({
+  isOpen,
+  onClose,
+  currentUser,
+  tracks,
+  comments,
+  onLoginWithGoogle,
+  onLogout,
+  onUpdateProfile,
+  onSelectTrack,
+  onSelectCategory,
+  onRateTrack,
+  allUsers = []
+}) => {
+  const [activeTab, setActiveTab] = useState<'profile' | 'ratings' | 'comments' | 'listening'>('profile');
+  const [listeningRecords, setListeningRecords] = useState<Record<string, UserListeningRecord>>({});
+  const [isLoadingRecords, setIsLoadingRecords] = useState(false);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const handleScrollTabs = (direction: 'left' | 'right') => {
+    if (tabsContainerRef.current) {
+      tabsContainerRef.current.scrollBy({
+        left: direction === 'left' ? -120 : 120,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || !currentUser) return;
+    setIsLoadingRecords(true);
+    const idParam = currentUser.email || currentUser.id;
+    fetch(`/api/playback/history/${encodeURIComponent(idParam)}`)
+      .then(res => res.json())
+      .then(data => {
+        setListeningRecords(data || {});
+        setIsLoadingRecords(false);
+      })
+      .catch(() => {
+        setIsLoadingRecords(false);
+      });
+  }, [isOpen, currentUser]);
+
+  // Edit profile states for all fields
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState(currentUser?.name || '');
+  const [amwayId, setAmwayId] = useState(currentUser?.amwayId || '');
+  const [phone, setPhone] = useState(currentUser?.phone || '');
+  const [residence, setResidence] = useState(currentUser?.residence || '臺北');
+  const [center, setCenter] = useState(currentUser?.center || '無');
+  const [rank, setRank] = useState<AmwayRank>(currentUser?.rank || '無');
+  const [joinReason, setJoinReason] = useState<JoinReason>(currentUser?.joinReason || '事業');
+  const [stayReason, setStayReason] = useState<StayReason | string>(currentUser?.stayReason || '打造自己的事業與團隊');
+  const [sponsor, setSponsor] = useState(currentUser?.sponsor || '');
+  const [platinumUpline, setPlatinumUpline] = useState(currentUser?.platinumUpline || '');
+  const [diamondUpline, setDiamondUpline] = useState(currentUser?.diamondUpline || '');
+  const [birthday, setBirthday] = useState(currentUser?.birthday || '1990-01-01');
+  const [avatar, setAvatar] = useState(currentUser?.avatar || '');
+
+  // Avatar Crop Modal state
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+
+  // Item 5: Export Personal Card state
+  const [isExportingCard, setIsExportingCard] = useState(false);
+
+  // Requirement 12 (v2.7): 標準 Google 授權認證登入流程
+  const handleGoogleSignIn = () => {
+    // 1. Google Identity Services (GIS) Token / Prompt flow
+    if (typeof window !== 'undefined' && (window as any).google?.accounts?.oauth2) {
+      try {
+        const client = (window as any).google.accounts.oauth2.initTokenClient({
+          client_id: '1023793086940-default.apps.googleusercontent.com',
+          scope: 'email profile openid',
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse && tokenResponse.access_token) {
+              try {
+                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+                });
+                const userInfo = await res.json();
+                if (userInfo.email) {
+                  onLoginWithGoogle(userInfo.email, userInfo.name || userInfo.email.split('@')[0]);
+                }
+              } catch (err) {
+                console.error('Failed to fetch Google userinfo:', err);
+              }
+            }
+          }
+        });
+        client.requestAccessToken();
+        return;
+      } catch (err) {
+        console.warn('Google oauth2 client init error, trying id prompt:', err);
+      }
+    }
+
+    if (typeof window !== 'undefined' && (window as any).google?.accounts?.id) {
+      const google = (window as any).google;
+      try {
+        google.id.initialize({
+          client_id: '1023793086940-default.apps.googleusercontent.com',
+          callback: (response: any) => {
+            if (response.credential) {
+              try {
+                const base64Url = response.credential.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(
+                  atob(base64)
+                    .split('')
+                    .map((c: string) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                    .join('')
+                );
+                const payload = JSON.parse(jsonPayload);
+                if (payload.email) {
+                  onLoginWithGoogle(payload.email, payload.name || payload.email.split('@')[0]);
+                }
+              } catch (e) {
+                console.error('Failed to parse Google JWT:', e);
+              }
+            }
+          },
+          auto_select: false
+        });
+        google.id.prompt();
+        return;
+      } catch (e) {
+        console.warn('Google id prompt error:', e);
+      }
+    }
+
+    // Fallback: Standard Google OAuth popup
+    const oauthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=1023793086940-default.apps.googleusercontent.com&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token&scope=email%20profile%20openid`;
+    const popup = window.open(oauthUrl, 'GoogleSignIn', 'width=500,height=600');
+    if (!popup) {
+      alert('請允許開啟快顯視窗以進行 Google 帳號認證授權登入');
+    }
+  };
+
+  // Item 4: Autocomplete suggestions for sponsor, platinumUpline, diamondUpline
+  const [activeSuggestField, setActiveSuggestField] = useState<'sponsor' | 'platinum' | 'diamond' | null>(null);
+
+  const sponsorSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    allUsers.forEach(u => {
+      if (u.name) set.add(u.name);
+      if (u.sponsor) set.add(u.sponsor);
+    });
+    return Array.from(set).filter(n => n.toLowerCase().includes((sponsor || '').toLowerCase()));
+  }, [allUsers, sponsor]);
+
+  const platinumSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    allUsers.forEach(u => {
+      if (u.rank && (u.rank.includes('白金') || u.rank.includes('翡翠') || u.rank.includes('鑽石') || u.rank.includes('皇冠') || u.rank.includes('大使'))) {
+        set.add(u.name);
+      }
+      if (u.platinumUpline) set.add(u.platinumUpline);
+    });
+    ['陳白金', '黃白金', '張白金', '李白金'].forEach(p => set.add(p));
+    return Array.from(set).filter(n => n.toLowerCase().includes((platinumUpline || '').toLowerCase()));
+  }, [allUsers, platinumUpline]);
+
+  const diamondSuggestions = useMemo(() => {
+    const set = new Set<string>();
+    allUsers.forEach(u => {
+      if (u.rank && (u.rank.includes('鑽石') || u.rank.includes('皇冠') || u.rank.includes('大使'))) {
+        set.add(u.name);
+      }
+      if (u.diamondUpline) set.add(u.diamondUpline);
+    });
+    ['杜鑽石', '許雙鑽石', '李三鑽石'].forEach(d => set.add(d));
+    return Array.from(set).filter(n => n.toLowerCase().includes((diamondUpline || '').toLowerCase()));
+  }, [allUsers, diamondUpline]);
+
+  const handleExportCard = async () => {
+    if (!currentUser || isExportingCard) return;
+    setIsExportingCard(true);
+    try {
+      const blob = await exportPersonalProfileCard(currentUser);
+      await shareOrDownloadProfileCard(blob, currentUser.name);
+    } catch (err) {
+      console.error('Failed to export personal profile card:', err);
+    } finally {
+      setIsExportingCard(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const currentMonth = new Date().toISOString().substring(0, 7);
+  const currentUploadCount = (currentUser?.avatarUploadMonth === currentMonth)
+    ? (currentUser.avatarUploadCount || 0)
+    : 0;
+
+  // Requirement 1: 跟頭像一樣每月只能最多修改 5 次
+  const currentProfileEditCount = (currentUser?.profileEditMonth === currentMonth)
+    ? (currentUser.profileEditCount || 0)
+    : 0;
+
+  const numResult = calculateNumerology(birthday);
+
+  const handleStartEdit = () => {
+    if (!currentUser) return;
+    if (currentProfileEditCount >= 5) {
+      alert('您本月基本資料修改次數已達上限 (5次)！次月將自動重設。');
+      return;
+    }
+    setName(currentUser.name || '');
+    setAmwayId(currentUser.amwayId || '');
+    setPhone(currentUser.phone || '');
+    setResidence(currentUser.residence || '臺北');
+    setCenter(currentUser.center || '無');
+    setRank(currentUser.rank || '無');
+    setJoinReason(currentUser.joinReason || '事業');
+    setStayReason(currentUser.stayReason || '打造自己的事業與團隊');
+    setSponsor(currentUser.sponsor || '');
+    setPlatinumUpline(currentUser.platinumUpline || '');
+    setDiamondUpline(currentUser.diamondUpline || '');
+    setBirthday(currentUser.birthday || '1990-01-01');
+    setAvatar(currentUser.avatar || '');
+    setIsEditing(true);
+  };
+
+  const handleSaveProfile = () => {
+    if (!name.trim()) return;
+
+    const calc = calculateNumerology(birthday);
+    const newProfileCount = currentProfileEditCount + 1;
+
+    const payload: Partial<UserProfile> = {
+      name: name.trim(),
+      amwayId: amwayId.trim(),
+      phone: phone.trim(),
+      residence,
+      center,
+      rank,
+      joinReason,
+      stayReason,
+      sponsor: sponsor.trim(),
+      platinumUpline: platinumUpline.trim(),
+      diamondUpline: diamondUpline.trim(),
+      birthday,
+      zodiac: calc?.zodiac,
+      talentNumber: calc?.talentNumber,
+      lifeNumber: calc?.lifeNumber,
+      avatar: avatar.trim() || currentUser?.avatar,
+      profileEditCount: newProfileCount,
+      profileEditMonth: currentMonth
+    };
+
+    onUpdateProfile(payload);
+    setIsEditing(false);
+  };
+
+  const handleAvatarCropped = (compressedBase64: string) => {
+    setAvatar(compressedBase64);
+    const newCount = currentUploadCount + 1;
+    onUpdateProfile({
+      avatar: compressedBase64,
+      avatarUploadCount: newCount,
+      avatarUploadMonth: currentMonth
+    });
+  };
+
+  // Find tracks rated by this user
+  const userRatedTracks = tracks.map(t => {
+    const userKeys = [currentUser?.email, currentUser?.id, 'guest'].filter(Boolean);
+    const foundScore = userKeys.map(k => t.ratings[k!]).find(s => s !== undefined && s > 0);
+    return { track: t, rating: foundScore };
+  }).filter(item => item.rating !== undefined && item.rating > 0);
+
+  const userComments = currentUser
+    ? comments.filter(c => c.authorEmail === currentUser.email)
+    : [];
+
+  const userListenedItems = (listeningRecords && typeof listeningRecords === 'object' ? Object.values(listeningRecords) : [])
+    .filter(rec => !!rec && !!rec.trackId)
+    .map(rec => {
+      const foundTrack = tracks.find(t => t.id === rec.trackId);
+      const isDeleted = !foundTrack || rec.isDeleted === true;
+      const track: Track = foundTrack || {
+        id: rec.trackId,
+        title: rec.trackTitle || '演講錄音檔',
+        speaker: rec.trackSpeaker || '寰宇講師',
+        speakerRank: rec.trackSpeakerRank || '鑽石',
+        speakerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
+        categories: ['未分類'],
+        series: '',
+        seriesOrder: '第 1 集',
+        speechDate: '',
+        description: '',
+        durationSeconds: rec.duration || 600,
+        rating: rec.rating || 0,
+        ratingCount: 0,
+        commentsCount: 0,
+        likes: 0,
+        duration: '約 10 分鐘',
+        requiredRank: '無',
+        uploadDate: '',
+        audioUrl: '',
+        uploaderEmail: '',
+        externalVideos: [],
+        externalPpts: [],
+        externalFiles: [],
+        likedBy: [],
+        ratings: {}
+      };
+      return { track, record: rec, isDeleted };
+    });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-rose-100/60 dark:border-slate-800 my-8">
+        {/* Header - Requirement 20: 統一底色與麥克風相同色 */}
+        <div
+          className="p-4 sm:p-5 flex items-center justify-between text-white"
+          style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white">
+              <User className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-base text-white">
+                {currentUser ? '個人中心' : '登入 / 綁定 Google 帳號'}
+              </h2>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {currentUser && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border border-white/25 active:scale-95"
+                title="登出目前帳號"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>登出</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 text-white/80 hover:text-white rounded-lg hover:bg-white/20"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        {!currentUser ? (
+          /* Not Logged In View - Item 6: Google 帳號登入與綁定，永不過期，不自動登出 */
+          <div className="p-6 sm:p-8 space-y-5 text-xs text-center">
+            <div className="mx-auto w-16 h-16 rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-inner mb-2">
+              <svg className="w-9 h-9" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+            </div>
+
+            <div>
+              <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-100">
+                歡迎登入 寰宇回聲
+              </h3>
+              <p className="text-slate-500 dark:text-slate-400 mt-1">
+                使用 Google 官方帳號進行授權綁定與認證登入
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              className="w-full py-3 px-5 rounded-2xl bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-700 hover:border-rose-400 dark:hover:border-rose-500 shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-3 cursor-pointer group active:scale-98"
+            >
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+              <span className="font-bold text-sm text-slate-800 dark:text-slate-100 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
+                使用 Google 帳號授權登入 / 綁定
+              </span>
+            </button>
+          </div>
+        ) : (
+          /* Logged In View */
+          <div>
+            {/* Tabs - Requirement 3: 左右二側增加 < > 左右箭頭符號，可以用點選方式將標籤向左或右移動 */}
+            <div className="flex items-center border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 px-1 pt-1.5 gap-1">
+              <button
+                type="button"
+                onClick={() => handleScrollTabs('left')}
+                className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors shrink-0 cursor-pointer"
+                title="向左移動標籤"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div
+                ref={tabsContainerRef}
+                className="flex-1 flex items-center gap-1 overflow-x-auto scrollbar-none scroll-smooth px-1 text-xs"
+              >
+                <button
+                  onClick={() => setActiveTab('profile')}
+                  className={`pb-2 px-2.5 font-bold border-b-2 shrink-0 transition-colors ${
+                    activeTab === 'profile'
+                      ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                      : 'border-transparent text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  基本資料
+                </button>
+                <button
+                  onClick={() => setActiveTab('ratings')}
+                  className={`pb-2 px-2.5 font-bold border-b-2 shrink-0 transition-colors ${
+                    activeTab === 'ratings'
+                      ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                      : 'border-transparent text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  已評價 ({userRatedTracks.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('comments')}
+                  className={`pb-2 px-2.5 font-bold border-b-2 shrink-0 transition-colors ${
+                    activeTab === 'comments'
+                      ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                      : 'border-transparent text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  我的留言 ({userComments.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('listening')}
+                  className={`pb-2 px-2.5 font-bold border-b-2 shrink-0 transition-colors flex items-center gap-1 ${
+                    activeTab === 'listening'
+                      ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                      : 'border-transparent text-slate-500 dark:text-slate-400'
+                  }`}
+                >
+                  <Headphones className="w-3.5 h-3.5" />
+                  <span>學習進度 ({userListenedItems.length})</span>
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleScrollTabs('right')}
+                className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors shrink-0 cursor-pointer"
+                title="向右移動標籤"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 max-h-[65vh] overflow-y-auto space-y-3.5 text-xs">
+              {/* TAB 1: Profile & Edit Fields */}
+              {activeTab === 'profile' && (
+                <div className="space-y-3">
+                  {!isEditing ? (
+                    <div className="space-y-3">
+                      {/* Avatar Card with Prominent Top Edit Button (Requirement 1) */}
+                      <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-3.5 border border-slate-200/60 dark:border-slate-700/60 flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="relative group shrink-0">
+                            <img
+                              src={currentUser.avatar}
+                              alt={currentUser.name}
+                              className="w-14 h-14 rounded-2xl object-cover border-2 border-white dark:border-slate-700 shadow-2xs"
+                            />
+                            {/* Fast upload trigger */}
+                            <button
+                              type="button"
+                              onClick={() => setIsCropModalOpen(true)}
+                              title="上傳並裁切大頭照 (本月限5次)"
+                              className="absolute -bottom-1 -right-1 p-1 rounded-full bg-rose-500 text-white shadow-xs hover:scale-110 transition-transform"
+                            >
+                              <Camera className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h3 className="font-bold text-base text-slate-800 dark:text-slate-100">
+                                {currentUser.name}
+                              </h3>
+                              <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300">
+                                {currentUser.rank}
+                              </span>
+                              {currentUser.isContributor && (
+                                <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                                  貢獻者
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{currentUser.email}</p>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 font-medium">
+                              安麗編號: {currentUser.amwayId || '未填寫'} • 居住: {currentUser.residence || '未填寫'} • 中心: {currentUser.center || '無'}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              本月頭像更換: {currentUploadCount} / 5 次 • 本月資料修改: {currentProfileEditCount} / 5 次
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Item 5 & Item 1: 匯出個人圖卡 與 修改按鈕 */}
+                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={handleExportCard}
+                            disabled={isExportingCard}
+                            className="px-3 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-bold text-xs flex items-center gap-1.5 shadow-2xs hover:opacity-90 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+                            title="匯出黑白緊密排版之個人圖卡並呼叫行動裝置分享選單"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>{isExportingCard ? '產生中...' : '匯出個人圖卡'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleStartEdit}
+                            disabled={currentProfileEditCount >= 5}
+                            className="px-3 py-1.5 rounded-xl text-white font-bold text-xs flex items-center gap-1.5 shadow-xs hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 transition-all cursor-pointer"
+                            style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+                            title={currentProfileEditCount >= 5 ? '本月修改已達上限 (5次)' : '修改基本資料'}
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                            <span>修改按鈕</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Profile Details Grid (Requirement 20: 出生日期、手機旁邊備註「隱私不公開」) */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">手機號碼</span>
+                            <span className="text-[9px] text-amber-600 dark:text-amber-400 font-medium">隱私不公開</span>
+                          </div>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {currentUser.phone || '未填寫'}
+                          </span>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">初次如何認識安麗？</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {currentUser.joinReason || '事業'}
+                          </span>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">什麼原因留在安麗？</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {currentUser.stayReason || '打造自己的事業與團隊'}
+                          </span>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">推薦人</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {currentUser.sponsor || '未填寫'}
+                          </span>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">上手白金 / 鑽石</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
+                            {currentUser.platinumUpline || '-'} / {currentUser.diamondUpline || '-'}
+                          </span>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                          <div className="flex items-center justify-between mb-0.5">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">西元生日</span>
+                            <span className="text-[9px] text-amber-600 dark:text-amber-400 font-medium">隱私不公開</span>
+                          </div>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {currentUser.birthday || '未填寫'}
+                          </span>
+                        </div>
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">星座 · 天賦數 · 命數</span>
+                          <span className="font-semibold text-rose-600 dark:text-rose-400 font-mono">
+                            {numResult?.zodiac} · {numResult?.talentNumber} · 命數{numResult?.lifeNumber}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Instant live 9-grid preview in tab 1 */}
+                      <div className="pt-1">
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                          九宮格生命靈數速覽
+                        </span>
+                        <NumerologyGrid birthday={currentUser.birthday || '1990-01-01'} />
+                      </div>
+                    </div>
+                  ) : (
+                    /* Edit Form with Prominent Top Save Button (Requirement 1) */
+                    <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/70 dark:border-slate-700 space-y-3">
+                      {/* Top Action Bar with 儲存按鈕 */}
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200/60 dark:border-slate-700">
+                        <div>
+                          <span className="font-bold text-slate-800 dark:text-slate-100 text-sm block">
+                            編輯個人基本資料
+                          </span>
+                          <span className="text-[10px] text-slate-500">
+                            每月限修改 5 次 (已修改 {currentProfileEditCount}/5 次)
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsEditing(false)}
+                            className="px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs hover:bg-slate-100"
+                          >
+                            取消
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveProfile}
+                            className="px-3.5 py-1 rounded-xl text-white font-bold text-xs flex items-center gap-1 shadow-xs hover:opacity-95"
+                            style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>儲存修改</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                            姓名或暱稱
+                          </label>
+                          <input
+                            type="text"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                            安麗編號
+                          </label>
+                          <input
+                            type="text"
+                            value={amwayId}
+                            onChange={e => setAmwayId(e.target.value)}
+                            placeholder="例：12345678"
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                            手機 <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal">(隱私不公開)</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={phone}
+                            onChange={e => setPhone(e.target.value)}
+                            placeholder="0912-345-678"
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                            居住地
+                          </label>
+                          <select
+                            value={residence}
+                            onChange={e => setResidence(e.target.value)}
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
+                          >
+                            {RESIDENCE_OPTIONS.map(c => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                            寰宇中心
+                          </label>
+                          <select
+                            value={center}
+                            onChange={e => setCenter(e.target.value)}
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
+                          >
+                            {CENTER_OPTIONS.map(c => (
+                              <option key={c} value={c}>
+                                {c}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                            最高獎銜 <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal">（需等人工審核）</span>
+                          </label>
+                          <select
+                            value={rank}
+                            onChange={e => setRank(e.target.value as AmwayRank)}
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
+                          >
+                            {RANK_ORDER.map(r => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                            初次如何認識安麗？
+                          </label>
+                          <select
+                            value={joinReason}
+                            onChange={e => setJoinReason(e.target.value as JoinReason)}
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
+                          >
+                            {JOIN_REASONS.map(r => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                            什麼原因留在安麗？
+                          </label>
+                          <select
+                            value={stayReason}
+                            onChange={e => setStayReason(e.target.value as StayReason)}
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
+                          >
+                            {STAY_REASONS.map(r => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* 推薦人 with Autocomplete (Item 4) */}
+                        <div className="relative">
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                            推薦人
+                          </label>
+                          <input
+                            type="text"
+                            value={sponsor}
+                            onChange={e => {
+                              setSponsor(e.target.value);
+                              setActiveSuggestField('sponsor');
+                            }}
+                            onFocus={() => setActiveSuggestField('sponsor')}
+                            placeholder="輸入或點選已有名稱..."
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
+                          />
+                          {activeSuggestField === 'sponsor' && sponsorSuggestions.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-20 max-h-36 overflow-y-auto p-1 text-xs">
+                              <div className="text-[10px] text-slate-400 px-2 py-0.5 font-bold">點選帶入推薦人：</div>
+                              {sponsorSuggestions.slice(0, 8).map((nameItem, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    setSponsor(nameItem);
+                                    setActiveSuggestField(null);
+                                  }}
+                                  className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium cursor-pointer"
+                                >
+                                  {nameItem}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 上手白金 with Autocomplete (Item 4) */}
+                        <div className="relative">
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                            上手白金 <span className="text-[10px] text-rose-600 dark:text-rose-400 font-normal">（填寫可以加速審核）</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={platinumUpline}
+                            onChange={e => {
+                              setPlatinumUpline(e.target.value);
+                              setActiveSuggestField('platinum');
+                            }}
+                            onFocus={() => setActiveSuggestField('platinum')}
+                            placeholder="輸入或點選白金領袖..."
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
+                          />
+                          {activeSuggestField === 'platinum' && platinumSuggestions.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-20 max-h-36 overflow-y-auto p-1 text-xs">
+                              <div className="text-[10px] text-slate-400 px-2 py-0.5 font-bold">點選帶入上手白金：</div>
+                              {platinumSuggestions.slice(0, 8).map((nameItem, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    setPlatinumUpline(nameItem);
+                                    setActiveSuggestField(null);
+                                  }}
+                                  className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium cursor-pointer"
+                                >
+                                  {nameItem}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 上手鑽石 with Autocomplete (Item 4) */}
+                        <div className="relative">
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
+                            上手鑽石 <span className="text-[10px] text-rose-600 dark:text-rose-400 font-normal">（填寫可以加速審核）</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={diamondUpline}
+                            onChange={e => {
+                              setDiamondUpline(e.target.value);
+                              setActiveSuggestField('diamond');
+                            }}
+                            onFocus={() => setActiveSuggestField('diamond')}
+                            placeholder="輸入或點選鑽石領袖..."
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
+                          />
+                          {activeSuggestField === 'diamond' && diamondSuggestions.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-20 max-h-36 overflow-y-auto p-1 text-xs">
+                              <div className="text-[10px] text-slate-400 px-2 py-0.5 font-bold">點選帶入上手鑽石：</div>
+                              {diamondSuggestions.slice(0, 8).map((nameItem, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => {
+                                    setDiamondUpline(nameItem);
+                                    setActiveSuggestField(null);
+                                  }}
+                                  className="w-full text-left px-2 py-1 rounded-lg hover:bg-rose-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium cursor-pointer"
+                                >
+                                  {nameItem}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Birthday (Requirement 20: 備註隱私不公開) */}
+                        <div className="sm:col-span-2 bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                          <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                            西元生日 (YYYY-MM-DD) <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal">(隱私不公開)</span>
+                            <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400 ml-2">
+                              (輸入時下方自動即時繪製九宮格，無需先按儲存)
+                            </span>
+                          </label>
+                          <input
+                            type="date"
+                            value={birthday}
+                            onChange={e => setBirthday(e.target.value)}
+                            className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 outline-hidden mb-2"
+                          />
+
+                          {/* Live calculation stats */}
+                          <div className="flex items-center gap-3 text-xs mb-2">
+                            <span className="font-bold text-slate-700 dark:text-slate-200">
+                              星座：<span className="text-rose-600 dark:text-rose-400 font-extrabold">{numResult?.zodiac || '-'}</span>
+                            </span>
+                            <span className="font-bold text-slate-700 dark:text-slate-200">
+                              天賦數：<span className="text-emerald-600 dark:text-emerald-400 font-mono font-bold">{numResult?.talentNumber || '-'}</span>
+                            </span>
+                            <span className="font-bold text-slate-700 dark:text-slate-200">
+                              命數：<span className="text-red-600 dark:text-red-400 font-mono font-bold">{numResult?.lifeNumber || '-'}</span>
+                            </span>
+                          </div>
+
+                          <NumerologyGrid birthday={birthday} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: User Rated Tracks (Requirement 2 & 3: 一致規格、五顆星視覺、隨時可修評分、分類可點擊跳轉) */}
+              {activeTab === 'ratings' && (
+                <div className="space-y-2">
+                  {userRatedTracks.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">
+                      您尚未對任何音檔留下星級評價
+                    </div>
+                  ) : (
+                    userRatedTracks.map(({ track, rating }) => {
+                      const categories = track.categories && track.categories.length > 0
+                        ? track.categories
+                        : track.category ? [track.category] : ['未分類'];
+
+                      return (
+                        <div
+                          key={track.id}
+                          className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 space-y-2 hover:border-rose-300 dark:hover:border-rose-900 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div
+                              onClick={() => {
+                                onSelectTrack(track);
+                                onClose();
+                              }}
+                              className="min-w-0 flex-1 cursor-pointer group"
+                            >
+                              <h4 className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100 truncate group-hover:text-[var(--color-primary,#c06c84)] transition-colors">
+                                {track.title}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                主講：{track.speaker}{track.speakerRank ? ` · ${track.speakerRank}` : ''}
+                              </p>
+                            </div>
+
+                            {/* Requirement 2: 星星直接顯示五顆星星的視覺，並且可以隨時修正評價分數 */}
+                            <div className="flex items-center gap-0.5 shrink-0 bg-white dark:bg-slate-900 px-2 py-1 rounded-xl border border-slate-200/50 dark:border-slate-700 shadow-2xs">
+                              {[1, 2, 3, 4, 5].map(star => (
+                                <button
+                                  key={star}
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    if (onRateTrack) {
+                                      onRateTrack(track.id, rating === star ? 0 : star);
+                                    }
+                                  }}
+                                  className="p-0.5 hover:scale-125 transition-transform"
+                                  title={`評為 ${star} 星，再次點擊取消`}
+                                >
+                                  <Star
+                                    className={`w-3.5 h-3.5 ${
+                                      star <= (rating || 0)
+                                        ? 'fill-amber-400 text-amber-400'
+                                        : 'text-slate-300 dark:text-slate-600'
+                                    }`}
+                                  />
+                                </button>
+                              ))}
+                              <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 ml-1 font-mono">
+                                {rating && rating > 0 ? `${rating}星` : '未評'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Requirement 3: 分類（此處的分類可以點選，直接跳轉該分類清單） */}
+                          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                            <span className="text-[10px] text-slate-400">分類：</span>
+                            {categories.map((cat, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  if (onSelectCategory) {
+                                    onSelectCategory(cat as CategoryType);
+                                    onClose();
+                                  }
+                                }}
+                                className="text-[10px] px-2 py-0.5 rounded-lg bg-[var(--color-light-pill,#fae8ed)] text-[var(--color-primary,#c06c84)] border border-[var(--theme-border-subtle,#f1e7ea)] hover:brightness-95 transition-all font-semibold"
+                                title={`點擊跳轉至 ${cat} 分類清單`}
+                              >
+                                {cat}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: User Comments (Requirement 3: 與已評價規格完全一致，分類可點擊跳轉) */}
+              {activeTab === 'comments' && (
+                <div className="space-y-2">
+                  {userComments.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">
+                      您尚未在任何演講下留言
+                    </div>
+                  ) : (
+                    userComments.map(c => {
+                      const foundTrack = tracks.find(t => t.id === c.trackId);
+                      const trackTitle = foundTrack?.title || '演講錄音檔';
+                      const speaker = foundTrack?.speaker || '寰宇講師';
+                      const speakerRank = foundTrack?.speakerRank || '';
+                      const categories = foundTrack?.categories && foundTrack.categories.length > 0
+                        ? foundTrack.categories
+                        : foundTrack?.category ? [foundTrack.category] : ['未分類'];
+
+                      return (
+                        <div
+                          key={c.id}
+                          className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 space-y-2 hover:border-rose-300 dark:hover:border-rose-900 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div
+                              onClick={() => {
+                                if (foundTrack) {
+                                  onSelectTrack(foundTrack);
+                                  onClose();
+                                }
+                              }}
+                              className="min-w-0 flex-1 cursor-pointer group"
+                            >
+                              <h4 className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100 truncate group-hover:text-[var(--color-primary,#c06c84)] transition-colors">
+                                {trackTitle}
+                              </h4>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                主講：{speaker}{speakerRank ? ` · ${speakerRank}` : ''}
+                              </p>
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                              {c.timestamp}
+                            </span>
+                          </div>
+
+                          {/* Requirement 3: 分類（此處的分類可以點選，直接跳轉該分類清單） */}
+                          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                            <span className="text-[10px] text-slate-400">分類：</span>
+                            {categories.map((cat, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => {
+                                  if (onSelectCategory) {
+                                    onSelectCategory(cat as CategoryType);
+                                    onClose();
+                                  }
+                                }}
+                                className="text-[10px] px-2 py-0.5 rounded-lg bg-[var(--color-light-pill,#fae8ed)] text-[var(--color-primary,#c06c84)] border border-[var(--theme-border-subtle,#f1e7ea)] hover:brightness-95 transition-all font-semibold"
+                                title={`點擊跳轉至 ${cat} 分類清單`}
+                              >
+                                {cat}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="bg-white/80 dark:bg-slate-900/60 p-2 rounded-xl border border-slate-100 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                            {c.replyToAuthor && (
+                              <span className="text-[11px] text-[var(--color-primary,#c06c84)] font-bold mr-1">
+                                回覆 @{c.replyToAuthor}：
+                              </span>
+                            )}
+                            {c.content}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+
+              {/* TAB 4: 已聆聽音檔清單 (Requirement 7: 修復此頁空白問題) */}
+              {activeTab === 'listening' && (
+                <div className="space-y-2.5">
+                  {isLoadingRecords ? (
+                    <div className="text-center py-8 text-slate-400 flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary,#c06c84)]" />
+                      <span>載入聆聽紀錄中...</span>
+                    </div>
+                  ) : userListenedItems.length === 0 ? (
+                    <div className="text-center py-8 text-slate-400">目前尚無已記錄的聆聽音檔</div>
+                  ) : (
+                    userListenedItems.map(({ track, record, isDeleted }) => {
+                      const isCompleted = (record.progressPercent || 0) > 95 || !!record.completed;
+                      return (
+                        <div
+                          key={track.id}
+                          className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-700 space-y-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 truncate">
+                                {track.title}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                主講：{track.speaker}{track.speakerRank ? `·${track.speakerRank}` : ''}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isCompleted ? (
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>已聽完 ({record.finishDate || record.lastListenDate})</span>
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 text-[10px] font-bold">
+                                  進度 {record.progressPercent || 0}%
+                                </span>
+                              )}
+                              {isDeleted ? (
+                                <span className="px-2.5 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-bold text-[10px]">
+                                  檔案已刪除
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    onSelectTrack(track);
+                                    onClose();
+                                  }}
+                                  className="px-2.5 py-0.5 rounded-lg text-white font-bold text-[10px] shadow-2xs hover:opacity-90"
+                                  style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+                                >
+                                  播放
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-1 p-2 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200/50 dark:border-slate-700/60 text-[10px]">
+                            <div>
+                              <span className="text-slate-400 block">首次聆聽</span>
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                {record.firstListenDate || '-'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">最近聆聽</span>
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                {record.lastListenDate || '-'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block">點擊次數</span>
+                              <span className="font-bold text-slate-900 dark:text-slate-100">
+                                {record.clickCount || 1} 次
+                              </span>
+                            </div>
+                          </div>
+
+                          {(record.rating !== undefined || record.comment) && (
+                            <div className="pt-1.5 border-t border-slate-200/60 dark:border-slate-700 flex flex-col gap-1 text-[11px]">
+                              {record.rating !== undefined && record.rating > 0 && (
+                                <div className="flex items-center gap-1 text-amber-500">
+                                  <span className="text-slate-400 text-[10px]">給予評分：</span>
+                                  {[1, 2, 3, 4, 5].map(s => (
+                                    <Star
+                                      key={s}
+                                      className={`w-3 h-3 ${
+                                        s <= record.rating! ? 'fill-amber-400 text-amber-400' : 'text-slate-300'
+                                      }`}
+                                    />
+                                  ))}
+                                  <span className="font-bold ml-1">{record.rating} 星</span>
+                                </div>
+                              )}
+                              {record.comment && (
+                                <div className="text-slate-700 dark:text-slate-300 bg-white/70 dark:bg-slate-900/40 p-1.5 rounded-lg border border-slate-200/40 dark:border-slate-800">
+                                  <span className="text-slate-400 text-[10px] block">個人心得留言：</span>
+                                  <p className="italic text-xs mt-0.5">"{record.comment}"</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Avatar Crop Modal */}
+      <AvatarCropModal
+        isOpen={isCropModalOpen}
+        onClose={() => setIsCropModalOpen(false)}
+        onCropComplete={handleAvatarCropped}
+        currentUploadCount={currentUploadCount}
+        maxMonthlyUploads={5}
+      />
+    </div>
+  );
+};

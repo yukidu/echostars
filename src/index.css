@@ -1,0 +1,270 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --color-primary: #c06c84;
+    --color-primary-hover: #b15b73;
+    --color-primary-50: rgba(192, 108, 132, 0.08);
+    --color-light-pill: #fae8ed;
+    --color-accent-scrubber: #c06c84;
+    --theme-box-bg: #ffffff;
+    --theme-gradient-bg: linear-gradient(135deg, #fdf8f9 0%, #f9f1f3 50%, #fdf9fb 100%);
+    --theme-card-bg: #ffffff;
+    --theme-text-primary: #1e293b;
+    --theme-text-secondary: #64748b;
+    --theme-border-subtle: #f1e7ea;
+  }
+
+  body {
+    background: var(--theme-gradient-bg);
+    color: var(--theme-text-primary);
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    transition: background 0.4s ease, color 0.4s ease;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  html {
+    overflow-x: hidden;
+    width: 100%;
+  }
+}
+
+/* Requirement 3 & 4 (v2.7): 手機小裝置螢幕適配優化，防止擠壓或超出寬度 */
+:root {
+  --ui-scale: 1;
+  --ui-pad-scale: 1;
+  --ui-gap-scale: 1;
+}
+
+@media (max-width: 360px) {
+  html {
+    font-size: 13px;
+  }
+  :root {
+    --ui-scale: 0.88;
+    --ui-pad-scale: 0.85;
+    --ui-gap-scale: 0.85;
+  }
+  * {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 320px) {
+  html {
+    font-size: 12px;
+  }
+  :root {
+    --ui-scale: 0.82;
+    --ui-pad-scale: 0.78;
+    --ui-gap-scale: 0.78;
+  }
+}
+
+/* Rainbow animated text for Admin Dudu Dragon */
+@keyframes rainbowAnimation {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.rainbow-admin-text {
+  background: linear-gradient(90deg, #ff007f, #ff7b00, #ffea00, #00d26a, #00a2ff, #9b51e0, #ff007f);
+  background-size: 300% 300%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbowAnimation 4s ease infinite;
+  font-weight: 700;
+  display: inline-block;
+}
+
+/* Custom Audio Scrubber Slider */
+input[type="range"].audio-scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dark input[type="range"].audio-scrubber {
+  background: #334155;
+}
+
+input[type="range"].audio-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-accent-scrubber, #c06c84);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+input[type="range"].audio-scrubber::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+
+input[type="range"].audio-scrubber::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-accent-scrubber, #c06c84);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.25);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.4);
+}
+
+/* Echo Title Super Cool Audio Wave Animation - Glowing matches title color at 50% opacity (Requirement 6) */
+@keyframes echoWaveGradient {
+  0% {
+    background-position: 0% 50%;
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--color-primary, #c06c84) 50%, transparent)) drop-shadow(0 0 14px color-mix(in srgb, var(--color-primary, #c06c84) 50%, transparent));
+  }
+  50% {
+    background-position: 100% 50%;
+    filter: drop-shadow(0 0 10px color-mix(in srgb, var(--color-primary, #c06c84) 50%, transparent)) drop-shadow(0 0 20px color-mix(in srgb, var(--color-primary, #c06c84) 50%, transparent));
+  }
+  100% {
+    background-position: 0% 50%;
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--color-primary, #c06c84) 50%, transparent)) drop-shadow(0 0 14px color-mix(in srgb, var(--color-primary, #c06c84) 50%, transparent));
+  }
+}
+
+@keyframes pulseWaveBar {
+  0%, 100% {
+    height: 4px;
+    opacity: 0.5;
+  }
+  50% {
+    height: 14px;
+    opacity: 1;
+  }
+}
+
+.echo-wave-text {
+  background: linear-gradient(120deg, var(--color-primary, #c06c84) 0%, var(--color-primary-hover, #b15b73) 40%, var(--color-primary, #c06c84) 80%, var(--color-primary-hover, #b15b73) 100%);
+  background-size: 250% 250%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--color-primary, #c06c84);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--color-primary, #c06c84) 50%, transparent);
+  animation: echoWaveGradient 3.5s ease-in-out infinite;
+  display: inline-block;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  transition: transform 0.2s ease;
+}
+
+.echo-wave-text:hover {
+  transform: scale(1.04);
+}
+
+/* Infinite turntable spin for playing photo */
+@keyframes continuousSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: continuousSpin var(--spin-duration, 8s) linear infinite;
+}
+
+/* Twinkling Stars (繁星閃爍特效) */
+@keyframes starTwinkleSlow {
+  0%, 100% {
+    opacity: 0.15;
+    transform: scale(0.75);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+}
+
+@keyframes starTwinkleMedium {
+  0%, 100% {
+    opacity: 0.85;
+    transform: scale(1.15);
+  }
+  50% {
+    opacity: 0.2;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes starTwinkleFast {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.3);
+  }
+}
+
+@keyframes starPulseGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.4));
+  }
+  50% {
+    filter: drop-shadow(0 0 4px rgba(244, 114, 182, 0.8)) drop-shadow(0 0 8px rgba(251, 191, 36, 0.6));
+  }
+}
+
+.star-twinkle-slow {
+  animation: starTwinkleSlow 4s ease-in-out infinite;
+}
+
+.star-twinkle-medium {
+  animation: starTwinkleMedium 2.8s ease-in-out infinite;
+}
+
+.star-twinkle-fast {
+  animation: starTwinkleFast 1.8s ease-in-out infinite;
+}
+
+.star-pulse-glow {
+  animation: starPulseGlow 3s ease-in-out infinite;
+}
+
