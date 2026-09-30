@@ -240,10 +240,13 @@ export default function App() {
 
   // Requirement 9, 10 & 12: 未審核通過名單總數 + 被 @ 標記提醒總數（用於通知鈴鐺徽章提醒）
   const pendingNotificationsCount = useMemo(() => {
-    const auditCount = allUsers.filter(u => u.rankAuditStatus === 'pending' || u.rankApproved === false).length;
+    const userList = Array.isArray(allUsers) ? allUsers : [];
+    const auditCount = userList.filter(u => u.rankAuditStatus === 'pending' || u.rankApproved === false).length;
     const myName = currentUser?.name?.trim().toLowerCase();
     const myEmail = currentUser?.email?.toLowerCase().trim();
-    const activeCommentPool = allComments.length > 0 ? allComments : comments;
+    const activeCommentPool = Array.isArray(allComments) && allComments.length > 0 
+      ? allComments 
+      : (Array.isArray(comments) ? comments : []);
     let dismissed: string[] = [];
     if (typeof window !== 'undefined') {
       try {
@@ -364,7 +367,9 @@ export default function App() {
       }
       if (tRes.ok) {
         const tData = await tRes.json();
-        setTracks(tData);
+        if (Array.isArray(tData)) {
+          setTracks(tData);
+        }
       }
     } catch (e) {
       console.error('Failed to sync categories:', e);
@@ -393,29 +398,33 @@ export default function App() {
 
         if (tracksRes.ok) {
           const tData = await tracksRes.json();
-          setTracks(tData);
+          if (Array.isArray(tData)) {
+            setTracks(tData);
 
-          const memories: Record<string, AudioMemory> = {};
-          tData.forEach((t: Track) => {
-            const m = getStoredPlayback(t.id);
-            if (m) memories[t.id] = m;
-          });
-          setPlaybackMemories(memories);
+            const memories: Record<string, AudioMemory> = {};
+            tData.forEach((t: Track) => {
+              const m = getStoredPlayback(t.id);
+              if (m) memories[t.id] = m;
+            });
+            setPlaybackMemories(memories);
 
-          // Check URL query param ?track=t-1
-          const urlParams = new URLSearchParams(window.location.search);
-          const trackParam = urlParams.get('track');
-          if (trackParam) {
-            const found = tData.find((t: Track) => t.id === trackParam);
-            if (found) {
-              handlePlayTrack(found, 'expanded');
+            // Check URL query param ?track=t-1
+            const urlParams = new URLSearchParams(window.location.search);
+            const trackParam = urlParams.get('track');
+            if (trackParam) {
+              const found = tData.find((t: Track) => t.id === trackParam);
+              if (found) {
+                handlePlayTrack(found, 'expanded');
+              }
             }
           }
         }
 
         if (usersRes.ok) {
           const uData = await usersRes.json();
-          setAllUsers(uData);
+          if (Array.isArray(uData)) {
+            setAllUsers(uData);
+          }
         }
 
         // Fetch all comments for mention notifications
@@ -1137,7 +1146,8 @@ export default function App() {
 
   // Filtered & Sorted Tracks List (Requirement 18 & 19)
   const filteredTracks = useMemo(() => {
-    return tracks
+    const trackList = Array.isArray(tracks) ? tracks : [];
+    return trackList
       .filter(t => {
         if (selectedCategory !== '全部') {
           const matchPrimary = t.category === selectedCategory;
