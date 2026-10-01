@@ -1345,11 +1345,11 @@ export function loadStoreFromDisk() {
 }
 loadStoreFromDisk();
 
-// Helper: Super Admin Check (yukidu@gmail.com or yukiduhm@gmail.com)
+// Helper: Super Admin Check (Only yukidu@gmail.com)
 export function isSuperAdminEmail(email?: string | null): boolean {
   if (!email) return false;
   const clean = email.toLowerCase().trim();
-  return clean === 'yukidu@gmail.com' || clean === 'yukiduhm@gmail.com';
+  return clean === 'yukidu@gmail.com';
 }
 
 // Helper: Rank-based permission check
@@ -2051,16 +2051,73 @@ app.get('/api/users', (_req, res) => {
   res.json(users);
 });
 
+// GET /api/users/profile
+app.get('/api/users/profile', (req, res) => {
+  const email = (req.query.email as string)?.toLowerCase().trim();
+  const id = req.query.id as string;
+  const user = users.find(u => (email && u.email?.toLowerCase().trim() === email) || (id && u.id === id));
+  if (!user) return res.status(404).json({ error: '找不到此會員' });
+  const isOwner = user.email?.toLowerCase().trim() === 'yukidu@gmail.com';
+  if (isOwner) {
+    user.role = '超級管理員';
+    user.isAdminUser = true;
+    user.isContributor = true;
+  }
+  res.json({ success: true, user });
+});
+
 // POST /api/users (Create or register user)
 app.post('/api/users', (req, res) => {
   const profile: UserProfile = req.body;
-  const existingIdx = users.findIndex(u => u.email === profile.email);
+  const cleanEmail = (profile.email || '').toLowerCase().trim();
+  const isOwner = cleanEmail === 'yukidu@gmail.com';
+  const existingIdx = users.findIndex(u => u.email?.toLowerCase().trim() === cleanEmail);
   if (existingIdx !== -1) {
-    users[existingIdx] = { ...users[existingIdx], ...profile };
-    return res.json(users[existingIdx]);
+    users[existingIdx] = {
+      ...users[existingIdx],
+      ...profile,
+      role: isOwner ? '超級管理員' : (users[existingIdx].role || profile.role),
+      isAdminUser: isOwner ? true : (users[existingIdx].isAdminUser ?? profile.isAdminUser),
+      isContributor: isOwner ? true : (users[existingIdx].isContributor ?? profile.isContributor)
+    };
+    saveStoreToDisk();
+    return res.json({ success: true, user: users[existingIdx] });
+  }
+  if (isOwner) {
+    profile.role = '超級管理員';
+    profile.isAdminUser = true;
+    profile.isContributor = true;
   }
   users.push(profile);
-  res.json(profile);
+  saveStoreToDisk();
+  res.json({ success: true, user: profile, isNewUser: true });
+});
+
+// POST /api/users/google-sync
+app.post('/api/users/google-sync', (req, res) => {
+  const profile: UserProfile = req.body;
+  const cleanEmail = (profile.email || '').toLowerCase().trim();
+  const isOwner = cleanEmail === 'yukidu@gmail.com';
+  const existingIdx = users.findIndex(u => u.email?.toLowerCase().trim() === cleanEmail);
+  if (existingIdx !== -1) {
+    users[existingIdx] = {
+      ...users[existingIdx],
+      ...profile,
+      role: isOwner ? '超級管理員' : users[existingIdx].role,
+      isAdminUser: isOwner ? true : users[existingIdx].isAdminUser,
+      isContributor: isOwner ? true : users[existingIdx].isContributor
+    };
+    saveStoreToDisk();
+    return res.json({ success: true, user: users[existingIdx] });
+  }
+  if (isOwner) {
+    profile.role = '超級管理員';
+    profile.isAdminUser = true;
+    profile.isContributor = true;
+  }
+  users.push(profile);
+  saveStoreToDisk();
+  res.json({ success: true, user: profile, isNewUser: true });
 });
 
 // PUT /api/users/:id (Update user profile - can be called by user or admin!)

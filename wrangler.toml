@@ -4,6 +4,10 @@ main = "worker/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
+# 建置指令 (確保 Cloudflare Workers CI 自動執行 Vite 打包產出 dist)
+[build]
+command = "npm run build"
+
 # 靜態前端資源 (Vite build 產出之 dist 目錄)
 [assets]
 directory = "./dist"

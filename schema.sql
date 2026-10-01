@@ -108,6 +108,17 @@ CREATE TABLE IF NOT EXISTS playback_memories (
   isDeleted INTEGER DEFAULT 0
 );
 
+-- 6. 會員行為與異動歷程紀錄表 (user_activity_logs)
+CREATE TABLE IF NOT EXISTS user_activity_logs (
+  id TEXT PRIMARY KEY,
+  userEmail TEXT NOT NULL,
+  userId TEXT,
+  actionType TEXT NOT NULL, -- 'login', 'register', 'update_profile', 'rate_track', 'like_track'
+  details TEXT,             -- JSON 格式詳細異動資訊
+  timestamp INTEGER NOT NULL,
+  createdAt TEXT NOT NULL
+);
+
 -- 初始分類標籤
 INSERT OR IGNORE INTO categories (name, createdAt) VALUES 
 ('事業', 1727654400000),

@@ -100,7 +100,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const isEffectiveAdmin =
     isAdmin ||
     cleanEmail === 'yukidu@gmail.com' ||
-    cleanEmail === 'yukiduhm@gmail.com' ||
     currentUser?.role === '超級管理員' ||
     currentUser?.id === 'u-admin';
 
@@ -1079,7 +1078,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                               </button>
 
                               {/* Designate Administrator - Super Admin only (Requirement 11) */}
-                              {isEffectiveAdmin && u.email?.toLowerCase().trim() !== 'yukidu@gmail.com' && u.email?.toLowerCase().trim() !== 'yukiduhm@gmail.com' && (
+                              {isEffectiveAdmin && u.email?.toLowerCase().trim() !== 'yukidu@gmail.com' && (
                                 <button
                                   onClick={e => {
                                     e.stopPropagation();

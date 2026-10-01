@@ -917,7 +917,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                     checked={isPrivateVip}
                     onChange={e => {
                       const cleanEmail = currentUser?.email?.toLowerCase().trim();
-                      const isOwner = isAdmin || cleanEmail === 'yukidu@gmail.com' || cleanEmail === 'yukiduhm@gmail.com';
+                      const isOwner = isAdmin || cleanEmail === 'yukidu@gmail.com';
                       const myVipTracksCount = tracks ? tracks.filter(t => t.isPrivateVip && (t.uploaderEmail === cleanEmail || t.uploaderId === currentUser?.id)).length : 0;
                       if (e.target.checked && !isOwner && myVipTracksCount >= 10 && !trackToEdit?.isPrivateVip) {
                         setErrorMessage('每位貢獻者上限最多上傳 10 個私秘 VIP 音檔，您目前已達上限 (10/10)。');

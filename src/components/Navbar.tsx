@@ -37,12 +37,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Requirement 5: 支持 yukidu@gmail.com 與 yukiduhm@gmail.com
+  // Requirement: 超級管理員只有一位 yukidu@gmail.com
   const cleanEmail = currentUser?.email?.toLowerCase().trim();
-  const isSuperAdmin = isAdmin || cleanEmail === 'yukidu@gmail.com' || cleanEmail === 'yukiduhm@gmail.com' || currentUser?.role === '超級管理員';
+  const isSuperAdmin = isAdmin || cleanEmail === 'yukidu@gmail.com' || currentUser?.role === '超級管理員';
   const isAdministrator = currentUser?.isAdminUser === true || currentUser?.role === '管理員' || currentUser?.role === '獎銜審核員';
   // Requirement 1 (v2.4): 主選單名稱改為：首頁播放清單、排行榜、通知與獎銜審核（若無審核權限則只顯示「通知」）、上傳音檔、個人中心、後台管理
-  const canAudit = isSuperAdmin || isAdministrator || cleanEmail === 'yukidu@gmail.com' || cleanEmail === 'yukiduhm@gmail.com' || currentUser?.role === '獎銜審核員' || currentUser?.isAdminUser === true;
+  const canAudit = isSuperAdmin || isAdministrator || cleanEmail === 'yukidu@gmail.com' || currentUser?.role === '獎銜審核員' || currentUser?.isAdminUser === true;
   const notificationsMenuTitle = canAudit ? '通知與獎銜審核' : '通知';
 
   // Requirement 11: 首頁置頂主選單，直接顯示目前名字+身份，分二行顯示，如果名稱太長，自動縮小字體符合4個字的寬度，身份用底色橢圓框區隔

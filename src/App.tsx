@@ -199,11 +199,11 @@ export default function App() {
     return null;
   });
 
-  // Helper: Super Admin Check (yukidu@gmail.com or yukiduhm@gmail.com)
+  // Helper: Super Admin Check (Only yukidu@gmail.com)
   const isSuperAdminEmail = (email?: string | null) => {
     if (!email) return false;
     const clean = email.toLowerCase().trim();
-    return clean === 'yukidu@gmail.com' || clean === 'yukiduhm@gmail.com';
+    return clean === 'yukidu@gmail.com';
   };
 
   // Requirement 5, 10, 11 & 3: 超級管理員 (yukidu@gmail.com) 與 獎銜審核員
@@ -479,6 +479,43 @@ export default function App() {
           const uData = await usersRes.json();
           if (Array.isArray(uData)) {
             setAllUsers(uData);
+
+            // Sync current user from Cloudflare D1 if logged in
+            if (currentUser && currentUser.email) {
+              const cleanCurrentEmail = currentUser.email.toLowerCase().trim();
+              const matched = uData.find((u: UserProfile) => u.email?.toLowerCase().trim() === cleanCurrentEmail);
+              if (matched) {
+                const isOwner = isSuperAdminEmail(matched.email);
+                const synced: UserProfile = {
+                  ...currentUser,
+                  ...matched,
+                  role: isOwner ? '超級管理員' : matched.role,
+                  isAdminUser: isOwner ? true : Boolean(matched.isAdminUser),
+                  isContributor: isOwner ? true : Boolean(matched.isContributor),
+                  canUpload: isOwner ? true : Boolean(matched.canUpload || matched.isContributor),
+                  rankApproved: isOwner ? true : Boolean(matched.rankApproved),
+                  rankAuditStatus: isOwner ? 'approved' : matched.rankAuditStatus
+                };
+                setCurrentUser(synced);
+                localStorage.setItem('sq_current_user_v1', JSON.stringify(synced));
+              }
+            }
+          }
+        }
+
+        // Fetch permanent playback history from Cloudflare D1 for current user or visitor
+        const activeIdentifier = currentUser?.email || visitor?.deviceId;
+        if (activeIdentifier) {
+          try {
+            const histRes = await fetch(`/api/playback/history/${encodeURIComponent(activeIdentifier)}`);
+            if (histRes.ok) {
+              const histData = await histRes.json();
+              if (histData && typeof histData === 'object') {
+                setPlaybackMemories(prev => ({ ...prev, ...histData }));
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to load playback memories:', e);
           }
         }
 
@@ -1046,13 +1083,42 @@ export default function App() {
     });
 
     try {
-      await fetch('/api/users', {
+      const res = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profile)
       });
-    } catch {
-      // non-blocking
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          const syncedUser = {
+            ...profile,
+            ...data.user,
+            role: isOwner ? '超級管理員' : data.user.role,
+            isAdminUser: isOwner ? true : Boolean(data.user.isAdminUser),
+            isContributor: isOwner ? true : Boolean(data.user.isContributor),
+            canUpload: isOwner ? true : Boolean(data.user.canUpload)
+          };
+          setCurrentUser(syncedUser);
+          localStorage.setItem('sq_current_user_v1', JSON.stringify(syncedUser));
+          setAllUsers(prev => prev.map(u => (u.id === syncedUser.id || (u.email && u.email.toLowerCase().trim() === cleanEmail) ? syncedUser : u)));
+        }
+      }
+    } catch (e) {
+      console.warn('Sync user to D1 error:', e);
+    }
+
+    // Load permanent playback memories from Cloudflare D1
+    try {
+      const histRes = await fetch(`/api/playback/history/${encodeURIComponent(cleanEmail)}`);
+      if (histRes.ok) {
+        const histData = await histRes.json();
+        if (histData && typeof histData === 'object') {
+          setPlaybackMemories(prev => ({ ...prev, ...histData }));
+        }
+      }
+    } catch (e) {
+      console.warn('Sync playback memories error:', e);
     }
 
     setIsProfileOpen(false);
@@ -1119,7 +1185,7 @@ export default function App() {
     fetch(`/api/users/${updated.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...updatedProfile, ...rankAuditFields })
+      body: JSON.stringify({ ...updatedProfile, ...rankAuditFields, email: updated.email })
     }).catch(() => {});
   };
 

@@ -703,6 +703,299 @@ export default {
         return jsonResponse(DEFAULT_USERS);
       }
 
+      // 5.4.1 單一會員資料查詢 (GET /api/users/profile)
+      if (path === '/api/users/profile' && method === 'GET') {
+        const email = url.searchParams.get('email')?.toLowerCase().trim();
+        const id = url.searchParams.get('id');
+
+        if (!email && !id) {
+          return errorResponse('請提供 email 或 id 參數', 400);
+        }
+
+        if (env.DB) {
+          try {
+            let row: any = null;
+            if (email) {
+              const { results } = await env.DB.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1').bind(email).all();
+              if (results && results.length > 0) row = results[0];
+            }
+            if (!row && id) {
+              const { results } = await env.DB.prepare('SELECT * FROM users WHERE id = ? LIMIT 1').bind(id).all();
+              if (results && results.length > 0) row = results[0];
+            }
+
+            if (row) {
+              const isOwner = row.email?.toLowerCase().trim() === 'yukidu@gmail.com';
+              const user = {
+                ...row,
+                role: isOwner ? '超級管理員' : (row.role || '一般夥伴'),
+                isAdminUser: isOwner ? true : Boolean(row.isAdminUser),
+                isContributor: isOwner ? true : Boolean(row.isContributor),
+                canUpload: isOwner ? true : Boolean(row.isContributor || row.canUpload),
+                rankApproved: isOwner ? true : Boolean(row.rankApproved),
+                rankAuditStatus: isOwner ? 'approved' : (row.rankAuditStatus || 'approved'),
+                isBlocked: Boolean(row.isBlocked),
+                playCount: row.playCount || 0
+              };
+              return jsonResponse({ success: true, user });
+            }
+          } catch (e) {
+            console.error('D1 user profile fetch error:', e);
+          }
+        }
+
+        // Fallback to KV or DEFAULT_USERS
+        const defaultMatch = DEFAULT_USERS.find(u => (email && u.email?.toLowerCase().trim() === email) || (id && u.id === id));
+        if (defaultMatch) {
+          return jsonResponse({ success: true, user: defaultMatch });
+        }
+        return errorResponse('找不到此會員資料', 404);
+      }
+
+      // 5.4.2 會員註冊 / Google 登入永續儲存 (POST /api/users & POST /api/users/google-sync)
+      if ((path === '/api/users' || path === '/api/users/google-sync') && method === 'POST') {
+        const body: any = await request.json().catch(() => ({}));
+        const cleanEmail = (body.email || '').toLowerCase().trim();
+        if (!cleanEmail) {
+          return errorResponse('會員 Email 為必填欄位', 400);
+        }
+
+        const isOwner = cleanEmail === 'yukidu@gmail.com';
+        const id = body.id || (isOwner ? 'u-admin' : `u-${Date.now()}`);
+        const name = body.name || cleanEmail.split('@')[0];
+        const role = isOwner ? '超級管理員' : (body.role || '寰宇家人');
+        const rank = isOwner ? '鑽石' : (body.rank || '無');
+        const approvedRank = isOwner ? '鑽石' : (body.approvedRank || rank);
+        const rankApproved = isOwner ? 1 : (body.rankApproved ? 1 : 0);
+        const rankAuditStatus = isOwner ? 'approved' : (body.rankAuditStatus || 'pending');
+        const rankAuditType = body.rankAuditType || (isOwner ? 'approved' : 'new_register');
+        const isAdminUser = isOwner ? 1 : (body.isAdminUser ? 1 : 0);
+        const isContributor = isOwner ? 1 : (body.isContributor ? 1 : 0);
+        const canUpload = isOwner ? 1 : (body.canUpload ? 1 : 0);
+        const avatar = body.avatar || (isOwner ? '🐉' : '👤');
+        const residence = body.residence || '臺北';
+        const center = body.center || '南京';
+        const joinReason = body.joinReason || '事業';
+        const stayReason = body.stayReason || '打造自己的事業與團隊';
+        const sponsor = body.sponsor || '';
+        const platinumUpline = body.platinumUpline || '';
+        const diamondUpline = body.diamondUpline || '';
+        const birthday = body.birthday || body.birthDate || '1985-07-03';
+        const phone = body.phone || '';
+        const amwayId = body.amwayId || '';
+        const notes = body.notes || '';
+        const registerDate = body.registerDate || new Date().toISOString().replace('T', ' ').substring(0, 16);
+        const rankUpdatedAt = body.rankUpdatedAt || registerDate;
+        const lastActive = '剛才';
+        const isBlocked = body.isBlocked ? 1 : 0;
+        const playCount = typeof body.playCount === 'number' ? body.playCount : 0;
+
+        let isNewUser = false;
+
+        if (env.DB) {
+          try {
+            // Check if user already exists
+            const { results } = await env.DB.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ? OR id = ? LIMIT 1')
+              .bind(cleanEmail, id)
+              .all();
+
+            if (results && results.length > 0) {
+              // Existing user: Update mutable fields while keeping existing Amway credentials
+              const existing = results[0];
+              await env.DB.prepare(`
+                UPDATE users SET
+                  name = COALESCE(?, name),
+                  avatar = COALESCE(?, avatar),
+                  residence = COALESCE(?, residence),
+                  center = COALESCE(?, center),
+                  rank = CASE WHEN ? = 1 THEN '鑽石' ELSE COALESCE(?, rank) END,
+                  approvedRank = CASE WHEN ? = 1 THEN '鑽石' ELSE COALESCE(?, approvedRank) END,
+                  rankApproved = CASE WHEN ? = 1 THEN 1 ELSE rankApproved END,
+                  rankAuditStatus = CASE WHEN ? = 1 THEN 'approved' ELSE rankAuditStatus END,
+                  role = CASE WHEN ? = 1 THEN '超級管理員' ELSE role END,
+                  isAdminUser = CASE WHEN ? = 1 THEN 1 ELSE isAdminUser END,
+                  isContributor = CASE WHEN ? = 1 THEN 1 ELSE isContributor END,
+                  sponsor = COALESCE(?, sponsor),
+                  platinumUpline = COALESCE(?, platinumUpline),
+                  diamondUpline = COALESCE(?, diamondUpline),
+                  joinReason = COALESCE(?, joinReason),
+                  stayReason = COALESCE(?, stayReason),
+                  birthday = COALESCE(?, birthday),
+                  phone = COALESCE(?, phone),
+                  amwayId = COALESCE(?, amwayId),
+                  lastActive = ?
+                WHERE id = ? OR LOWER(TRIM(email)) = ?
+              `).bind(
+                name, avatar, residence, center,
+                isOwner ? 1 : 0, rank,
+                isOwner ? 1 : 0, approvedRank,
+                isOwner ? 1 : 0,
+                isOwner ? 1 : 0,
+                isOwner ? 1 : 0,
+                isOwner ? 1 : 0,
+                isOwner ? 1 : 0,
+                sponsor, platinumUpline, diamondUpline,
+                joinReason, stayReason, birthday, phone, amwayId,
+                lastActive, existing.id, cleanEmail
+              ).run();
+
+              // Record activity log
+              await env.DB.prepare(`
+                INSERT INTO user_activity_logs (id, userEmail, userId, actionType, details, timestamp, createdAt)
+                VALUES (?, ?, ?, 'login', ?, ?, ?)
+              `).bind(
+                `act-${Date.now()}`, cleanEmail, existing.id,
+                JSON.stringify({ method: 'google_oauth', loginAt: new Date().toISOString() }),
+                Date.now(), new Date().toISOString()
+              ).run();
+            } else {
+              // New user registration
+              isNewUser = true;
+              await env.DB.prepare(`
+                INSERT INTO users (
+                  id, name, email, amwayId, phone, center, rank, role, avatar,
+                  joinReason, stayReason, sponsor, platinumUpline, diamondUpline,
+                  birthDate, notes, registerDate, rankUpdatedAt, lastActive,
+                  auditedBy, auditedAt, rankApproved, rankAuditStatus, isContributor,
+                  isAdminUser, isBlocked, residence, birthday, approvedRank, rankAuditType, playCount
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `).bind(
+                id, name, cleanEmail, amwayId, phone, center, rank, role, avatar,
+                joinReason, stayReason, sponsor, platinumUpline, diamondUpline,
+                birthday, notes, registerDate, rankUpdatedAt, lastActive,
+                isOwner ? '系統初始' : '', isOwner ? registerDate : '',
+                rankApproved, rankAuditStatus, isContributor, isAdminUser,
+                isBlocked, residence, birthday, approvedRank, rankAuditType, playCount
+              ).run();
+
+              // Record activity log
+              await env.DB.prepare(`
+                INSERT INTO user_activity_logs (id, userEmail, userId, actionType, details, timestamp, createdAt)
+                VALUES (?, ?, ?, 'register', ?, ?, ?)
+              `).bind(
+                `act-${Date.now()}`, cleanEmail, id,
+                JSON.stringify({ method: 'google_register', role, rank, registerDate }),
+                Date.now(), new Date().toISOString()
+              ).run();
+            }
+          } catch (e) {
+            console.error('D1 save user error:', e);
+          }
+        }
+
+        // Sync to KV for fast lookup
+        if (env.KV) {
+          try {
+            await env.KV.put(`user:${cleanEmail}`, JSON.stringify({
+              id, name, email: cleanEmail, role, rank, approvedRank, avatar, residence, center, sponsor, lastActive: new Date().toISOString()
+            }));
+          } catch {}
+        }
+
+        const savedUser = {
+          id,
+          name,
+          email: cleanEmail,
+          role,
+          rank,
+          approvedRank,
+          rankApproved: Boolean(rankApproved),
+          rankAuditStatus,
+          rankAuditType,
+          isAdminUser: Boolean(isAdminUser),
+          isContributor: Boolean(isContributor),
+          canUpload: Boolean(canUpload),
+          avatar,
+          residence,
+          center,
+          joinReason,
+          stayReason,
+          sponsor,
+          platinumUpline,
+          diamondUpline,
+          birthday,
+          phone,
+          amwayId,
+          notes,
+          registerDate,
+          rankUpdatedAt,
+          lastActive,
+          isBlocked: Boolean(isBlocked),
+          playCount
+        };
+
+        return jsonResponse({ success: true, user: savedUser, isNewUser });
+      }
+
+      // 5.4.3 更新會員個人資料 (PUT /api/users/:id)
+      if (path.startsWith('/api/users/') && method === 'PUT' && !path.includes('/block') && !path.includes('/admin-role')) {
+        const userId = path.split('/api/users/')[1];
+        const body: any = await request.json().catch(() => ({}));
+
+        if (env.DB && userId) {
+          try {
+            await env.DB.prepare(`
+              UPDATE users SET
+                name = COALESCE(?, name),
+                avatar = COALESCE(?, avatar),
+                phone = COALESCE(?, phone),
+                amwayId = COALESCE(?, amwayId),
+                residence = COALESCE(?, residence),
+                center = COALESCE(?, center),
+                rank = COALESCE(?, rank),
+                approvedRank = COALESCE(?, approvedRank),
+                rankApproved = COALESCE(?, rankApproved),
+                rankAuditStatus = COALESCE(?, rankAuditStatus),
+                rankAuditType = COALESCE(?, rankAuditType),
+                joinReason = COALESCE(?, joinReason),
+                stayReason = COALESCE(?, stayReason),
+                sponsor = COALESCE(?, sponsor),
+                platinumUpline = COALESCE(?, platinumUpline),
+                diamondUpline = COALESCE(?, diamondUpline),
+                birthday = COALESCE(?, birthday),
+                rankUpdatedAt = COALESCE(?, rankUpdatedAt),
+                lastActive = '剛才'
+              WHERE id = ?
+            `).bind(
+              body.name ?? null, body.avatar ?? null, body.phone ?? null, body.amwayId ?? null,
+              body.residence ?? null, body.center ?? null, body.rank ?? null, body.approvedRank ?? null,
+              body.rankApproved !== undefined ? (body.rankApproved ? 1 : 0) : null,
+              body.rankAuditStatus ?? null, body.rankAuditType ?? null,
+              body.joinReason ?? null, body.stayReason ?? null,
+              body.sponsor ?? null, body.platinumUpline ?? null, body.diamondUpline ?? null,
+              body.birthday ?? null, body.rankUpdatedAt ?? null,
+              userId
+            ).run();
+
+            // Record audit log
+            await env.DB.prepare(`
+              INSERT INTO user_activity_logs (id, userEmail, userId, actionType, details, timestamp, createdAt)
+              VALUES (?, ?, ?, 'update_profile', ?, ?, ?)
+            `).bind(
+              `act-${Date.now()}`, body.email || '', userId,
+              JSON.stringify(body), Date.now(), new Date().toISOString()
+            ).run();
+          } catch (e) {
+            console.error('D1 update user error:', e);
+          }
+        }
+        return jsonResponse({ success: true, updatedFields: body });
+      }
+
+      // 5.4.4 會員行為與變更紀錄查詢 (GET /api/users/activity-logs)
+      if (path === '/api/users/activity-logs' && method === 'GET') {
+        const email = url.searchParams.get('email');
+        if (env.DB && email) {
+          try {
+            const { results } = await env.DB.prepare('SELECT * FROM user_activity_logs WHERE userEmail = ? ORDER BY timestamp DESC LIMIT 100').bind(email).all();
+            return jsonResponse(results || []);
+          } catch (e) {
+            console.error('D1 activity logs error:', e);
+          }
+        }
+        return jsonResponse([]);
+      }
+
       // 5.5 管理員批次更新會員 (/api/admin/users/batch)
       if (path === '/api/admin/users/batch' && method === 'POST') {
         const body: any = await request.json().catch(() => ({}));
@@ -778,24 +1071,98 @@ export default {
         }
       }
 
-      // 5.7 播放進度記憶 (KV / D1)
-      if (path === '/api/playback-memory' || path === '/api/playback/record') {
-        if (method === 'GET') {
-          const identifier = url.searchParams.get('identifier');
-          if (env.KV && identifier) {
-            const raw = await env.KV.get(`playback:${identifier}`);
-            return jsonResponse(raw ? JSON.parse(raw) : []);
-          }
-          return jsonResponse([]);
+      // 5.7 播放進度記憶與跨裝置永久紀錄 (POST /api/playback/record & GET /api/playback/history/:id)
+      if (path === '/api/playback/record' && method === 'POST') {
+        const body: any = await request.json().catch(() => ({}));
+        const { trackId, userIdOrDeviceId, currentTime, duration } = body;
+        if (!trackId || !userIdOrDeviceId) {
+          return errorResponse('缺少必要參數 (trackId, userIdOrDeviceId)', 400);
         }
-        if (method === 'POST') {
-          const body: any = await request.json().catch(() => ({}));
-          const { identifier, records } = body;
-          if (env.KV && identifier) {
-            await env.KV.put(`playback:${identifier}`, JSON.stringify(records || []));
+
+        const key = `${userIdOrDeviceId}_${trackId}`;
+        const safeDuration = duration > 0 ? duration : 600;
+        const progressPercent = Math.min(100, Math.round((currentTime / safeDuration) * 100));
+        const isCompleted = progressPercent >= 95 ? 1 : 0;
+        const now = new Date();
+        const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
+
+        const record = {
+          key,
+          trackId,
+          userIdentifier: userIdOrDeviceId,
+          currentTime,
+          duration: safeDuration,
+          progressPercent,
+          completed: isCompleted,
+          lastPlayedAt: Date.now(),
+          lastListenDate: dateStr,
+          finishDate: isCompleted ? dateStr : null
+        };
+
+        if (env.DB) {
+          try {
+            await env.DB.prepare(`
+              INSERT INTO playback_memories (
+                key, trackId, userIdentifier, currentTime, duration, progressPercent,
+                lastPlayedAt, completed, lastListenDate, finishDate
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(key) DO UPDATE SET
+                currentTime = excluded.currentTime,
+                duration = excluded.duration,
+                progressPercent = excluded.progressPercent,
+                lastPlayedAt = excluded.lastPlayedAt,
+                completed = CASE WHEN excluded.completed = 1 THEN 1 ELSE playback_memories.completed END,
+                lastListenDate = excluded.lastListenDate,
+                finishDate = CASE WHEN excluded.completed = 1 AND playback_memories.finishDate IS NULL THEN excluded.finishDate ELSE playback_memories.finishDate END
+            `).bind(
+              key, trackId, userIdOrDeviceId, currentTime, safeDuration, progressPercent,
+              Date.now(), isCompleted, dateStr, isCompleted ? dateStr : null
+            ).run();
+
+            // Increment user play count if playing actively
+            if (currentTime % 30 < 2) {
+              await env.DB.prepare('UPDATE users SET playCount = playCount + 1 WHERE email = ? OR id = ?').bind(userIdOrDeviceId, userIdOrDeviceId).run();
+            }
+          } catch (e) {
+            console.error('D1 playback memory save error:', e);
           }
-          return jsonResponse({ success: true });
         }
+
+        if (env.KV) {
+          try {
+            await env.KV.put(`playback_rec:${key}`, JSON.stringify(record));
+          } catch {}
+        }
+
+        return jsonResponse({ success: true, record });
+      }
+
+      if (path.startsWith('/api/playback/history/')) {
+        const id = decodeURIComponent(path.replace('/api/playback/history/', ''));
+        const recordsMap: Record<string, any> = {};
+
+        if (env.DB && id) {
+          try {
+            const { results } = await env.DB.prepare(`
+              SELECT * FROM playback_memories
+              WHERE userIdentifier = ? OR key LIKE ?
+            `).bind(id, `${id}_%`).all();
+
+            if (results && results.length > 0) {
+              for (const r of results) {
+                recordsMap[r.trackId] = {
+                  ...r,
+                  completed: Boolean(r.completed),
+                  updatedAt: r.lastPlayedAt || Date.now()
+                };
+              }
+            }
+          } catch (e) {
+            console.error('D1 playback history query error:', e);
+          }
+        }
+
+        return jsonResponse(recordsMap);
       }
 
       // 5.8 改版歷程紀錄 (/api/changelog)

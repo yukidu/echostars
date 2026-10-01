@@ -286,7 +286,6 @@ export const ChangelogModal: React.FC<ChangelogModalProps> = ({
   const isSuperAdmin =
     isAdmin ||
     cleanEmail === 'yukidu@gmail.com' ||
-    cleanEmail === 'yukiduhm@gmail.com' ||
     currentUser?.role === '超級管理員' ||
     currentUser?.id === 'u-admin';
 
