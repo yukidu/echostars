@@ -328,47 +328,6 @@ export default function App() {
     return Array.from(kwSet).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
   }, [tracks]);
 
-  // Requirement 7 (v2.8): 字體縮放控制 (針對 1272x2800 等超高解析度手機支援放大3倍)
-  const [fontScale, setFontScale] = useState<'1x' | '1.5x' | '2x' | '3x'>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('sq_font_scale');
-      if (stored === '1x' || stored === '1.5x' || stored === '2x' || stored === '3x') {
-        return stored;
-      }
-    }
-    return '1x';
-  });
-
-  const handleToggleFontScale = () => {
-    setFontScale(prev => {
-      let next: '1x' | '1.5x' | '2x' | '3x' = '1x';
-      if (prev === '1x') next = '1.5x';
-      else if (prev === '1.5x') next = '2x';
-      else if (prev === '2x') next = '3x';
-      else next = '1x';
-      localStorage.setItem('sq_font_scale', next);
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    const root = document.documentElement;
-    // Requirement 7 (v2.8): 針對 1272x2800 等旗艦手機支援放大 3 倍
-    if (fontScale === '3x') {
-      root.style.fontSize = '48px'; // 16px * 3 = 48px (三倍放大)
-      root.style.setProperty('--font-scale-multiplier', '3');
-    } else if (fontScale === '2x') {
-      root.style.fontSize = '32px'; // 16px * 2 = 32px (雙倍放大)
-      root.style.setProperty('--font-scale-multiplier', '2');
-    } else if (fontScale === '1.5x') {
-      root.style.fontSize = '24px'; // 16px * 1.5 = 24px (1.5倍)
-      root.style.setProperty('--font-scale-multiplier', '1.5');
-    } else {
-      root.style.fontSize = '';
-      root.style.setProperty('--font-scale-multiplier', '1');
-    }
-  }, [fontScale]);
-
   // Requirement 8: 自動顯示相關的關鍵詞（包括：分類標籤、網友關鍵字、音檔詳細資料）
   const searchSuggestions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -1513,8 +1472,6 @@ export default function App() {
         isAdmin={isAdmin}
         canUpload={canUpload}
         pendingNotificationsCount={pendingNotificationsCount}
-        fontScale={fontScale}
-        onToggleFontScale={handleToggleFontScale}
       />
 
       {/* Permission Alert Toast */}
