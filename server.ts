@@ -29,21 +29,85 @@ const storage = multer.diskStorage({
 });
 const uploadMiddleware = multer({ storage, limits: { fileSize: 150 * 1024 * 1024 } });
 
+// Cloudflare Configuration
+const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || '';
+const CF_API_TOKEN = process.env.CF_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN || '';
+const R2_BUCKET = process.env.R2_BUCKET_NAME || 'echoes-audio-bucket';
+
 // POST /api/r2/upload
-app.post('/api/r2/upload', uploadMiddleware.single('file'), (req, res) => {
+app.post('/api/r2/upload', uploadMiddleware.single('file') as any, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: '缺少上傳檔案 (file)' });
   }
   const key = `uploads/${req.file.filename}`;
   const fileUrl = `/api/r2/file/${encodeURIComponent(key)}`;
+
+  // Direct sync to Cloudflare R2 bucket when credentials are provided
+  if (CF_ACCOUNT_ID && CF_API_TOKEN) {
+    try {
+      const filePath = req.file.path;
+      const fileBuffer = fs.readFileSync(filePath);
+      const ext = path.extname(req.file.filename).toLowerCase();
+      let contentType = req.file.mimetype;
+      if (!contentType || contentType === 'application/octet-stream') {
+        if (ext === '.mp3') contentType = 'audio/mpeg';
+        else if (ext === '.m4a') contentType = 'audio/mp4';
+        else if (ext === '.wav') contentType = 'audio/wav';
+        else if (ext === '.ogg') contentType = 'audio/ogg';
+        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+        else if (ext === '.png') contentType = 'image/png';
+        else if (ext === '.webp') contentType = 'image/webp';
+        else contentType = 'audio/mpeg';
+      }
+
+      const r2Url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/r2/buckets/${R2_BUCKET}/objects/${encodeURIComponent(key)}`;
+      const r2Res = await fetch(r2Url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${CF_API_TOKEN}`,
+          'Content-Type': contentType
+        },
+        body: fileBuffer
+      });
+
+      if (!r2Res.ok) {
+        const errText = await r2Res.text();
+        console.error('[R2 API] Failed to upload to Cloudflare R2 bucket:', errText);
+      } else {
+        console.log(`[R2 API] Successfully uploaded ${key} to Cloudflare R2 bucket ${R2_BUCKET}`);
+      }
+    } catch (err) {
+      console.error('[R2 API] Upload exception:', err);
+    }
+  }
+
   res.json({ success: true, key, url: fileUrl });
 });
 
-// GET /api/r2/file/:key (With Range streaming support)
-app.get('/api/r2/file/:key', (req, res) => {
+// GET /api/r2/file/:key (With Range streaming support & R2 remote fetch fallback)
+app.get('/api/r2/file/:key', async (req, res) => {
   const rawKey = decodeURIComponent(req.params.key);
   const fileName = path.basename(rawKey);
   const filePath = path.join(uploadDir, fileName);
+
+  // If file doesn't exist locally, try fetching from Cloudflare R2 bucket
+  if (!fs.existsSync(filePath) && CF_ACCOUNT_ID && CF_API_TOKEN) {
+    try {
+      const r2Url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/r2/buckets/${R2_BUCKET}/objects/${encodeURIComponent(rawKey)}`;
+      const r2Res = await fetch(r2Url, {
+        headers: {
+          'Authorization': `Bearer ${CF_API_TOKEN}`
+        }
+      });
+      if (r2Res.ok) {
+        const arrayBuf = await r2Res.arrayBuffer();
+        fs.writeFileSync(filePath, Buffer.from(arrayBuf));
+        console.log(`[R2 Cache] Downloaded ${rawKey} from Cloudflare R2 to local cache.`);
+      }
+    } catch (err) {
+      console.error('[R2 Cache] Error fetching from R2:', err);
+    }
+  }
 
   if (!fs.existsSync(filePath)) {
     return res.status(404).send('檔案不存在');
@@ -84,10 +148,6 @@ app.get('/api/r2/file/:key', (req, res) => {
     fs.createReadStream(filePath).pipe(res);
   }
 });
-
-// Cloudflare Configuration
-const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID || '';
-const CF_API_TOKEN = process.env.CF_API_TOKEN || '';
 
 interface ExternalLinkItem {
   name: string;
