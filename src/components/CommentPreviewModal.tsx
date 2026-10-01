@@ -23,6 +23,7 @@ interface CommentPreviewModalProps {
   visitor?: VisitorIdentity;
   isAdmin?: boolean;
   allUsers?: UserProfile[];
+  initialComments?: Comment[];
   tracks?: Track[];
   onViewMember?: (user: UserProfile) => void;
   onCommentAdded?: () => void;
@@ -36,6 +37,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
   visitor,
   isAdmin,
   allUsers = [],
+  initialComments = [],
   tracks = [],
   onViewMember,
   onCommentAdded
@@ -59,7 +61,8 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
   const myId = myKeys[0] || 'guest';
 
   useEffect(() => {
-    setComments([]);
+    const initial = initialComments.filter(c=>c.trackId===track?.id);
+    setComments(initial);
     setLikeStats({});
     setInputText('');
     setReplyingTo(null);
@@ -67,7 +70,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
     setIsMentionOpen(false);
     if (!isOpen || !track) return;
     const controller = new AbortController();
-    setIsLoading(true);
+    setIsLoading(initial.length === 0);
     apiJson(`/api/tracks/${encodeURIComponent(track.id)}/comments`, { signal: controller.signal })
       .then(data => { if (!controller.signal.aborted) setComments(Array.isArray(data) ? data : []); })
       .catch(error => { if (!controller.signal.aborted) setErrorMsg(error.message || '留言載入失敗'); })
@@ -77,34 +80,10 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
 
   // Requirement 1 & 8: 判斷留言作者是否為已註冊會員。若是訪客，則回傳 null
   const getRegisteredAuthor = (c: Comment): UserProfile | null => {
-    // 1. 若為當前登入者
-    if (currentUser) {
-      if (c.authorEmail && currentUser.email && c.authorEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) {
-        return currentUser;
-      }
-      if (c.isAdmin && (currentUser.email?.toLowerCase().trim() === 'yukidu@gmail.com' || currentUser.role === '超級管理員' || currentUser.isAdminUser)) {
-        return currentUser;
-      }
-      if (currentUser.name && c.authorName === currentUser.name) {
-        return currentUser;
-      }
-    }
-    // 2. 依 Email 比對已註冊會員
-    if (c.authorEmail && c.authorEmail !== 'guest' && !c.authorEmail.startsWith('guest-') && c.deviceId !== c.authorEmail) {
-      const found = allUsers.find(u => u.email && u.email.toLowerCase().trim() === c.authorEmail?.toLowerCase().trim());
-      if (found) return found;
-    }
-    // 3. 管理員留言比對超級管理員
-    if (c.isAdmin) {
-      const adminUser = allUsers.find(u => u.email?.toLowerCase().trim() === 'yukidu@gmail.com' || u.role === '超級管理員');
-      if (adminUser) return adminUser;
-    }
-    // 4. 依姓名比對註冊會員 (排除訪客姓名)
-    if (c.authorName && !c.authorName.startsWith('訪客') && c.authorBadge !== '訪客稱號' && c.authorBadge !== '訪客') {
-      const foundByName = allUsers.find(u => u.name === c.authorName);
-      if (foundByName) return foundByName;
-    }
-    return null;
+    const email=c.authorEmail?.toLowerCase().trim();
+    if (!email) return null;
+    if (currentUser?.email?.toLowerCase().trim()===email) return currentUser;
+    return allUsers.find(u=>u.email?.toLowerCase().trim()===email)||null;
   };
 
   const handleAuthorClick = (c: Comment) => {
@@ -398,7 +377,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in"
+      className="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in"
     >
       <div
         onClick={e => e.stopPropagation()}
@@ -454,7 +433,7 @@ const threads = commentThreads(comments);
                 const displayAuthorAvatar = registeredAuthor?.avatar || c.authorAvatar;
                 // Requirement 5 (v2.5): 如果是訪客，那他不應該有獎銜。因為訪客不能設定基本資料。訪客暱稱的名字右邊要增加顯示（訪客）做區分。
                 const displayAuthorBadge = registeredAuthor
-                  ? (registeredAuthor.role === '超級管理員' ? '管理員' : registeredAuthor.isContributor ? '貢獻者' : (registeredAuthor.rank || c.authorBadge))
+                  ? (registeredAuthor.rank || '無')
                   : null; // 訪客不應有獎銜
 
                 const isRainbow = c.isAdmin || displayAuthorBadge === '貢獻者';

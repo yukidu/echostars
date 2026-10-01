@@ -86,7 +86,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     setIsMobileMenuOpen(false);
   };
 
+  const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem('echostars-home-tutorial-v3'));
+  const dismissTutorial = () => { localStorage.setItem('echostars-home-tutorial-v3', 'seen'); setShowTutorial(false); };
   const handleLogoClick = () => {
+    dismissTutorial();
     if (onLogoClick) {
       onLogoClick();
     } else {
@@ -96,11 +99,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/90 dark:bg-slate-900/90 border-b border-[var(--theme-border-subtle,#f1e7ea)] dark:border-slate-800 transition-colors shadow-xs relative overflow-hidden">
+    <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/90 dark:bg-slate-900/90 border-b border-[var(--theme-border-subtle,#f1e7ea)] dark:border-slate-800 transition-colors shadow-xs relative">
       {/* Requirement 4: 置頂主選單繁星閃爍特效 */}
       <TwinklingStars density="subtle" className="opacity-75 dark:opacity-90" />
 
-      <div className="relative z-10 max-w-4xl mx-auto px-3 sm:px-6 h-13 sm:h-16 flex items-center justify-between">
+      <div className="relative z-10 max-w-4xl mx-auto px-3 sm:px-6 h-16 sm:h-[72px] flex items-center justify-between">
         {/* Brand Logo - 點擊左上角麥克風圖或繁星的回聲，返回首頁播放清單「全部分類」，清空搜尋條件 */}
         <button
           type="button"
@@ -138,6 +141,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </button>
 
+        {showTutorial && <div role="status" className="absolute top-full left-3 z-[80] max-w-[calc(100vw-24px)] rounded-2xl bg-[var(--color-primary)] text-white p-4 shadow-xl border-2 border-white"><div className="absolute -top-8 left-10 text-4xl font-black text-[var(--color-primary)]" aria-hidden="true">↑</div><p className="font-bold text-lg">按這裡回首頁播放清單</p><button type="button" onClick={dismissTutorial} className="mt-2 rounded-lg bg-white/20 px-3 py-2">知道了</button></div>}
         {/* Desktop Navigation Controls (Hidden on small mobile screens) */}
         <div className="hidden md:flex items-center gap-1 sm:gap-2">
           {/* Home */}
@@ -253,7 +257,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Divider */}
           <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
 
-          <InstallAppButton compact />
+
 
           {/* Dynamic Light Theme Generator */}
           <button
@@ -331,7 +335,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* Quick theme toggle on mobile */}
-          <InstallAppButton compact />
+
 
           <button
             onClick={onToggleTheme}

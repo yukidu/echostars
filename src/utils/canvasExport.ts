@@ -5,6 +5,8 @@ export async function exportMemberProfileAndListeningImage(
   user: UserProfile,
   records: Array<{ track: Track; record: UserListeningRecord }>
 ): Promise<Blob> {
+  const calculated = calculateNumerology(user.birthday || '');
+  user = { ...user, zodiac: calculated?.zodiac, talentNumber: calculated?.talentNumber, lifeNumber: calculated?.lifeNumber };
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
 
@@ -662,7 +664,7 @@ export async function exportTrackFullCardImage(
       // Comment Author & Timestamp
       ctx.font = 'bold 14px "PingFang TC", "Microsoft JhengHei", sans-serif';
       ctx.fillStyle = '#000000';
-      const roleBadge = comment.isAdmin ? '[獎銜審核員] ' : (comment.authorRank ? `[${comment.authorRank}] ` : '');
+      const roleBadge = comment.authorRank ? `[${comment.authorRank}] ` : '';
       const replyBadge = comment.replyToAuthor ? ` (回覆 @${comment.replyToAuthor})` : '';
       ctx.fillText(`#${i + 1}  ${roleBadge}${comment.authorName}${replyBadge}`, padding + 8, currentY);
 
@@ -885,10 +887,10 @@ export async function exportPersonalProfileCard(user: UserProfile): Promise<Blob
   ctx.fillStyle = '#000000';
   ctx.fillText('【 生命靈數與九宮格命盤圖表 】', padding, numY);
 
-  const numResult = calculateNumerology(user.birthday || '1990-01-01');
-  const talentNum = user.talentNumber || numResult?.talentNumber || '-';
-  const lifeNum = user.lifeNumber || numResult?.lifeNumber || '-';
-  const zodiacStr = user.zodiac || numResult?.zodiac || '-';
+  const numResult = calculateNumerology(user.birthday || '');
+  const talentNum = numResult?.talentNumber || user.talentNumber || '-';
+  const lifeNum = numResult?.lifeNumber || user.lifeNumber || '-';
+  const zodiacStr = numResult?.zodiac || user.zodiac || '-';
   const zodiacNum = numResult?.zodiacNumber || '-';
   const birthdayNum = numResult?.birthdayNumber || '-';
   const digitCounts = numResult?.digitCounts || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0 };
@@ -1081,4 +1083,3 @@ export async function shareOrDownloadProfileCard(blob: Blob, userName: string) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-

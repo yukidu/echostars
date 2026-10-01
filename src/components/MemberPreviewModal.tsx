@@ -88,7 +88,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
   if (!isOpen || !liveUser) return null;
 
   // Calculate numerology
-  const numerology = calculateNumerology(liveUser.birthday || '1990-01-01');
+  const numerology = calculateNumerology(liveUser.birthday || '');
 
   // User rated tracks
   const userRatedTracks = tracks
@@ -111,7 +111,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
       id: rec.trackId,
       title: rec.trackTitle || '演講錄音檔',
       speaker: rec.trackSpeaker || '繁星講師',
-      speakerRank: rec.trackSpeakerRank || '鑽石',
+      speakerRank: rec.trackSpeakerRank || '無',
       speakerAvatar: '',
       categories: ['未分類'],
       series: '',
@@ -135,9 +135,9 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
       ratings: {}
     };
     // Requirement 7: 確保學習檔案包含音檔學習進度、給予評價、留言內容
-    const effectiveRating = rec.rating || (foundTrack?.ratings ? (foundTrack.ratings[liveUser.email] || foundTrack.ratings[liveUser.id] || 0) : 0);
+    const effectiveRating = foundTrack ? (foundTrack.ratings?.[liveUser.email] || foundTrack.ratings?.[liveUser.id] || 0) : (rec.rating || 0);
     const userCommentObj = userComments.find(c => c.trackId === rec.trackId);
-    const effectiveComment = rec.comment || userCommentObj?.content || '';
+    const effectiveComment = foundTrack ? (userCommentObj?.content || '') : (rec.comment || '');
 
     const enrichedRecord: UserListeningRecord = {
       ...rec,
@@ -166,7 +166,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
+      className="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
     >
       {/* Modal Dialog Content (stopPropagation so only backdrop click closes it) */}
       <div
@@ -329,7 +329,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
                     九宮格生命靈數連線圖
                   </span>
                 </div>
-                <NumerologyGrid birthday={liveUser.birthday || '1990-01-01'} />
+                <NumerologyGrid birthday={liveUser.birthday || ''} />
               </div>
             </div>
           )}

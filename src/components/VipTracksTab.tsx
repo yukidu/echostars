@@ -1,3 +1,4 @@
+import { ThemedSelect } from './ThemedSelect';
 import React, { useState } from 'react';
 import {
   Crown,
@@ -369,7 +370,7 @@ export const VipTracksTab: React.FC<VipTracksTabProps> = ({
                         <span className="font-bold text-purple-900 dark:text-purple-200">
                           重新設定有效天數：
                         </span>
-                        <select
+                        <ThemedSelect
                           value={newDurationDays}
                           onChange={e => setNewDurationDays(Number(e.target.value))}
                           className="px-2.5 py-1 rounded-xl border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 outline-hidden"
@@ -379,7 +380,7 @@ export const VipTracksTab: React.FC<VipTracksTabProps> = ({
                           <option value={14}>14 天後失效</option>
                           <option value={30}>30 天後失效</option>
                           <option value={0}>永久有效 (無期限)</option>
-                        </select>
+                        </ThemedSelect>
                       </div>
 
                       <div className="flex items-center gap-1.5">

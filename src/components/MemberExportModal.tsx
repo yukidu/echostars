@@ -142,7 +142,7 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-[70] flex items-center justify-center p-3.5 sm:p-4 bg-black/60 backdrop-blur-xs cursor-pointer animate-in fade-in"
+      className="app-modal-overlay fixed inset-0 z-[70] flex items-center justify-center p-3.5 sm:p-4 bg-black/60 backdrop-blur-xs cursor-pointer animate-in fade-in"
     >
       <div
         onClick={e => e.stopPropagation()}

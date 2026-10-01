@@ -266,3 +266,15 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
 .star-pulse-glow {
   animation: starPulseGlow 3s ease-in-out infinite;
 }
+
+/* v3.0: stable dialog position and shared action styles. */
+.app-modal-overlay { align-items: flex-start !important; padding-top: max(16px, env(safe-area-inset-top)) !important; }
+.app-modal-overlay > div:first-child { margin-top: 0 !important; margin-bottom: 0 !important; max-height: calc(100dvh - 32px); display: flex; flex-direction: column; }
+.app-modal-overlay > div:first-child > div:first-child { flex-shrink: 0; }
+.app-modal-overlay > div:first-child > form,
+.app-modal-overlay > div:first-child > .overflow-y-auto { min-height: 0; }
+.detail-share-actions > button { background: var(--color-primary) !important; color: white !important; border: 0; padding: 12px 21px; font-size: 18px; }
+.detail-share-actions svg { color: white !important; width: 21px; height: 21px; }
+.sort-toolbar .filter-dropdowns { justify-content: center; flex: 1 0 100%; }
+
+.app-modal-overlay { z-index: 100 !important; }

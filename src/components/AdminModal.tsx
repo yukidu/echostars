@@ -1,3 +1,4 @@
+import { ThemedSelect } from './ThemedSelect';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ShieldCheck,
@@ -261,7 +262,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     if (filterContributor === '是' && !u.isContributor) return false;
     if (filterContributor === '否' && u.isContributor) return false;
     if (filterLifeNumber !== '全部') {
-      const calc = calculateNumerology(u.birthday || '1990-01-01');
+      const calc = calculateNumerology(u.birthday || '');
       const num = u.lifeNumber || calc?.lifeNumber;
       if (String(num) !== filterLifeNumber) return false;
     }
@@ -302,7 +303,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       sponsor: user.sponsor || '',
       platinumUpline: user.platinumUpline || '',
       diamondUpline: user.diamondUpline || '',
-      birthday: user.birthday || '1990-01-01'
+      birthday: user.birthday || ''
     });
   };
 
@@ -361,7 +362,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+    <div className="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl border border-rose-100/60 dark:border-slate-800 my-8">
         {/* Header - Requirement 20: 統一底色與麥克風相同色 */}
         <div
@@ -375,18 +376,25 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             <div>
               <h3 className="font-bold text-base text-white flex items-center gap-2">
                 <span>後台管理中心</span>
-                {isEffectiveAdmin ? (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/25 text-white font-bold">
-                    最高權限 · 超級管理員 (yukidu@gmail.com)
-                  </span>
-                ) : (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 text-white font-bold">
-                    訪客瀏覽模式
-                  </span>
-                )}
+
               </h3>
             </div>
           </div>
+          {editingUserId && <div className="flex justify-end gap-2 text-xs">
+                    <button
+                      onClick={() => setEditingUserId(null)}
+                      className="px-3 py-1 rounded-lg border border-slate-200 text-white"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={handleSaveUserForm}
+                      className="px-3 py-1 rounded-lg text-white font-bold"
+                      style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+                    >
+                      儲存
+                    </button>
+                  </div>}
           <button
             onClick={onClose}
             className="p-1.5 text-white/80 hover:text-white rounded-lg hover:bg-white/20"
@@ -596,7 +604,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
                       所屬繁星中心
                     </label>
-                    <select
+                    <ThemedSelect
                       value={filterCenter}
                       onChange={e => setFilterCenter(e.target.value)}
                       className="w-full px-2 py-1 rounded-xl text-xs border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
@@ -606,7 +614,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           {c === '全部' ? '全部中心' : c}
                         </option>
                       ))}
-                    </select>
+                    </ThemedSelect>
                   </div>
 
                   {/* 2. 獎銜 */}
@@ -614,7 +622,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
                       獎銜
                     </label>
-                    <select
+                    <ThemedSelect
                       value={filterRank}
                       onChange={e => setFilterRank(e.target.value)}
                       className="w-full px-2 py-1 rounded-xl text-xs border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
@@ -624,7 +632,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           {r === '全部' ? '全部獎銜' : r}
                         </option>
                       ))}
-                    </select>
+                    </ThemedSelect>
                   </div>
 
                   {/* 3. 上手鑽石 */}
@@ -632,7 +640,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
                       上手鑽石
                     </label>
-                    <select
+                    <ThemedSelect
                       value={filterDiamondUpline}
                       onChange={e => setFilterDiamondUpline(e.target.value)}
                       className="w-full px-2 py-1 rounded-xl text-xs border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
@@ -642,7 +650,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           {d === '全部' ? '全部上手' : d}
                         </option>
                       ))}
-                    </select>
+                    </ThemedSelect>
                   </div>
 
                   {/* 4. 貢獻者 */}
@@ -650,7 +658,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
                       貢獻者
                     </label>
-                    <select
+                    <ThemedSelect
                       value={filterContributor}
                       onChange={e => setFilterContributor(e.target.value)}
                       className="w-full px-2 py-1 rounded-xl text-xs border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
@@ -658,7 +666,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       <option value="全部">全部身份</option>
                       <option value="是">僅貢獻者</option>
                       <option value="否">非貢獻者</option>
-                    </select>
+                    </ThemedSelect>
                   </div>
 
                   {/* 5. 生命命數 */}
@@ -666,7 +674,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
                       生命命數
                     </label>
-                    <select
+                    <ThemedSelect
                       value={filterLifeNumber}
                       onChange={e => setFilterLifeNumber(e.target.value)}
                       className="w-full px-2 py-1 rounded-xl text-xs border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
@@ -677,7 +685,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           {n} 號人
                         </option>
                       ))}
-                    </select>
+                    </ThemedSelect>
                   </div>
                 </div>
               </div>
@@ -746,7 +754,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">
                           批次修改：所屬繁星中心
                         </label>
-                        <select
+                        <ThemedSelect
                           value={batchCenter}
                           onChange={e => setBatchCenter(e.target.value)}
                           className="w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
@@ -757,14 +765,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                               {c}
                             </option>
                           ))}
-                        </select>
+                        </ThemedSelect>
                       </div>
 
                       <div>
                         <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">
                           批次修改：最高獎銜
                         </label>
-                        <select
+                        <ThemedSelect
                           value={batchRank}
                           onChange={e => setBatchRank(e.target.value)}
                           className="w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
@@ -775,7 +783,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                               {r}
                             </option>
                           ))}
-                        </select>
+                        </ThemedSelect>
                       </div>
 
                       <div>
@@ -795,7 +803,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">
                           批次授權：協作者上傳權限
                         </label>
-                        <select
+                        <ThemedSelect
                           value={batchContributor}
                           onChange={e => setBatchContributor(e.target.value as 'grant' | 'revoke' | '')}
                           className="w-full px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
@@ -803,7 +811,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           <option value="">不修改</option>
                           <option value="grant">批次設為協作者 (開啟上傳權限)</option>
                           <option value="revoke">批次取消協作者權限</option>
-                        </select>
+                        </ThemedSelect>
                       </div>
 
                       <div className="sm:col-span-3 flex justify-end pt-1">
@@ -867,7 +875,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     </div>
                     <div>
                       <label className="block text-slate-500 mb-0.5">居住地</label>
-                      <select
+                      <ThemedSelect
                         value={userForm.residence || '臺北'}
                         onChange={e => setUserForm({ ...userForm, residence: e.target.value })}
                         className="w-full p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
@@ -877,11 +885,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             {r}
                           </option>
                         ))}
-                      </select>
+                      </ThemedSelect>
                     </div>
                     <div>
                       <label className="block text-slate-500 mb-0.5">所屬繁星中心</label>
-                      <select
+                      <ThemedSelect
                         value={userForm.center || '無'}
                         onChange={e => setUserForm({ ...userForm, center: e.target.value })}
                         className="w-full p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
@@ -891,11 +899,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             {c}
                           </option>
                         ))}
-                      </select>
+                      </ThemedSelect>
                     </div>
                     <div>
                       <label className="block text-slate-500 mb-0.5">最高獎銜</label>
-                      <select
+                      <ThemedSelect
                         value={userForm.rank || '無'}
                         onChange={e => setUserForm({ ...userForm, rank: e.target.value as AmwayRank })}
                         className="w-full p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
@@ -905,11 +913,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             {r}
                           </option>
                         ))}
-                      </select>
+                      </ThemedSelect>
                     </div>
                     <div>
                       <label className="block text-slate-500 mb-0.5">加入原因</label>
-                      <select
+                      <ThemedSelect
                         value={userForm.joinReason || '事業'}
                         onChange={e => setUserForm({ ...userForm, joinReason: e.target.value as JoinReason })}
                         className="w-full p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
@@ -919,7 +927,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             {j}
                           </option>
                         ))}
-                      </select>
+                      </ThemedSelect>
                     </div>
                     <div>
                       <label className="block text-slate-500 mb-0.5">推薦人姓名</label>
@@ -952,28 +960,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       <label className="block text-slate-500 mb-0.5">西元生日</label>
                       <input
                         type="date"
-                        value={userForm.birthday || '1990-01-01'}
+                        value={userForm.birthday || ''}
                         onChange={e => setUserForm({ ...userForm, birthday: e.target.value })}
                         className="w-full p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
                       />
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700">
-                    <button
-                      onClick={() => setEditingUserId(null)}
-                      className="px-3 py-1 rounded-lg border border-slate-200 text-slate-600 dark:text-slate-300"
-                    >
-                      取消
-                    </button>
-                    <button
-                      onClick={handleSaveUserForm}
-                      className="px-3 py-1 rounded-lg text-white font-bold"
-                      style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
-                    >
-                      儲存會員資料
-                    </button>
-                  </div>
+
                 </div>
               ) : null}
 

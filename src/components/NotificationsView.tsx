@@ -1,3 +1,4 @@
+import { ThemedSelect } from './ThemedSelect';
 import React, { useState, useMemo } from 'react';
 import {
   Bell,
@@ -633,7 +634,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                       {isPending ? (
                         editingUserId === user.id ? (
                           <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                            <select
+                            <ThemedSelect
                               value={modifiedRank}
                               onChange={e => setModifiedRank(e.target.value as AmwayRank)}
                               className="text-xs px-2 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-hidden font-bold"
@@ -643,7 +644,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                                   {r}
                                 </option>
                               ))}
-                            </select>
+                            </ThemedSelect>
                             <button
                               type="button"
                               disabled={isSubmitting}
@@ -691,7 +692,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                         <div className="flex items-center gap-1.5">
                           {editingUserId === user.id ? (
                             <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                              <select
+                              <ThemedSelect
                                 value={modifiedRank}
                                 onChange={e => setModifiedRank(e.target.value as AmwayRank)}
                                 className="text-xs px-2 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-hidden font-bold"
@@ -701,7 +702,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                                     {r}
                                   </option>
                                 ))}
-                              </select>
+                              </ThemedSelect>
                               <button
                                 type="button"
                                 disabled={isSubmitting}

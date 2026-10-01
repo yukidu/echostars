@@ -1,3 +1,4 @@
+import { shareMetadata } from '../shared/shareMetadata';
 /**
  * Cloudflare Workers Entry Point for 繁星的回聲 (Echoes of Stars)
  * 架構: Cloudflare Workers + D1 資料庫 + R2 物件儲存 + KV 快取
@@ -35,251 +36,13 @@ function errorResponse(message: string, status = 400) {
 }
 
 // 預設示範音檔清單 (D1 初次為空時之完整保底資料)
-const DEFAULT_TRACKS = [
-  {
-    id: 't-1',
-    title: '把目標變成業績的關鍵心法',
-    speaker: '陳志豪',
-    speakerRank: '鑽石領袖',
-    speakerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
-    categories: ['事業'],
-    keywords: ['目標設定', '業績突破', '實戰成交', '行動步驟', '事業成長'],
-    rating: 3.7,
-    ratingCount: 9,
-    commentsCount: 4,
-    likes: 15,
-    duration: '約 10 分鐘',
-    durationSeconds: 600,
-    series: '事業進階系列',
-    speechDate: '2025/03/12',
-    requiredRank: '無',
-    seriesOrder: '第 1 集',
-    uploadDate: '2026/09/27',
-    description: '從設定目標到實際成交，拆解真正能落地的行動步驟。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/daytime_forest_bonfire.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [{ name: 'YouTube 精華剪輯', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }],
-    externalPpts: [{ name: '目標與業績簡報檔', url: 'https://docs.google.com/presentation/d/demo/preview' }],
-    externalFiles: [{ name: '目標設定行動手冊.pdf', url: 'https://example.com/handbook.pdf' }],
-    likedBy: ['guest-default'],
-    ratings: { 'guest-default': 4, 'u-1': 4, 'u-2': 3, 'u-3': 4 },
-    playCount: 682
-  },
-  {
-    id: 't-2',
-    title: '逆境其實是最好的禮物',
-    speaker: '林美玲',
-    speakerRank: '皇冠大使',
-    speakerAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=600&auto=format&fit=crop&q=80',
-    categories: ['心態思維'],
-    keywords: ['逆境成長', '轉念心態', '正向思維', '自我激勵', '皇冠大使'],
-    rating: 4.3,
-    ratingCount: 8,
-    commentsCount: 3,
-    likes: 14,
-    duration: '約 9 分鐘',
-    durationSeconds: 540,
-    series: '思維心法系列',
-    speechDate: '2025/02/18',
-    requiredRank: '無',
-    seriesOrder: '第 2 集',
-    uploadDate: '2026/09/25',
-    description: '在低谷時如何快速切換心態，把每一次挑戰化為成長養分。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/outdoor_summer_ambience.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: { 'u-1': 5, 'u-2': 4 },
-    playCount: 547
-  },
-  {
-    id: 't-3',
-    title: '從零開始的第一年',
-    speaker: '吳宗霖',
-    speakerRank: '翡翠',
-    speakerAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=600&auto=format&fit=crop&q=80',
-    categories: ['影集'],
-    keywords: ['新人起步', '堅持初衷', '破局成長', '經驗分享'],
-    rating: 4.4,
-    ratingCount: 8,
-    commentsCount: 3,
-    likes: 14,
-    duration: '約 11 分鐘',
-    durationSeconds: 660,
-    series: '新人起步系列',
-    speechDate: '2025/01/10',
-    requiredRank: '無',
-    seriesOrder: '第 1 集',
-    uploadDate: '2026/09/20',
-    description: '分享第一年碰壁、迷惘到找到節奏與突破點的真實經歷。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/rain_heavy.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: { 'u-1': 5 },
-    playCount: 493
-  },
-  {
-    id: 't-4',
-    title: '把營養講得讓人聽得懂',
-    speaker: '王淑芬',
-    speakerRank: '健康顧問',
-    speakerAvatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=600&auto=format&fit=crop&q=80',
-    categories: ['營養'],
-    keywords: ['營養保健', '日常分享', '產品生活化'],
-    rating: 4.1,
-    ratingCount: 8,
-    commentsCount: 3,
-    likes: 14,
-    duration: '約 10 分鐘',
-    durationSeconds: 600,
-    series: '產品生活化系列',
-    speechDate: '2024/12/05',
-    requiredRank: '無',
-    seriesOrder: '第 3 集',
-    uploadDate: '2026/09/15',
-    description: '擺脫生硬名詞，用故事與生活案例分享營養價值與保健觀念。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/daytime_forest_bonfire.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: {},
-    playCount: 420
-  },
-  {
-    id: 't-5',
-    title: '時間管理的三個秘密',
-    speaker: '劉思妤',
-    speakerRank: '鑽石',
-    speakerAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=600&auto=format&fit=crop&q=80',
-    categories: ['心態思維', '事業'],
-    keywords: ['時間管理', '自律生活', '高效率'],
-    rating: 4.5,
-    ratingCount: 8,
-    commentsCount: 3,
-    likes: 14,
-    duration: '約 8 分鐘',
-    durationSeconds: 480,
-    series: '高效自律系列',
-    speechDate: '2024/11/22',
-    requiredRank: '3%',
-    seriesOrder: '第 1 集',
-    uploadDate: '2026/09/10',
-    description: '斜槓事業中如何安排每日高產出微習慣，讓時間成為你的複利。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/outdoor_summer_ambience.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: {},
-    playCount: 388
-  }
-];
+const DEFAULT_TRACKS: any[] = [];
 
 // 預設會員清單 (含超級管理員杜杜龍)
-const DEFAULT_USERS = [
-  {
-    id: 'u-admin',
-    email: 'yukidu@gmail.com',
-    name: '杜杜龍',
-    role: '超級管理員',
-    isAdminUser: true,
-    amwayId: 'TW-888888',
-    phone: '0912-345-678',
-    residence: '臺北',
-    center: '台北旗艦中心',
-    rank: '鑽石',
-    approvedRank: '鑽石',
-    rankApproved: true,
-    rankAuditStatus: 'approved',
-    registerDate: '2026/08/01 10:00',
-    rankUpdatedAt: '2026/08/01 10:00',
-    auditedBy: '系統初始最高權限',
-    joinReason: '事業',
-    stayReason: '打造自己的事業與團隊',
-    sponsor: '創辦人團隊',
-    platinumUpline: '杜鑽石',
-    diamondUpline: '杜鑽石',
-    birthday: '1985-07-15',
-    avatar: '🐉',
-    isContributor: true,
-    playCount: 142,
-    isBlocked: false,
-    lastActive: '剛才'
-  },
-  {
-    id: 'u-1',
-    email: 'chen.ming@example.com',
-    name: '陳銘耀',
-    role: '繁星家人',
-    amwayId: '20334455',
-    phone: '0922-111-222',
-    residence: '新北',
-    center: '自強',
-    rank: '銀章',
-    approvedRank: '銀章',
-    rankApproved: true,
-    rankAuditStatus: 'approved',
-    registerDate: '2026/08/15 14:20',
-    rankUpdatedAt: '2026/08/15 14:20',
-    auditedBy: '超級管理員 (杜杜龍)',
-    joinReason: '事業',
-    stayReason: '打造自己的事業與團隊',
-    sponsor: '杜杜龍',
-    platinumUpline: '陳白金',
-    diamondUpline: '杜鑽石',
-    avatar: '👨‍💼',
-    isContributor: false,
-    playCount: 98,
-    isBlocked: false,
-    lastActive: '10 分鐘前'
-  }
-];
+const DEFAULT_USERS: any[] = [];
 
 // 預設留言清單
-const DEFAULT_COMMENTS = [
-  {
-    id: 'c-1',
-    trackId: 't-1',
-    authorName: '爽朗的海豚',
-    authorAvatar: '🐬',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '設定目標與達成業績的心法非常實用，收穫很多！',
-    timestamp: '27 分鐘前',
-    createdAt: Date.now() - 27 * 60 * 1000
-  },
-  {
-    id: 'c-2',
-    trackId: 't-1',
-    authorName: '熱血的獵鷹',
-    authorAvatar: '🦅',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '心態思維的部分讓我重新調整了目標。',
-    timestamp: '59 分鐘前',
-    createdAt: Date.now() - 59 * 60 * 1000
-  },
-  {
-    id: 'c-4',
-    trackId: 't-1',
-    authorName: '杜杜龍',
-    authorAvatar: '🐲',
-    authorBadge: '管理員',
-    isAdmin: true,
-    authorEmail: 'yukidu@gmail.com',
-    content: '陳老師這堂課是經典必聽，建議夥伴多聽兩次！',
-    timestamp: '2 小時前',
-    createdAt: Date.now() - 120 * 60 * 1000
-  }
-];
+const DEFAULT_COMMENTS: any[] = [];
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -287,6 +50,14 @@ export default {
     const path = url.pathname;
     const method = request.method.toUpperCase();
 
+    if (path.startsWith('/share/') && method === 'GET') {
+      const id = decodeURIComponent(path.slice(7));
+      const track = env.DB ? await env.DB.prepare('SELECT title, speaker, speakerAvatar FROM tracks WHERE id = ?').bind(id).first() : null;
+      if (!track) return new Response('音檔不存在', {status:404});
+      if (!env.ASSETS) return new Response('網站建置未完成',{status:503});
+      const shell = await env.ASSETS.fetch(new Request(new URL('/index.html', url.origin),request));
+      return new Response(shareMetadata(await shell.text(),track as any,url.origin,id),{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'public, max-age=60'}});
+    }
     // 1. CORS Preflight
     if (method === 'OPTIONS') {
       return new Response(null, { headers: CORS_HEADERS });
@@ -497,7 +268,7 @@ export default {
             console.error('D1 keywords error:', e);
           }
         }
-        return jsonResponse(['目標設定', '業績突破', '實戰成交', '行動步驟', '事業成長', '逆境成長', '轉念心態', '正向思維', '新人起步']);
+        return jsonResponse([]);
       }
 
       // 5.3 錄音檔清單 (GET, POST, PUT, DELETE /api/tracks)

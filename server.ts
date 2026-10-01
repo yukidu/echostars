@@ -1,3 +1,4 @@
+import { shareMetadata } from './shared/shareMetadata';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -302,1102 +303,13 @@ interface UserProfile {
 }
 
 // Initial Data matching exactly the user's reference screenshots!
-let tracks: Track[] = [
-  {
-    id: 't-1',
-    title: '把目標變成業績的關鍵心法',
-    speaker: '陳志豪',
-    speakerRank: '鑽石領袖',
-    speakerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
-    categories: ['事業'],
-    keywords: ['目標設定', '業績突破', '實戰成交', '行動步驟', '事業成長'],
-    rating: 3.7,
-    ratingCount: 9,
-    commentsCount: 4,
-    likes: 15,
-    duration: '約 10 分鐘',
-    durationSeconds: 600,
-    series: '事業進階系列',
-    speechDate: '2025/03/12',
-    requiredRank: '無', // Public
-    seriesOrder: '第 1 集',
-    uploadDate: '2026/09/27',
-    description: '從設定目標到實際成交，拆解真正能落地的行動步驟。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/daytime_forest_bonfire.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [{ name: 'YouTube 精華剪輯', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }],
-    externalPpts: [{ name: '目標與業績簡報檔', url: 'https://docs.google.com/presentation/d/demo/preview' }],
-    externalFiles: [{ name: '目標設定行動手冊.pdf', url: 'https://example.com/handbook.pdf' }],
-    likedBy: ['guest-default'],
-    ratings: { 'guest-default': 4, 'u-1': 4, 'u-2': 3, 'u-3': 4 },
-    playCount: 682
-  },
-  {
-    id: 't-2',
-    title: '逆境其實是最好的禮物',
-    speaker: '林美玲',
-    speakerRank: '皇冠大使',
-    speakerAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=600&auto=format&fit=crop&q=80',
-    categories: ['心態思維'],
-    keywords: ['逆境成長', '轉念心態', '正向思維', '自我激勵', '皇冠大使'],
-    rating: 4.3,
-    ratingCount: 8,
-    commentsCount: 3,
-    likes: 14,
-    duration: '約 9 分鐘',
-    durationSeconds: 540,
-    series: '思維心法系列',
-    speechDate: '2025/02/18',
-    requiredRank: '無',
-    seriesOrder: '第 2 集',
-    uploadDate: '2026/09/25',
-    description: '在低谷時如何快速切換心態，把每一次挑戰化為成長養分。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/outdoor_summer_ambience.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: { 'u-1': 5, 'u-2': 4 },
-    playCount: 547
-  },
-  {
-    id: 't-3',
-    title: '從零開始的第一年',
-    speaker: '吳宗霖',
-    speakerRank: '翡翠',
-    speakerAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=600&auto=format&fit=crop&q=80',
-    categories: ['影集'],
-    keywords: ['新人起步', '堅持初衷', '破局成長', '經驗分享'],
-    rating: 4.4,
-    ratingCount: 8,
-    commentsCount: 3,
-    likes: 14,
-    duration: '約 11 分鐘',
-    durationSeconds: 660,
-    series: '新人起步系列',
-    speechDate: '2025/01/10',
-    requiredRank: '無',
-    seriesOrder: '第 1 集',
-    uploadDate: '2026/09/20',
-    description: '分享第一年碰壁、迷惘到找到節奏與突破點的真實經歷。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/rain_heavy.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: { 'u-1': 5 },
-    playCount: 493
-  },
-  {
-    id: 't-4',
-    title: '把營養講得讓人聽得懂',
-    speaker: '王淑芬',
-    speakerRank: '健康顧問',
-    speakerAvatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=600&auto=format&fit=crop&q=80',
-    categories: ['營養'],
-    rating: 4.1,
-    ratingCount: 8,
-    commentsCount: 3,
-    likes: 14,
-    duration: '約 10 分鐘',
-    durationSeconds: 600,
-    series: '產品生活化系列',
-    speechDate: '2024/12/05',
-    requiredRank: '無',
-    seriesOrder: '第 3 集',
-    uploadDate: '2026/09/15',
-    description: '擺脫生硬名詞，用故事與生活案例分享營養價值與保健觀念。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/daytime_forest_bonfire.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: {},
-    playCount: 420
-  },
-  {
-    id: 't-5',
-    title: '時間管理的三個秘密',
-    speaker: '劉思妤',
-    speakerRank: '鑽石',
-    speakerAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=600&auto=format&fit=crop&q=80',
-    categories: ['心態思維', '事業'],
-    rating: 4.5,
-    ratingCount: 8,
-    commentsCount: 3,
-    likes: 14,
-    duration: '約 8 分鐘',
-    durationSeconds: 480,
-    series: '高效自律系列',
-    speechDate: '2024/11/22',
-    requiredRank: '3%', // requires 3% or higher
-    seriesOrder: '第 1 集',
-    uploadDate: '2026/09/10',
-    description: '斜槓事業中如何安排每日高產出微習慣，讓時間成為你的複利。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/outdoor_summer_ambience.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: {},
-    playCount: 388
-  },
-  {
-    id: 't-6',
-    title: '新手也能懂的產品示範術',
-    speaker: '張雅婷',
-    speakerRank: '高級主任',
-    speakerAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
-    categories: ['安麗產品', '事業'],
-    rating: 4.4,
-    ratingCount: 8,
-    commentsCount: 3,
-    likes: 14,
-    duration: '約 8 分鐘',
-    durationSeconds: 480,
-    series: '實戰示範系列',
-    speechDate: '2024/11/02',
-    requiredRank: '12%',
-    seriesOrder: '第 2 集',
-    uploadDate: '2026/09/05',
-    description: '簡單、直覺、有說服力的示範流程，讓客戶親眼看見品質差異。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/daytime_forest_bonfire.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: {},
-    playCount: 315
-  },
-  {
-    id: 't-7',
-    title: '團隊建立與領導力傳承',
-    speaker: '許建國',
-    speakerRank: '雙鑽石領袖',
-    speakerAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=600&auto=format&fit=crop&q=80',
-    categories: ['事業', '心態思維'],
-    rating: 4.8,
-    ratingCount: 12,
-    commentsCount: 6,
-    likes: 28,
-    duration: '約 15 分鐘',
-    durationSeconds: 900,
-    series: '組織領袖系列',
-    speechDate: '2024/10/18',
-    requiredRank: '銀章',
-    seriesOrder: '第 1 集',
-    uploadDate: '2024/10/18',
-    description: '帶領核心夥伴前進的心法：如何以身作則並複製成功系統。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/outdoor_summer_ambience.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: {},
-    playCount: 276
-  },
-  {
-    id: 't-8',
-    title: '日常營養素的黃金搭配',
-    speaker: '陳欣宜',
-    speakerRank: '特級營養師',
-    speakerAvatar: 'https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?w=600&auto=format&fit=crop&q=80',
-    categories: ['營養', '安麗產品'],
-    rating: 4.6,
-    ratingCount: 10,
-    commentsCount: 5,
-    likes: 22,
-    duration: '約 12 分鐘',
-    durationSeconds: 720,
-    series: '營養健康全書',
-    speechDate: '2024/09/12',
-    requiredRank: '無',
-    seriesOrder: '第 4 集',
-    uploadDate: '2024/09/12',
-    description: '蛋白質、綜合維生素與魚油如何相輔相成發揮最大功效。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/rain_heavy.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: {},
-    playCount: 241
-  },
-  {
-    id: 't-9',
-    title: '高階領袖核心戰略研討',
-    speaker: '李冠廷',
-    speakerRank: '三鑽石領袖',
-    speakerAvatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=600&auto=format&fit=crop&q=80',
-    categories: ['事業', '未分類'],
-    rating: 4.9,
-    ratingCount: 15,
-    commentsCount: 8,
-    likes: 35,
-    duration: '約 18 分鐘',
-    durationSeconds: 1080,
-    series: '戰略高峰系列',
-    speechDate: '2024/08/01',
-    requiredRank: '白金',
-    seriesOrder: '第 1 集',
-    uploadDate: '2024/08/01',
-    description: '年度市場佈局與新興通路拓展方針，專屬白金以上領袖閉門研討。',
-    audioUrl: 'https://actions.google.com/sounds/v1/ambiences/daytime_forest_bonfire.ogg',
-    uploaderEmail: 'yukidu@gmail.com',
-    externalVideos: [],
-    externalPpts: [],
-    externalFiles: [],
-    likedBy: [],
-    ratings: {},
-    playCount: 198
-  }
-];
+let tracks: Track[] = [];
 
-let comments: Comment[] = [
-  // t-1
-  {
-    id: 'c-1',
-    trackId: 't-1',
-    authorName: '爽朗的海豚',
-    authorAvatar: '🐬',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '設定目標與達成業績的心法非常實用，收穫很多！',
-    timestamp: '27 分鐘前',
-    createdAt: Date.now() - 27 * 60 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-2',
-    trackId: 't-1',
-    authorName: '熱血的獵鷹',
-    authorAvatar: '🦅',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '心態思維的部分讓我重新調整了目標。',
-    timestamp: '59 分鐘前',
-    createdAt: Date.now() - 59 * 60 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-3',
-    trackId: 't-1',
-    authorName: '沉思的貓頭鷹',
-    authorAvatar: '🦉',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '通勤時間聽剛剛好，每次都學到新東西。',
-    timestamp: '1 小時前',
-    createdAt: Date.now() - 65 * 60 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-4',
-    trackId: 't-1',
-    authorName: '杜杜龍',
-    authorAvatar: '🐲',
-    authorBadge: '管理員',
-    isAdmin: true,
-    content: '陳老師這堂課是經典必聽，建議夥伴多聽兩次！',
-    timestamp: '2 小時前',
-    createdAt: Date.now() - 120 * 60 * 1000,
-    isAiModerated: true
-  },
-  // t-2
-  {
-    id: 'c-21',
-    trackId: 't-2',
-    authorName: '林雅慧',
-    authorAvatar: '👩',
-    authorBadge: '15%銅章',
-    isAdmin: false,
-    content: '美玲老師的分享總是充滿溫暖與力量，逆境確實是成長的養分。',
-    timestamp: '3 小時前',
-    createdAt: Date.now() - 180 * 60 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-22',
-    trackId: 't-2',
-    authorName: '勇敢的獅子',
-    authorAvatar: '🦁',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '把挫折當禮物，這段話深深打動我！',
-    timestamp: '5 小時前',
-    createdAt: Date.now() - 300 * 60 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-23',
-    trackId: 't-2',
-    authorName: '陳銘耀',
-    authorAvatar: '👨',
-    authorBadge: '貢獻者',
-    isAdmin: false,
-    content: '極具啟發性的思維心法，每次聽都很有收穫。',
-    timestamp: '昨天',
-    createdAt: Date.now() - 24 * 3600 * 1000,
-    isAiModerated: true
-  },
-  // t-3
-  {
-    id: 'c-31',
-    trackId: 't-3',
-    authorName: '敏捷的獵豹',
-    authorAvatar: '🐆',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '講話的邏輯與提問技巧非常具體，可以直接運用在日常溝通！',
-    timestamp: '4 小時前',
-    createdAt: Date.now() - 240 * 60 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-32',
-    trackId: 't-3',
-    authorName: '張佩君',
-    authorAvatar: '👩',
-    authorBadge: '銀章',
-    isAdmin: false,
-    content: '溝通有溫度的關鍵在於同理心，推薦大家收聽！',
-    timestamp: '昨天',
-    createdAt: Date.now() - 26 * 3600 * 1000,
-    isAiModerated: true
-  },
-  // t-4
-  {
-    id: 'c-41',
-    trackId: 't-4',
-    authorName: '黃俊傑',
-    authorAvatar: '👨',
-    authorBadge: '白金',
-    isAdmin: false,
-    content: '保養品的示範與成分說明很清晰，對新進夥伴很有幫助。',
-    timestamp: '昨天',
-    createdAt: Date.now() - 28 * 3600 * 1000,
-    isAiModerated: true
-  },
-  // t-5
-  {
-    id: 'c-51',
-    trackId: 't-5',
-    authorName: '智慧的藍鯨',
-    authorAvatar: '🐋',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '自律與時間管理的象限法很棒，不再被緊急但不重要的事拖延了。',
-    timestamp: '1 天前',
-    createdAt: Date.now() - 30 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-52',
-    trackId: 't-5',
-    authorName: '林雅慧',
-    authorAvatar: '👩',
-    authorBadge: '15%銅章',
-    isAdmin: false,
-    content: '習慣養成的三週法很實用，已經開始實踐晨間閱讀了！',
-    timestamp: '2 天前',
-    createdAt: Date.now() - 48 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-53',
-    trackId: 't-5',
-    authorName: '杜杜龍',
-    authorAvatar: '🐲',
-    authorBadge: '管理員',
-    isAdmin: true,
-    content: '自律即自由，很棒的分享。',
-    timestamp: '3 天前',
-    createdAt: Date.now() - 72 * 3600 * 1000,
-    isAiModerated: true
-  },
-  // t-6
-  {
-    id: 'c-61',
-    trackId: 't-6',
-    authorName: '陳銘耀',
-    authorAvatar: '👨',
-    authorBadge: '貢獻者',
-    isAdmin: false,
-    content: '產品示範的細節與生活化切入點，是新朋友容易接受的關鍵。',
-    timestamp: '2 天前',
-    createdAt: Date.now() - 50 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-62',
-    trackId: 't-6',
-    authorName: '快樂的蜂鳥',
-    authorAvatar: '🐦',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '鍋具與洗潔劑的分享非常生動，學到很多日常應用技巧！',
-    timestamp: '3 天前',
-    createdAt: Date.now() - 75 * 3600 * 1000,
-    isAiModerated: true
-  },
-  // t-7
-  {
-    id: 'c-71',
-    trackId: 't-7',
-    authorName: '許建國',
-    authorAvatar: '👨',
-    authorBadge: '雙鑽石領袖',
-    isAdmin: false,
-    content: '領導力就是帶出更多領導人，大家一起共好共榮。',
-    timestamp: '1 天前',
-    createdAt: Date.now() - 32 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-72',
-    trackId: 't-7',
-    authorName: '張佩君',
-    authorAvatar: '👩',
-    authorBadge: '銀章',
-    isAdmin: false,
-    content: '建國老師的以身作則，是我們最好的榜樣！',
-    timestamp: '2 天前',
-    createdAt: Date.now() - 45 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-73',
-    trackId: 't-7',
-    authorName: '黃俊傑',
-    authorAvatar: '👨',
-    authorBadge: '白金',
-    isAdmin: false,
-    content: '複製系統的四個階段講得太透徹了。',
-    timestamp: '3 天前',
-    createdAt: Date.now() - 70 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-74',
-    trackId: 't-7',
-    authorName: '勇敢的獅子',
-    authorAvatar: '🦁',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '這堂課給了團隊很大的凝聚力！',
-    timestamp: '4 天前',
-    createdAt: Date.now() - 95 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-75',
-    trackId: 't-7',
-    authorName: '林雅慧',
-    authorAvatar: '👩',
-    authorBadge: '15%銅章',
-    isAdmin: false,
-    content: '組織傳承的觀念打破了我過去的盲點。',
-    timestamp: '5 天前',
-    createdAt: Date.now() - 120 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-76',
-    trackId: 't-7',
-    authorName: '杜杜龍',
-    authorAvatar: '🐲',
-    authorBadge: '管理員',
-    isAdmin: true,
-    content: '核心夥伴會議推薦必聽音檔！',
-    timestamp: '6 天前',
-    createdAt: Date.now() - 144 * 3600 * 1000,
-    isAiModerated: true
-  },
-  // t-8
-  {
-    id: 'c-81',
-    trackId: 't-8',
-    authorName: '陳欣宜',
-    authorAvatar: '👩',
-    authorBadge: '白金',
-    isAdmin: false,
-    content: '營養補充搭配規律作息與飲水，身體自然會給出最好的回饋。',
-    timestamp: '1 天前',
-    createdAt: Date.now() - 35 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-82',
-    trackId: 't-8',
-    authorName: '敏捷的獵豹',
-    authorAvatar: '🐆',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '蛋白質與綜合維生素的早餐搭配，讓我每天精神都很好！',
-    timestamp: '2 天前',
-    createdAt: Date.now() - 55 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-83',
-    trackId: 't-8',
-    authorName: '黃俊傑',
-    authorAvatar: '👨',
-    authorBadge: '白金',
-    isAdmin: false,
-    content: '魚油好處講得很專業，對家人健康照顧太有幫助了。',
-    timestamp: '3 天前',
-    createdAt: Date.now() - 78 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-84',
-    trackId: 't-8',
-    authorName: '爽朗的海豚',
-    authorAvatar: '🐬',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '簡單易懂的營養觀念，全家都能輕鬆照著做！',
-    timestamp: '4 天前',
-    createdAt: Date.now() - 100 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-85',
-    trackId: 't-8',
-    authorName: '林雅慧',
-    authorAvatar: '👩',
-    authorBadge: '15%銅章',
-    isAdmin: false,
-    content: '筆記做滿滿，已經分享給身邊朋友了。',
-    timestamp: '5 天前',
-    createdAt: Date.now() - 125 * 3600 * 1000,
-    isAiModerated: true
-  },
-  // t-9
-  {
-    id: 'c-91',
-    trackId: 't-9',
-    authorName: '李冠廷',
-    authorAvatar: '👨',
-    authorBadge: '三鑽石領袖',
-    isAdmin: false,
-    content: '市場佈局與時俱進，期待與各位夥伴攜手再創高峰！',
-    timestamp: '1 天前',
-    createdAt: Date.now() - 40 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-92',
-    trackId: 't-9',
-    authorName: '杜杜龍',
-    authorAvatar: '🐲',
-    authorBadge: '管理員',
-    isAdmin: true,
-    content: '高階領袖核心戰略，方向清晰明確！',
-    timestamp: '2 天前',
-    createdAt: Date.now() - 60 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-93',
-    trackId: 't-9',
-    authorName: '許建國',
-    authorAvatar: '👨',
-    authorBadge: '雙鑽石領袖',
-    isAdmin: false,
-    content: '新通路的拓展與數位工具整合，是下一個十年的關鍵優勢。',
-    timestamp: '2 天前',
-    createdAt: Date.now() - 65 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-94',
-    trackId: 't-9',
-    authorName: '張佩君',
-    authorAvatar: '👩',
-    authorBadge: '銀章',
-    isAdmin: false,
-    content: '能夠在白金以上研討中學習到這些格局，非常感恩！',
-    timestamp: '3 天前',
-    createdAt: Date.now() - 85 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-95',
-    trackId: 't-9',
-    authorName: '黃俊傑',
-    authorAvatar: '👨',
-    authorBadge: '白金',
-    isAdmin: false,
-    content: '戰略思考讓人眼界大開，回去立刻跟團隊展開對齊！',
-    timestamp: '4 天前',
-    createdAt: Date.now() - 110 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-96',
-    trackId: 't-9',
-    authorName: '沉思的貓頭鷹',
-    authorAvatar: '🦉',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '頂尖高階領導人的思維深度果然非同凡響。',
-    timestamp: '5 天前',
-    createdAt: Date.now() - 135 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-97',
-    trackId: 't-9',
-    authorName: '陳銘耀',
-    authorAvatar: '👨',
-    authorBadge: '貢獻者',
-    isAdmin: false,
-    content: '每年度最重要的戰略方針，必須反覆聆聽消化。',
-    timestamp: '6 天前',
-    createdAt: Date.now() - 160 * 3600 * 1000,
-    isAiModerated: true
-  },
-  {
-    id: 'c-98',
-    trackId: 't-9',
-    authorName: '熱血的獵鷹',
-    authorAvatar: '🦅',
-    authorBadge: '訪客稱號',
-    isAdmin: false,
-    content: '激勵人心！向目標全力衝刺！',
-    timestamp: '7 天前',
-    createdAt: Date.now() - 180 * 3600 * 1000,
-    isAiModerated: true
-  }
-];
+let comments: Comment[] = [];
 
-let users: UserProfile[] = [
-  {
-    id: 'u-admin',
-    email: 'yukidu@gmail.com',
-    name: '杜杜龍',
-    role: '超級管理員',
-    isAdminUser: true,
-    amwayId: '10888999',
-    phone: '0912-345-678',
-    residence: '臺北',
-    center: '南京',
-    rank: '鑽石級以上',
-    approvedRank: '鑽石級以上',
-    rankApproved: true,
-    rankAuditStatus: 'approved',
-    registerDate: '2026/08/01 10:00',
-    rankUpdatedAt: '2026/08/01 10:00',
-    auditedBy: '系統初始最高權限',
-    joinReason: '事業',
-    stayReason: '打造自己的事業與團隊',
-    sponsor: '創辦人團隊',
-    platinumUpline: '杜鑽石',
-    diamondUpline: '杜鑽石',
-    birthday: '1985-05-18',
-    zodiac: '金牛座',
-    talentNumber: 33,
-    lifeNumber: 6,
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-    isContributor: true,
-    playCount: 142,
-    isBlocked: false,
-    lastActive: '剛才'
-  },
-  {
-    id: 'u-1',
-    email: 'chen.ming@example.com',
-    name: '陳銘耀',
-    role: '繁星家人',
-    amwayId: '20334455',
-    phone: '0922-111-222',
-    residence: '新北',
-    center: '自強',
-    rank: '銀章',
-    approvedRank: '銀章',
-    rankApproved: true,
-    rankAuditStatus: 'approved',
-    registerDate: '2026/08/15 14:20',
-    rankUpdatedAt: '2026/08/15 14:20',
-    auditedBy: '超級管理員 (杜杜龍)',
-    joinReason: '事業',
-    stayReason: '打造自己的事業與團隊',
-    sponsor: '杜杜龍',
-    platinumUpline: '陳白金',
-    diamondUpline: '杜鑽石',
-    birthday: '1990-08-15',
-    zodiac: '獅子座',
-    talentNumber: 33,
-    lifeNumber: 6,
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-    isContributor: true, // designated contributor
-    playCount: 48,
-    isBlocked: false,
-    lastActive: '10 分鐘前'
-  },
-  {
-    id: 'u-2',
-    email: 'grace.lin@example.com',
-    name: '林雅慧',
-    role: '繁星家人',
-    amwayId: '30445566',
-    phone: '0933-444-555',
-    residence: '臺中',
-    center: '台中',
-    rank: '15%銅章',
-    approvedRank: '12%',
-    rankApproved: false,
-    rankAuditStatus: 'pending',
-    rankAuditType: 'rank_change',
-    registerDate: '2026/09/20 09:30',
-    rankUpdatedAt: '2026/09/29 11:15',
-    joinReason: '購買產品',
-    stayReason: '學習健康',
-    sponsor: '陳銘耀',
-    platinumUpline: '陳白金',
-    diamondUpline: '杜鑽石',
-    birthday: '1993-11-20',
-    zodiac: '天蠍座',
-    talentNumber: 26,
-    lifeNumber: 8,
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
-    isContributor: false,
-    playCount: 65,
-    isBlocked: false,
-    lastActive: '1 小時前'
-  },
-  {
-    id: 'u-3',
-    email: 'kevin.wu@example.com',
-    name: '吳家豪',
-    role: '繁星家人',
-    amwayId: '40556677',
-    phone: '0955-666-777',
-    residence: '高雄',
-    center: '高雄',
-    rank: '12%',
-    approvedRank: '無',
-    rankApproved: false,
-    rankAuditStatus: 'pending',
-    rankAuditType: 'new_register',
-    registerDate: '2026/09/29 15:45',
-    rankUpdatedAt: '2026/09/29 15:45',
-    joinReason: '商業餐會',
-    stayReason: '可以增加收入',
-    sponsor: '林雅慧',
-    platinumUpline: '陳白金',
-    diamondUpline: '杜鑽石',
-    birthday: '1998-03-25',
-    zodiac: '牡羊座',
-    talentNumber: 32,
-    lifeNumber: 5,
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
-    isContributor: false,
-    playCount: 29,
-    isBlocked: false,
-    lastActive: '昨天'
-  },
-  {
-    id: 'u-4',
-    email: 'shuting.chang@example.com',
-    name: '張舒婷',
-    role: '繁星家人',
-    amwayId: '50667788',
-    phone: '0966-777-888',
-    residence: '臺北',
-    center: '南京',
-    rank: '白金',
-    approvedRank: '銀章',
-    rankApproved: false,
-    rankAuditStatus: 'pending',
-    rankAuditType: 'rank_change',
-    registerDate: '2026/09/22 16:00',
-    rankUpdatedAt: '2026/09/29 17:10',
-    joinReason: '事業',
-    stayReason: '熱愛產品好用',
-    sponsor: '杜杜龍',
-    platinumUpline: '陳白金',
-    diamondUpline: '杜鑽石',
-    birthday: '1992-06-18',
-    zodiac: '雙子座',
-    talentNumber: 27,
-    lifeNumber: 9,
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80',
-    isContributor: false,
-    playCount: 52,
-    isBlocked: false,
-    lastActive: '3 小時前'
-  },
-  {
-    id: 'u-5',
-    email: 'peijun.chang@example.com',
-    name: '張佩君',
-    role: '繁星家人',
-    amwayId: '60778899',
-    phone: '0977-888-999',
-    residence: '臺北',
-    center: '南京',
-    rank: '銀章',
-    approvedRank: '銀章',
-    rankApproved: true,
-    rankAuditStatus: 'approved',
-    registerDate: '2026/08/28 11:30',
-    rankUpdatedAt: '2026/08/28 11:30',
-    auditedBy: '超級管理員 (杜杜龍)',
-    joinReason: '學習健康',
-    stayReason: '環境溫暖友善',
-    sponsor: '陳銘耀',
-    platinumUpline: '陳白金',
-    diamondUpline: '杜鑽石',
-    birthday: '1995-09-12',
-    zodiac: '處女座',
-    talentNumber: 27,
-    lifeNumber: 9,
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80',
-    isContributor: false,
-    playCount: 41,
-    isBlocked: false,
-    lastActive: '昨天'
-  },
-  {
-    id: 'u-6',
-    email: 'junjie.huang@example.com',
-    name: '黃俊傑',
-    role: '繁星家人',
-    amwayId: '70889900',
-    phone: '0988-123-456',
-    residence: '臺中',
-    center: '台中',
-    rank: '白金',
-    approvedRank: '白金',
-    rankApproved: true,
-    rankAuditStatus: 'approved',
-    registerDate: '2026/08/10 09:15',
-    rankUpdatedAt: '2026/08/10 09:15',
-    auditedBy: '超級管理員 (杜杜龍)',
-    joinReason: '事業',
-    stayReason: '助人成功很開心',
-    sponsor: '杜杜龍',
-    platinumUpline: '陳白金',
-    diamondUpline: '杜鑽石',
-    birthday: '1988-04-12',
-    zodiac: '牡羊座',
-    talentNumber: 24,
-    lifeNumber: 6,
-    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=200&auto=format&fit=crop&q=80',
-    isContributor: false,
-    playCount: 76,
-    isBlocked: false,
-    lastActive: '昨天'
-  },
-  {
-    id: 'u-7',
-    email: 'jianguo.hsu@example.com',
-    name: '許建國',
-    role: '繁星家人',
-    amwayId: '80990011',
-    phone: '0919-888-777',
-    residence: '臺北',
-    center: '南京',
-    rank: '鑽石級以上',
-    approvedRank: '鑽石級以上',
-    rankApproved: true,
-    rankAuditStatus: 'approved',
-    registerDate: '2026/07/01 10:00',
-    rankUpdatedAt: '2026/07/01 10:00',
-    auditedBy: '系統審核',
-    joinReason: '事業',
-    stayReason: '打造團隊與家族傳承',
-    sponsor: '創辦人團隊',
-    platinumUpline: '許鑽石',
-    diamondUpline: '許鑽石',
-    birthday: '1980-12-05',
-    zodiac: '射手座',
-    talentNumber: 26,
-    lifeNumber: 8,
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&auto=format&fit=crop&q=80',
-    isContributor: false,
-    playCount: 110,
-    isBlocked: false,
-    lastActive: '2 天前'
-  },
-  {
-    id: 'u-8',
-    email: 'xinyi.chen@example.com',
-    name: '陳欣宜',
-    role: '繁星家人',
-    amwayId: '90112233',
-    phone: '0932-555-666',
-    residence: '高雄',
-    center: '高雄',
-    rank: '白金',
-    approvedRank: '白金',
-    rankApproved: true,
-    rankAuditStatus: 'approved',
-    registerDate: '2026/08/20 15:00',
-    rankUpdatedAt: '2026/08/20 15:00',
-    auditedBy: '超級管理員 (杜杜龍)',
-    joinReason: '商業餐會',
-    stayReason: '團隊氛圍好',
-    sponsor: '吳家豪',
-    platinumUpline: '陳白金',
-    diamondUpline: '杜鑽石',
-    birthday: '1996-07-22',
-    zodiac: '巨蟹座',
-    talentNumber: 29,
-    lifeNumber: 2,
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-    isContributor: false,
-    playCount: 38,
-    isBlocked: false,
-    lastActive: '3 天前'
-  },
-  {
-    id: 'u-9',
-    email: 'guanting.li@example.com',
-    name: '李冠廷',
-    role: '繁星家人',
-    amwayId: '99223344',
-    phone: '0928-333-222',
-    residence: '新北',
-    center: '自強',
-    rank: '鑽石級以上',
-    approvedRank: '鑽石級以上',
-    rankApproved: true,
-    rankAuditStatus: 'approved',
-    registerDate: '2026/07/15 14:00',
-    rankUpdatedAt: '2026/07/15 14:00',
-    auditedBy: '系統審核',
-    joinReason: '事業',
-    stayReason: '自主掌握時間與人生',
-    sponsor: '陳銘耀',
-    platinumUpline: '陳白金',
-    diamondUpline: '杜鑽石',
-    birthday: '1982-10-10',
-    zodiac: '天秤座',
-    talentNumber: 22,
-    lifeNumber: 4,
-    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=200&auto=format&fit=crop&q=80',
-    isContributor: false,
-    playCount: 95,
-    isBlocked: false,
-    lastActive: '3 天前'
-  }
-];
+let users: UserProfile[] = [];
 
-let playbackRecords: Record<string, any> = {
-  'u-admin_t-1': {
-    trackId: 't-1',
-    userIdOrDeviceId: 'u-admin',
-    currentTime: 720,
-    duration: 720,
-    progressPercent: 100,
-    completed: true,
-    firstListenDate: '2026/09/01',
-    lastListenDate: '2026/09/25',
-    finishDate: '2026/09/25',
-    clickCount: 12,
-    updatedAt: Date.now()
-  },
-  'u-admin_t-2': {
-    trackId: 't-2',
-    userIdOrDeviceId: 'u-admin',
-    currentTime: 680,
-    duration: 700,
-    progressPercent: 97,
-    completed: true,
-    firstListenDate: '2026/09/05',
-    lastListenDate: '2026/09/26',
-    finishDate: '2026/09/26',
-    clickCount: 8,
-    updatedAt: Date.now()
-  },
-  'u-admin_t-3': {
-    trackId: 't-3',
-    userIdOrDeviceId: 'u-admin',
-    currentTime: 360,
-    duration: 600,
-    progressPercent: 60,
-    completed: false,
-    firstListenDate: '2026/09/18',
-    lastListenDate: '2026/09/27',
-    clickCount: 5,
-    updatedAt: Date.now()
-  },
-  'u-1_t-1': {
-    trackId: 't-1',
-    userIdOrDeviceId: 'u-1',
-    currentTime: 720,
-    duration: 720,
-    progressPercent: 100,
-    completed: true,
-    firstListenDate: '2026/08/20',
-    lastListenDate: '2026/09/24',
-    finishDate: '2026/08/21',
-    clickCount: 15,
-    updatedAt: Date.now()
-  },
-  'u-1_t-4': {
-    trackId: 't-4',
-    userIdOrDeviceId: 'u-1',
-    currentTime: 540,
-    duration: 540,
-    progressPercent: 100,
-    completed: true,
-    firstListenDate: '2026/09/02',
-    lastListenDate: '2026/09/22',
-    finishDate: '2026/09/22',
-    clickCount: 9,
-    updatedAt: Date.now()
-  },
-  'u-2_t-2': {
-    trackId: 't-2',
-    userIdOrDeviceId: 'u-2',
-    currentTime: 700,
-    duration: 700,
-    progressPercent: 100,
-    completed: true,
-    firstListenDate: '2026/09/10',
-    lastListenDate: '2026/09/27',
-    finishDate: '2026/09/12',
-    clickCount: 18,
-    updatedAt: Date.now()
-  },
-  'u-2_t-5': {
-    trackId: 't-5',
-    userIdOrDeviceId: 'u-2',
-    currentTime: 380,
-    duration: 480,
-    progressPercent: 79,
-    completed: false,
-    firstListenDate: '2026/09/15',
-    lastListenDate: '2026/09/28',
-    clickCount: 6,
-    updatedAt: Date.now()
-  },
-  'u-3_t-3': {
-    trackId: 't-3',
-    userIdOrDeviceId: 'u-3',
-    currentTime: 600,
-    duration: 600,
-    progressPercent: 100,
-    completed: true,
-    firstListenDate: '2026/09/08',
-    lastListenDate: '2026/09/20',
-    finishDate: '2026/09/09',
-    clickCount: 7,
-    updatedAt: Date.now()
-  }
-};
+let playbackRecords: Record<string, any> = {};
 
 // Global Categories State (Requirement 8)
 let categoryList: string[] = ['事業', '心態思維', '營養', '安麗產品', '影集', '未分類'];
@@ -1437,7 +349,7 @@ export function loadStoreFromDisk() {
       if (typeof data.audioSequenceCounter === 'number') {
         audioSequenceCounter = data.audioSequenceCounter;
       }
-      if (Array.isArray(data.users) && data.users.length > 0) {
+      if (Array.isArray(data.users)) {
         // Merge any new built-in registered users (e.g. 張佩君, 黃俊傑, 許建國, 陳欣宜, 李冠廷)
         const existingEmails = new Set(data.users.map((u: any) => u.email?.toLowerCase().trim()));
         const existingNames = new Set(data.users.map((u: any) => u.name?.trim()));
@@ -1448,7 +360,7 @@ export function loadStoreFromDisk() {
         });
         users = data.users;
       }
-      if (Array.isArray(data.tracks) && data.tracks.length > 0) tracks = data.tracks;
+      if (Array.isArray(data.tracks)) tracks = data.tracks;
       if (Array.isArray(data.comments)) {
         comments = data.comments;
       }
@@ -1465,6 +377,13 @@ export function loadStoreFromDisk() {
   }
 }
 loadStoreFromDisk();
+app.get('/share/:id', (req,res) => {
+  const track=tracks.find(t=>t.id===req.params.id);
+  if(!track)return res.status(404).send('音檔不存在');
+  const file=path.join(process.cwd(),process.env.NODE_ENV==='production'?'dist/index.html':'index.html');
+  const origin=req.protocol+'://'+req.get('host');
+  res.type('html').send(shareMetadata(fs.readFileSync(file,'utf8'),track,origin,track.id));
+});
 
 // Helper: Super Admin Check (Only yukidu@gmail.com)
 export function isSuperAdminEmail(email?: string | null): boolean {
@@ -1645,7 +564,7 @@ app.post('/api/tracks', (req, res) => {
     id: `t-${Date.now()}`,
     title: title.trim(),
     speaker: speaker?.trim() || '未設定演講者',
-    speakerRank: speakerRank?.trim() || '講師',
+    speakerRank: speakerRank?.trim() || '無',
     speakerAvatar: speakerAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
     categories: cleanCategories,
     keywords: cleanKeywords,
@@ -1716,13 +635,6 @@ app.get('/api/keywords', (_req, res) => {
     }
   });
   // Provide helpful defaults if database is empty
-  const defaults = [
-    '目標設定', '業績突破', '實戰成交', '行動步驟', '事業成長',
-    '逆境成長', '轉念心態', '正向思維', '自我激勵', '皇冠大使',
-    '新人起步', '堅持初衷', '破局成長', '經驗分享', '團隊建立',
-    '領導力', '產品體驗', '營養心法'
-  ];
-  defaults.forEach(d => set.add(d));
   res.json(Array.from(set));
 });
 
@@ -1745,6 +657,7 @@ app.put('/api/keywords/rename', (req, res) => {
     }
   });
 
+  saveStoreToDisk();
   res.json({ success: true, affectedCount, tracks });
 });
 
@@ -1763,6 +676,7 @@ app.delete('/api/keywords/delete', (req, res) => {
     }
   });
 
+  saveStoreToDisk();
   res.json({ success: true, affectedCount, tracks });
 });
 
@@ -1783,6 +697,7 @@ app.post('/api/tracks/:id/keywords', (req, res) => {
   if (!track.keywords.includes(trimmed)) {
     track.keywords.push(trimmed);
   }
+  saveStoreToDisk();
   res.json({ success: true, keywords: track.keywords });
 });
 
@@ -1807,6 +722,7 @@ app.put('/api/tracks/:id/keywords', (req, res) => {
   if (idx !== -1) {
     track.keywords[idx] = trimmedNew;
   }
+  saveStoreToDisk();
   res.json({ success: true, keywords: track.keywords });
 });
 
@@ -1825,6 +741,7 @@ app.delete('/api/tracks/:id/keywords/:keyword', (req, res) => {
 
   const targetKeyword = decodeURIComponent(req.params.keyword);
   track.keywords = (track.keywords || []).filter(k => k !== targetKeyword);
+  saveStoreToDisk();
   res.json({ success: true, keywords: track.keywords });
 });
 
@@ -2145,6 +1062,9 @@ app.put('/api/comments/:id', (req, res) => {
   const comment = comments.find(c => c.id === req.params.id);
   if (!comment) return res.status(404).json({ error: '留言不存在' });
 
+  const owns = comment.authorEmail ? req.body.userEmail && comment.authorEmail.toLowerCase().trim() === req.body.userEmail.toLowerCase().trim() : comment.deviceId && comment.deviceId === req.body.deviceId;
+  if (!owns) return res.status(403).json({error:'只能修改自己的留言'});
+  if (!content?.trim()) return res.status(400).json({error:'留言不可空白'});
   comment.content = content.trim();
   saveStoreToDisk();
   res.json(comment);
@@ -2260,6 +1180,7 @@ app.put('/api/users/:id', (req, res) => {
   }
 
   saveStoreToDisk();
+  saveStoreToDisk();
   res.json(user);
 });
 
@@ -2286,6 +1207,7 @@ app.put('/api/users/:id/contributor', (req, res) => {
   if (!user) return res.status(404).json({ error: '使用者不存在' });
 
   user.isContributor = !user.isContributor;
+  saveStoreToDisk();
   res.json(user);
 });
 
@@ -2299,6 +1221,7 @@ app.put('/api/users/:id/admin-role', (req, res) => {
 
   user.isAdminUser = !user.isAdminUser;
   user.role = user.isAdminUser ? '獎銜審核員' : '繁星家人';
+  saveStoreToDisk();
   res.json(user);
 });
 
@@ -2307,7 +1230,9 @@ app.put('/api/users/:id/audit-rank', (req, res) => {
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: '使用者不存在' });
 
-  const { rank, action, auditedBy } = req.body;
+  const { rank, action, auditedBy, auditorEmail } = req.body;
+  const auditor = users.find(u => u.email?.toLowerCase().trim() === auditorEmail?.toLowerCase().trim());
+  if (!auditor || (!auditor.isAdminUser && auditor.email !== 'yukidu@gmail.com')) return res.status(403).json({error:'沒有獎銜審核權限'});
   const now = new Date();
   const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
@@ -2328,6 +1253,7 @@ app.put('/api/users/:id/audit-rank', (req, res) => {
     user.auditedAt = dateStr;
   }
 
+  saveStoreToDisk();
   res.json(user);
 });
 
@@ -2337,6 +1263,7 @@ app.put('/api/users/:id/block', (req, res) => {
   if (!user) return res.status(404).json({ error: '使用者不存在' });
 
   user.isBlocked = !user.isBlocked;
+  saveStoreToDisk();
   res.json(user);
 });
 

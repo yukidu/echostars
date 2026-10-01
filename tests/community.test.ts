@@ -103,14 +103,14 @@ test('comments are bound to URL track, return raw content, preserve replies and 
   assert.equal(comment.status, 201);
   assert.equal(comment.data.content, '第一則留言');
   assert.equal(comment.data.trackId, 't-test');
-  const reply = await call(db, '/api/tracks/t-test/comments', 'POST', { authorName: '訪客', content: '回覆', replyToId: comment.data.id, replyToAuthor: '訪客' });
+  const reply = await call(db, '/api/tracks/t-test/comments', 'POST', { authorName: '訪客', deviceId: 'd-1', content: '回覆', replyToId: comment.data.id, replyToAuthor: '訪客' });
   assert.equal(reply.data.replyToId, comment.data.id);
   assert.equal((await call(db, '/api/tracks/another/comments')).data.length, 0);
   assert.equal((await call(db, '/api/tracks/t-test/comments')).data.length, 2);
   assert.equal((await call(db, '/api/tracks')).data[0].commentsCount, 2);
   const like = await call(db, '/api/comments/' + reply.data.id + '/like', 'POST', { identifier: 'd-1' });
   assert.equal(like.data.hasLiked, true);
-  const edit = await call(db, '/api/comments/' + reply.data.id, 'PUT', { content: '修正回覆' });
+  const edit = await call(db, '/api/comments/' + reply.data.id, 'PUT', { content: '修正回覆', deviceId: 'd-1' });
   assert.equal(edit.data.content, '修正回覆');
   await call(db, '/api/comments/' + comment.data.id, 'DELETE');
   const remaining = (await call(db, '/api/tracks/t-test/comments')).data;
@@ -145,14 +145,15 @@ test('many numerology rings stay within square SVG cells without deforming', () 
 
 test('Worker routes track comments into persistent API instead of a generic track update', async () => {
   const db = database(true);
+  await call(db, '/api/tracks');
   const response = await worker.fetch(new Request('https://test.example/api/tracks'), { DB: db });
   const tracks: any = await response.json();
   assert.ok(tracks.length);
-  const posted = await worker.fetch(new Request(`https://test.example/api/tracks/${tracks[0].id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: '正式環境留言' }) }), { DB: db });
+  const posted = await worker.fetch(new Request(`https://test.example/api/tracks/${tracks[0].id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: '正式環境留言', deviceId: 'd-test' }) }), { DB: db });
   assert.equal(posted.status, 201);
   const comment: any = await posted.json();
   assert.equal(comment.trackId, tracks[0].id);
-  const changed = await worker.fetch(new Request(`https://test.example/api/comments/${comment.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: '修改內容' }) }), { DB: db });
+  const changed = await worker.fetch(new Request(`https://test.example/api/comments/${comment.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: '修改內容', deviceId: 'd-test' }) }), { DB: db });
   assert.equal((await changed.json() as any).content, '修改內容');
   db.sqlite.close();
 });
@@ -162,4 +163,50 @@ test('nested and orphan replies are displayed exactly once', () => {
   const threads = commentThreads(comments as any);
   assert.deepEqual(threads.roots.map(c => c.id), ['root', 'orphan']);
   assert.deepEqual(threads.replies.get('root')?.map(c => c.id), ['reply', 'nested']);
+});
+
+test('v3 comment edits reject another author, including the administrator', async()=>{
+ const db=database(); await call(db,'/api/tracks');
+ const c=await call(db,'/api/tracks/t-test/comments','POST',{authorEmail:'writer@example.com',deviceId:'shared-device',content:'原文'});
+ assert.equal((await call(db,'/api/comments/'+c.data.id,'PUT',{content:'改寫',userEmail:'yukidu@gmail.com',deviceId:'shared-device'})).status,403);
+ assert.equal((await call(db,'/api/comments/'+c.data.id,'PUT',{content:'本人修正',userEmail:'writer@example.com'})).status,200);
+ db.sqlite.close();
+});
+test('v3 keywords support add, rename and query-string delete',async()=>{
+ const db=database();await call(db,'/api/tracks');
+ assert.deepEqual((await call(db,'/api/tracks/t-test/keywords','POST',{keyword:'學習'})).data.keywords,['學習']);
+ await call(db,'/api/keywords/rename','PUT',{oldKeyword:'學習',newKeyword:'成長'});
+ assert.deepEqual((await call(db,'/api/tracks')).data[0].keywords,['成長']);
+ assert.equal((await call(db,'/api/keywords/delete?keyword='+encodeURIComponent('成長'),'DELETE')).status,200);
+ assert.deepEqual((await call(db,'/api/tracks')).data[0].keywords,[]);
+ db.sqlite.close();
+});
+test('v3 rank approval persists only with an authorized auditor',async()=>{
+ const db=database();
+ await call(db,'/api/users/google-sync','POST',{email:'yukidu@gmail.com',name:'管理員'});
+ const member=await call(db,'/api/users/google-sync','POST',{email:'member@example.com',name:'會員'});
+ const route='/api/users/'+member.data.user.id+'/audit-rank';
+ assert.equal((await call(db,route,'PUT',{auditorEmail:'member@example.com',rank:'白金'})).status,403);
+ const approved=await call(db,route,'PUT',{auditorEmail:'yukidu@gmail.com',rank:'白金'});
+ assert.equal(approved.status,200);assert.equal(approved.data.approvedRank,'白金');assert.equal(approved.data.rankAuditStatus,'approved');
+ db.sqlite.close();
+});
+
+test('v3 offline cleanup deletes real cached URLs after 95 percent and 15 days',async()=>{
+ const offline=await import('../src/utils/offlineAudio');
+ const previous={window:globalThis.window,localStorage:globalThis.localStorage,caches:globalThis.caches};
+ const memory=new Map<string,string>();const removed:string[]=[];
+ Object.assign(globalThis,{window:{},localStorage:{getItem:(k:string)=>memory.get(k)||null,setItem:(k:string,v:string)=>memory.set(k,v)},caches:{open:async()=>({delete:async(url:string)=>{removed.push(url);return true;}})}});
+ try{
+  offline.saveOfflineRegistry({a:{trackId:'a',audioUrl:'https://audio.example/a.mp3',cachedAt:Date.now(),lastListenedAt:Date.now()}});
+  offline.handleTrackProgressOffline('a',95,100);
+  assert.ok(offline.getOfflineRegistry().a);
+  offline.handleTrackProgressOffline('a',96,100);
+  await Promise.resolve();await Promise.resolve();
+  assert.deepEqual(removed,['https://audio.example/a.mp3']);
+  offline.saveOfflineRegistry({b:{trackId:'b',audioUrl:'https://audio.example/b.mp3',cachedAt:0,lastListenedAt:Date.now()-16*86400000}});
+  assert.equal(offline.purgeStaleOfflineTracks(),1);
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(removed[1],'https://audio.example/b.mp3');
+ }finally{for(const [key,value]of Object.entries(previous)){if(value===undefined)delete (globalThis as any)[key];else (globalThis as any)[key]=value;}}
 });

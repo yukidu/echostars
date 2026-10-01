@@ -1,3 +1,4 @@
+import { ThemedSelect } from './ThemedSelect';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   User,
@@ -133,7 +134,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [sponsor, setSponsor] = useState(currentUser?.sponsor || '');
   const [platinumUpline, setPlatinumUpline] = useState(currentUser?.platinumUpline || '');
   const [diamondUpline, setDiamondUpline] = useState(currentUser?.diamondUpline || '');
-  const [birthday, setBirthday] = useState(currentUser?.birthday || '1990-01-01');
+  const [birthday, setBirthday] = useState(currentUser?.birthday || '');
   const [avatar, setAvatar] = useState(currentUser?.avatar || '');
 
   // Avatar Crop Modal state
@@ -219,7 +220,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       }
       if (u.platinumUpline) set.add(u.platinumUpline);
     });
-    ['陳白金', '黃白金', '張白金', '李白金'].forEach(p => set.add(p));
+
     return Array.from(set).filter(n => n.toLowerCase().includes((platinumUpline || '').toLowerCase()));
   }, [allUsers, platinumUpline]);
 
@@ -231,7 +232,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       }
       if (u.diamondUpline) set.add(u.diamondUpline);
     });
-    ['杜鑽石', '許雙鑽石', '李三鑽石'].forEach(d => set.add(d));
+
     return Array.from(set).filter(n => n.toLowerCase().includes((diamondUpline || '').toLowerCase()));
   }, [allUsers, diamondUpline]);
 
@@ -260,7 +261,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     ? (currentUser.profileEditCount || 0)
     : 0;
 
-  const numResult = calculateNumerology(birthday);
+  const numResult = calculateNumerology(isEditing ? birthday : (currentUser?.birthday || ''));
 
   const handleStartEdit = () => {
     if (!currentUser) return;
@@ -275,11 +276,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setCenter(currentUser.center || '無');
     setRank(currentUser.rank || '無');
     setJoinReason(currentUser.joinReason || '事業');
-    setStayReason(currentUser.stayReason || '打造自己的事業與團隊');
+    setStayReason(currentUser.stayReason || '未填寫');
     setSponsor(currentUser.sponsor || '');
     setPlatinumUpline(currentUser.platinumUpline || '');
     setDiamondUpline(currentUser.diamondUpline || '');
-    setBirthday(currentUser.birthday || '1990-01-01');
+    setBirthday(currentUser.birthday || '');
     setAvatar(currentUser.avatar || '');
     setIsEditing(true);
   };
@@ -351,7 +352,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         id: rec.trackId,
         title: rec.trackTitle || '演講錄音檔',
         speaker: rec.trackSpeaker || '繁星講師',
-        speakerRank: rec.trackSpeakerRank || '鑽石',
+        speakerRank: rec.trackSpeakerRank || '無',
         speakerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
         categories: ['未分類'],
         series: '',
@@ -378,7 +379,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+    <div className="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-rose-100/60 dark:border-slate-800 my-8">
         {saveError && <p role="alert" className="px-4 py-3 text-sm text-red-600 bg-red-50 dark:bg-red-950">{saveError}</p>}
         {/* Header - Requirement 20: 統一底色與麥克風相同色 */}
@@ -397,6 +398,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {currentUser && (isEditing ? <><button disabled={isSaving} onClick={handleSaveProfile} className="px-2 py-2 rounded-lg bg-white/20 text-xs">儲存</button><button disabled={isSaving} onClick={()=>setIsEditing(false)} className="px-2 py-2 text-xs">取消</button></> : <button onClick={handleStartEdit} disabled={currentProfileEditCount>=5} className="px-2 py-2 rounded-lg bg-white/20 text-xs">修改</button>)}
             {currentUser && (
               <button
                 type="button"
@@ -502,44 +504,44 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               >
                 <button
                   onClick={() => setActiveTab('profile')}
-                  className={`pb-2 px-2.5 font-bold border-b-2 shrink-0 transition-colors ${
+                  className={`pb-2 px-1 font-bold border-b-2 shrink-0 transition-colors ${
                     activeTab === 'profile'
                       ? 'border-rose-500 text-rose-600 dark:text-rose-400'
                       : 'border-transparent text-slate-500 dark:text-slate-400'
                   }`}
                 >
-                  基本資料
+                  自我介紹
                 </button>
                 <button
                   onClick={() => setActiveTab('ratings')}
-                  className={`pb-2 px-2.5 font-bold border-b-2 shrink-0 transition-colors ${
+                  className={`pb-2 px-1 font-bold border-b-2 shrink-0 transition-colors ${
                     activeTab === 'ratings'
                       ? 'border-rose-500 text-rose-600 dark:text-rose-400'
                       : 'border-transparent text-slate-500 dark:text-slate-400'
                   }`}
                 >
-                  已評價 ({userRatedTracks.length})
+                  評價
                 </button>
                 <button
                   onClick={() => setActiveTab('comments')}
-                  className={`pb-2 px-2.5 font-bold border-b-2 shrink-0 transition-colors ${
+                  className={`pb-2 px-1 font-bold border-b-2 shrink-0 transition-colors ${
                     activeTab === 'comments'
                       ? 'border-rose-500 text-rose-600 dark:text-rose-400'
                       : 'border-transparent text-slate-500 dark:text-slate-400'
                   }`}
                 >
-                  我的留言 ({userComments.length})
+                  留言
                 </button>
                 <button
                   onClick={() => setActiveTab('listening')}
-                  className={`pb-2 px-2.5 font-bold border-b-2 shrink-0 transition-colors flex items-center gap-1 ${
+                  className={`pb-2 px-1 font-bold border-b-2 shrink-0 transition-colors flex items-center gap-1 ${
                     activeTab === 'listening'
                       ? 'border-rose-500 text-rose-600 dark:text-rose-400'
                       : 'border-transparent text-slate-500 dark:text-slate-400'
                   }`}
                 >
                   <Headphones className="w-3.5 h-3.5" />
-                  <span>學習進度 ({userListenedItems.length})</span>
+                  <span>學習進度</span>
                 </button>
               </div>
 
@@ -615,17 +617,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                             <span>{isExportingCard ? '產生中...' : '匯出個人圖卡'}</span>
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={handleStartEdit}
-                            disabled={currentProfileEditCount >= 5}
-                            className="px-3 py-1.5 rounded-xl text-white font-bold text-xs flex items-center gap-1.5 shadow-xs hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 transition-all cursor-pointer"
-                            style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
-                            title={currentProfileEditCount >= 5 ? '本月修改已達上限 (5次)' : '修改基本資料'}
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                            <span>修改按鈕</span>
-                          </button>
+
                         </div>
                       </div>
 
@@ -675,7 +667,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         </div>
                         <div className="bg-white dark:bg-slate-800 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700">
                           <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-semibold">星座 · 天賦數 · 命數</span>
-                          <span className="font-semibold text-rose-600 dark:text-rose-400 font-mono">
+                          <span className="font-semibold text-black dark:text-white font-mono">
                             {numResult?.zodiac} · {numResult?.talentNumber} · 命數{numResult?.lifeNumber}
                           </span>
                         </div>
@@ -686,7 +678,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                         <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-1">
                           九宮格生命靈數速覽
                         </span>
-                        <NumerologyGrid birthday={currentUser.birthday || '1990-01-01'} />
+                        <NumerologyGrid birthday={currentUser.birthday || ''} />
                       </div>
                     </div>
                   ) : (
@@ -703,25 +695,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setIsEditing(false)}
-                            className="px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs hover:bg-slate-100"
-                          >
-                            取消
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleSaveProfile}
-                            disabled={isSaving}
-                            className="px-3.5 py-1 rounded-xl text-white font-bold text-xs flex items-center gap-1 shadow-xs hover:opacity-95"
-                            style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>儲存修改</span>
-                          </button>
-                        </div>
+
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -767,7 +741,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                             居住地
                           </label>
-                          <select
+                          <ThemedSelect
                             value={residence}
                             onChange={e => setResidence(e.target.value)}
                             className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
@@ -777,14 +751,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                 {c}
                               </option>
                             ))}
-                          </select>
+                          </ThemedSelect>
                         </div>
 
                         <div>
                           <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                             繁星中心
                           </label>
-                          <select
+                          <ThemedSelect
                             value={center}
                             onChange={e => setCenter(e.target.value)}
                             className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
@@ -794,14 +768,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                 {c}
                               </option>
                             ))}
-                          </select>
+                          </ThemedSelect>
                         </div>
 
                         <div>
                           <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                             最高獎銜 <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal">（需等人工審核）</span>
                           </label>
-                          <select
+                          <ThemedSelect
                             value={rank}
                             onChange={e => setRank(e.target.value as AmwayRank)}
                             className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
@@ -811,14 +785,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                 {r}
                               </option>
                             ))}
-                          </select>
+                          </ThemedSelect>
                         </div>
 
                         <div>
                           <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                             初次如何認識安麗？
                           </label>
-                          <select
+                          <ThemedSelect
                             value={joinReason}
                             onChange={e => setJoinReason(e.target.value as JoinReason)}
                             className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
@@ -828,14 +802,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                 {r}
                               </option>
                             ))}
-                          </select>
+                          </ThemedSelect>
                         </div>
 
                         <div>
                           <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
                             什麼原因留在安麗？
                           </label>
-                          <select
+                          <ThemedSelect
                             value={stayReason}
                             onChange={e => setStayReason(e.target.value as StayReason)}
                             className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 outline-hidden"
@@ -845,7 +819,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                 {r}
                               </option>
                             ))}
-                          </select>
+                          </ThemedSelect>
                         </div>
 
                         {/* 推薦人 with Autocomplete (Item 4) */}

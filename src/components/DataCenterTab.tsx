@@ -1,3 +1,4 @@
+import { ThemedSelect } from './ThemedSelect';
 import React, { useState, useMemo } from 'react';
 import {
   BarChart3,
@@ -253,7 +254,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
       }
     });
 
-    return [1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => ({
+    return [1, 4, 7, 2, 5, 8, 3, 6, 9].map(num => ({
       num,
       count: counts[num] || 0
     }));
@@ -495,7 +496,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">
               初次如何認識安麗？
             </label>
-            <select
+            <ThemedSelect
               value={selectedJoinReason}
               onChange={e => setSelectedJoinReason(e.target.value)}
               className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-hidden"
@@ -506,7 +507,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
                   {r}
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </div>
 
           {/* 什麼原因留在安麗？ (下拉選單 - Requirement 1) */}
@@ -514,7 +515,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">
               什麼原因留在安麗？
             </label>
-            <select
+            <ThemedSelect
               value={selectedStayReason}
               onChange={e => setSelectedStayReason(e.target.value)}
               className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-hidden"
@@ -525,7 +526,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
                   {r}
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </div>
 
           {/* 推薦人 (手動輸入，自動帶出同欄位已有的類似姓名) */}
@@ -665,7 +666,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">
               西元出生年份
             </label>
-            <select
+            <ThemedSelect
               value={selectedBirthYear}
               onChange={e => setSelectedBirthYear(e.target.value)}
               className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-hidden"
@@ -676,7 +677,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
                   {y} 年
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </div>
 
           {/* 星座 (下拉選單) */}
@@ -684,7 +685,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">
               星座
             </label>
-            <select
+            <ThemedSelect
               value={selectedZodiac}
               onChange={e => setSelectedZodiac(e.target.value)}
               className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-hidden"
@@ -695,7 +696,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
                   {z}
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </div>
 
           {/* 生命靈數 (下拉選單 1-9) */}
@@ -703,7 +704,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">
               生命靈數
             </label>
-            <select
+            <ThemedSelect
               value={selectedLifeNumber}
               onChange={e => setSelectedLifeNumber(e.target.value)}
               className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-hidden"
@@ -714,7 +715,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
                   {n} 號人
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </div>
 
           {/* 居住地 (下拉選單) */}
@@ -722,7 +723,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
             <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">
               居住地
             </label>
-            <select
+            <ThemedSelect
               value={selectedResidence}
               onChange={e => setSelectedResidence(e.target.value)}
               className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-hidden"
@@ -733,7 +734,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
                   {r}
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </div>
         </div>
       </div>

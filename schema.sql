@@ -144,15 +144,4 @@ INSERT OR IGNORE INTO categories (name, createdAt) VALUES
 ('影集', 1727654400000),
 ('未分類', 1727654400000);
 
--- 初始超級管理員帳號
-INSERT OR IGNORE INTO users (
-  id, name, email, amwayId, phone, center, rank, role, avatar, 
-  joinReason, stayReason, sponsor, platinumUpline, diamondUpline, 
-  birthDate, notes, registerDate, rankUpdatedAt, lastActive, 
-  auditedBy, auditedAt, rankApproved, rankAuditStatus, isContributor, isAdminUser, isBlocked
-) VALUES (
-  'u-admin', '杜杜龍', 'yukidu@gmail.com', 'TW-888888', '0912-345-678', '台北旗艦中心', '鑽石', '超級管理員', '🐉',
-  '事業', '打造自己的事業與團隊', '創辦人團隊', '杜鑽石', '杜鑽石',
-  '1985-07-15', '全系統最高權限管理者與創作者', '2026/08/01 10:00', '2026/08/01 10:00', '剛才',
-  '系統初始最高權限', '2026/08/01 10:00', 1, 'approved', 1, 1, 0
-);
+-- 會員在首次 Google 登入時建立，不預先寫入個人範例資料。

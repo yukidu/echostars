@@ -132,7 +132,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+    <div className="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
       <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl border border-rose-100/60 dark:border-slate-800">
         {/* Header */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -149,6 +149,16 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
               </p>
             </div>
           </div>
+          {selectedImage && <button
+                  type="button"
+                  disabled={isProcessing}
+                  onClick={handleConfirmCrop}
+                  className="flex-1 py-2 rounded-xl text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1 hover:opacity-95"
+                  style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{isProcessing ? '壓縮中...' : '確認並儲存'}</span>
+                </button>}
           <button
             onClick={onClose}
             className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
@@ -259,16 +269,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
                 >
                   重新選擇
                 </button>
-                <button
-                  type="button"
-                  disabled={isProcessing}
-                  onClick={handleConfirmCrop}
-                  className="flex-1 py-2 rounded-xl text-white text-xs font-bold shadow-xs flex items-center justify-center gap-1 hover:opacity-95"
-                  style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>{isProcessing ? '壓縮中...' : '確認並儲存'}</span>
-                </button>
+
               </div>
             </div>
           )}

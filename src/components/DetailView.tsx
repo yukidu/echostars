@@ -29,7 +29,6 @@ import { VisitorIdentity } from '../utils/visitor';
 import { exportTrackFullCardImage, shareOrDownloadImage } from '../utils/canvasExport';
 import { CommentsSection } from './CommentsSection';
 import { TwinklingStars } from './TwinklingStars';
-import { PlayerControls3States } from './PlayerControls3States';
 
 interface DetailViewProps {
   track: Track;
@@ -355,7 +354,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
     if (isExportingCard) return;
     setIsExportingCard(true);
     try {
-      const blob = await exportTrackFullCardImage(track, comments);
+      const blob = await exportTrackFullCardImage(track, comments.map(c => { const author = allUsers.find(u=>u.email?.toLowerCase().trim()===c.authorEmail?.toLowerCase().trim()); return author ? {...c,authorName:author.name,authorAvatar:author.avatar,authorRank:author.rank} : c; }));
       const filename = `繁星的回聲_${track.title}_完整資訊圖卡.jpg`;
       await shareOrDownloadImage(blob, filename, `《${track.title}》演講完整資訊圖卡`);
     } catch (err) {
@@ -729,8 +728,99 @@ export const DetailView: React.FC<DetailViewProps> = ({
         </div>
       </div>
 
+      {/* Description & Metadata Card */}
+      <div className="relative bg-white/80 dark:bg-slate-900/80 rounded-2xl p-4 border border-rose-100/60 dark:border-slate-800 shadow-xs space-y-2.5 text-xs overflow-hidden">
+        <TwinklingStars density="subtle" className="opacity-40 dark:opacity-60" />
+        <div className="relative z-10 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
+              演講資訊與備註
+            </h3>
+            {/* Requirement 5.13: 按下編輯按鈕時，非原地編輯，改成跳轉「後台管理」 > 「編輯音檔」的相同視窗介面 */}
+            {canEditTrack && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onEditTrack) {
+                    onEditTrack(track);
+                  } else {
+                    handleStartEditTrack();
+                  }
+                }}
+                className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800 transition-all cursor-pointer shadow-2xs"
+                title="跳轉編輯音檔視窗介面"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-rose-500" />
+                <span>編輯演講資訊與連結</span>
+              </button>
+            )}
+          </div>
+          <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+            {track.description || '無詳細說明'}
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500">
+            {/* Requirement 5.9 (v2.7): 演講資訊與備註新增：上傳者的名字 */}
+            <div>
+              <span className="text-slate-400">上傳者：</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{uploaderName}</span>
+            </div>
+            <div className="col-start-1 row-start-2 break-words">
+              <span className="text-slate-400">系列：</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{track.series || '單曲'}</span>
+            </div>
+            <div className="col-start-2 row-start-1 text-right whitespace-nowrap">
+              <span className="text-slate-400">演講日期：</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{track.speechDate || '-'}</span>
+            </div>
+            <div className="col-start-2 row-start-2 text-right whitespace-nowrap">
+              <span className="text-slate-400">上傳日期：</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{track.uploadDate?.slice(0, 10)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Requirement 5.5: 區塊標題改為「參考資料」，放在「演講資訊與備註」的上面 */}
+      {hasExternalResources && (
+        <div className="bg-white/80 dark:bg-slate-900/80 rounded-2xl p-4 border border-rose-100/60 dark:border-slate-800 shadow-xs space-y-2.5 text-xs">
+          <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-1.5">
+            <FileText className="w-4 h-4 text-amber-500" />
+            <span>參考資料</span>
+          </h3>
+          <div className="space-y-1.5 pt-1">
+            {track.externalVideos?.map((v, i) => (
+              <a
+                key={`v-${i}`}
+                href={v.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 p-2 rounded-xl bg-red-50/60 hover:bg-red-100/80 dark:bg-red-950/30 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 font-semibold transition-colors"
+              >
+                <Youtube className="w-4 h-4 text-red-500 shrink-0" />
+                <span className="truncate flex-1">{v.name || v.url}</span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-60 shrink-0" />
+              </a>
+            ))}
+            {track.externalPpts?.map((p, i) => (
+              <a
+                key={`p-${i}`}
+                href={p.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 p-2 rounded-xl bg-amber-50/60 hover:bg-amber-100/80 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 text-amber-800 dark:text-amber-200 font-semibold transition-colors"
+              >
+                <FileText className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="truncate flex-1">{p.name || p.url}</span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-60 shrink-0" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Audio Player Card - Requirement 4 (v2.8): 播放器高度、上下行距更緊密，倍速字體縮小 */}
-      <div className="bg-white/90 dark:bg-slate-900/90 rounded-3xl p-3 sm:p-4 border border-rose-100/70 dark:border-slate-800 shadow-md space-y-2">
+      <div id="audio-timeline" className="scroll-mt-24 bg-white/90 dark:bg-slate-900/90 rounded-3xl p-3 sm:p-4 border border-rose-100/70 dark:border-slate-800 shadow-md space-y-2">
         {/* Progress Bar & Time */}
         <div className="space-y-1">
           <input
@@ -805,99 +895,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
         </div>
       </div>
 
-      {/* Requirement 5.5: 區塊標題改為「參考資料」，放在「演講資訊與備註」的上面 */}
-      {hasExternalResources && (
-        <div className="bg-white/80 dark:bg-slate-900/80 rounded-2xl p-4 border border-rose-100/60 dark:border-slate-800 shadow-xs space-y-2.5 text-xs">
-          <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-1.5">
-            <FileText className="w-4 h-4 text-amber-500" />
-            <span>參考資料</span>
-          </h3>
-          <div className="space-y-1.5 pt-1">
-            {track.externalVideos?.map((v, i) => (
-              <a
-                key={`v-${i}`}
-                href={v.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 p-2 rounded-xl bg-red-50/60 hover:bg-red-100/80 dark:bg-red-950/30 dark:hover:bg-red-900/40 text-red-700 dark:text-red-300 font-semibold transition-colors"
-              >
-                <Youtube className="w-4 h-4 text-red-500 shrink-0" />
-                <span className="truncate flex-1">{v.name || v.url}</span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-60 shrink-0" />
-              </a>
-            ))}
-            {track.externalPpts?.map((p, i) => (
-              <a
-                key={`p-${i}`}
-                href={p.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 p-2 rounded-xl bg-amber-50/60 hover:bg-amber-100/80 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 text-amber-800 dark:text-amber-200 font-semibold transition-colors"
-              >
-                <FileText className="w-4 h-4 text-amber-500 shrink-0" />
-                <span className="truncate flex-1">{p.name || p.url}</span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-60 shrink-0" />
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Description & Metadata Card */}
-      <div className="relative bg-white/80 dark:bg-slate-900/80 rounded-2xl p-4 border border-rose-100/60 dark:border-slate-800 shadow-xs space-y-2.5 text-xs overflow-hidden">
-        <TwinklingStars density="subtle" className="opacity-40 dark:opacity-60" />
-        <div className="relative z-10 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-              演講資訊與備註
-            </h3>
-            {/* Requirement 5.13: 按下編輯按鈕時，非原地編輯，改成跳轉「後台管理」 > 「編輯音檔」的相同視窗介面 */}
-            {canEditTrack && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (onEditTrack) {
-                    onEditTrack(track);
-                  } else {
-                    handleStartEditTrack();
-                  }
-                }}
-                className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800 transition-all cursor-pointer shadow-2xs"
-                title="跳轉編輯音檔視窗介面"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-rose-500" />
-                <span>編輯演講資訊與連結</span>
-              </button>
-            )}
-          </div>
-          <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-            {track.description || '無詳細說明'}
-          </p>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500">
-            {/* Requirement 5.9 (v2.7): 演講資訊與備註新增：上傳者的名字 */}
-            <div>
-              <span className="text-slate-400">上傳者：</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">{uploaderName}</span>
-            </div>
-            <div>
-              <span className="text-slate-400">系列：</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">{track.series || '單曲'}</span>
-            </div>
-            <div>
-              <span className="text-slate-400">演講日期：</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">{track.speechDate || '-'}</span>
-            </div>
-            <div>
-              <span className="text-slate-400">上傳日期：</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">{track.uploadDate}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Requirement 5.1, 5.2, 5.4 (v2.7): 「分享錄音」與「匯出圖卡」按鈕移到留言板的上面 */}
-      <div className="flex items-center justify-end gap-2 pt-1 pb-1">
+      <div className="detail-share-actions flex items-center justify-center gap-3 py-2">
         <button
           type="button"
           onClick={onShare}

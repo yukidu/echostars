@@ -98,34 +98,10 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
 
   // Requirement 2 & 3: 個人基本資料名稱修改後與用戶資料庫同步一致，超級管理員同步最新名稱
   const getRegisteredAuthor = (c: Comment): UserProfile | null => {
-    // 1. 如果留言為當前登入者所發，優先使用當前登入者最新的個人檔案
-    if (currentUser) {
-      if (c.authorEmail && currentUser.email && c.authorEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) {
-        return currentUser;
-      }
-      if (c.isAdmin && (currentUser.email?.toLowerCase().trim() === 'yukidu@gmail.com' || currentUser.role === '超級管理員' || currentUser.isAdminUser)) {
-        return currentUser;
-      }
-      if (currentUser.name && c.authorName === currentUser.name) {
-        return currentUser;
-      }
-    }
-    // 2. 依 Email 比對已註冊會員
-    if (c.authorEmail && c.authorEmail !== 'guest' && !c.authorEmail.startsWith('guest-') && c.deviceId !== c.authorEmail) {
-      const found = allUsers.find(u => u.email && u.email.toLowerCase().trim() === c.authorEmail?.toLowerCase().trim());
-      if (found) return found;
-    }
-    // 3. 管理員留言比對超級管理員
-    if (c.isAdmin) {
-      const adminUser = allUsers.find(u => u.email?.toLowerCase().trim() === 'yukidu@gmail.com' || u.role === '超級管理員');
-      if (adminUser) return adminUser;
-    }
-    // 4. 依姓名比對註冊會員
-    if (c.authorName && !c.authorName.startsWith('訪客') && c.authorBadge !== '訪客稱號' && c.authorBadge !== '訪客') {
-      const foundByName = allUsers.find(u => u.name === c.authorName);
-      if (foundByName) return foundByName;
-    }
-    return null;
+    const email=c.authorEmail?.toLowerCase().trim();
+    if (!email) return null;
+    if (currentUser?.email?.toLowerCase().trim()===email) return currentUser;
+    return allUsers.find(u=>u.email?.toLowerCase().trim()===email)||null;
   };
 
   const handleAuthorClick = (c: Comment) => {
@@ -503,15 +479,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
                   <span className={`font-bold text-sm ${isAdmin || currentUser.isContributor ? 'rainbow-admin-text' : 'text-slate-800 dark:text-slate-100'}`}>
                     {currentUser.name}
                   </span>
-                  {isAdmin ? (
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-bold">
-                      超級管理員
-                    </span>
-                  ) : currentUser.isContributor ? (
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-bold">
-                      貢獻者
-                    </span>
-                  ) : null}
+
                   <span className="text-xs text-rose-600 dark:text-rose-400 font-medium">
                     · {currentUser.rank}
                   </span>
@@ -565,13 +533,9 @@ const threads = commentThreads(comments);
 
             const renderCommentItem = (c: Comment, isReply = false) => {
               // Requirement 5: 可以刪除和編輯自己的留言
-              const isAuthor = Boolean(
-                (currentUser && c.authorEmail && currentUser.email && c.authorEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim()) ||
-                (currentUser && c.authorName && currentUser.name && c.authorName === currentUser.name) ||
-                (currentUser && c.isAdmin && (currentUser.email?.toLowerCase().trim() === 'yukidu@gmail.com' || currentUser.role === '超級管理員' || currentUser.isAdminUser)) ||
-                (!currentUser && c.deviceId === visitor.deviceId) ||
-                (c.deviceId && visitor.deviceId && c.deviceId === visitor.deviceId)
-              );
+              const isAuthor = Boolean(c.authorEmail
+                ? currentUser?.email && c.authorEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+                : c.deviceId && c.deviceId === visitor.deviceId);
 
               const registeredAuthor = getRegisteredAuthor(c);
               const isVisitor = !registeredAuthor;
@@ -580,7 +544,7 @@ const threads = commentThreads(comments);
               const displayAuthorAvatar = registeredAuthor?.avatar || c.authorAvatar;
               // Requirement 5 (v2.5): 如果是訪客，那他不應該有獎銜。因為訪客不能設定基本資料。訪客暱稱的名字右邊要增加顯示（訪客）做區分。
               const displayAuthorBadge = registeredAuthor
-                ? (registeredAuthor.role === '超級管理員' ? '超級管理員' : registeredAuthor.isContributor ? '貢獻者' : (registeredAuthor.rank || c.authorBadge))
+                ? (registeredAuthor.rank || '無')
                 : null; // 訪客不應有獎銜
 
               const showBadge = !!displayAuthorBadge && displayAuthorBadge !== '訪客稱號' && displayAuthorBadge !== '訪客' && displayAuthorBadge !== '無';

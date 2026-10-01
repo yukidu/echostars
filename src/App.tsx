@@ -33,6 +33,7 @@ import {
 } from './utils/audio';
 import {
   recordOfflineTrack,
+  getOfflineAudioUrl,
   handleTrackProgressOffline,
   purgeStaleOfflineTracks
 } from './utils/offlineAudio';
@@ -109,22 +110,22 @@ export default function App() {
   const [savedPreferredMode, setSavedPreferredMode] = useState<PlayerDisplayMode>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('sq_player_display_mode');
-      if (stored === 'bubble' || stored === 'bar') return stored;
+      if (stored === 'bubble') return stored;
     }
-    return 'bar';
+    return 'bubble';
   });
 
   const [playerMode, setPlayerModeState] = useState<PlayerDisplayMode>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('sq_player_display_mode');
-      if (stored === 'bubble' || stored === 'bar') return stored;
+      if (stored === 'bubble') return stored;
     }
-    return 'bar';
+    return 'bubble';
   });
 
   const setPlayerMode = (mode: PlayerDisplayMode) => {
     setPlayerModeState(mode);
-    if (mode === 'bubble' || mode === 'bar') {
+    if (mode === 'bubble') {
       setSavedPreferredMode(mode);
       if (typeof window !== 'undefined') {
         localStorage.setItem('sq_player_display_mode', mode);
@@ -305,6 +306,7 @@ export default function App() {
   // Requirement 8: 自動顯示相關的關鍵詞（包括：分類標籤、網友關鍵字、音檔詳細資料）
   const searchSuggestions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    if (!q) return { categories: [], keywords: [] };
 
     // 1. 分類標籤
     const matchedCategories = categoryOptions
@@ -317,6 +319,7 @@ export default function App() {
       (t.keywords || []).forEach((k: string) => { if (k && k.trim()) kwSet.add(k.trim()); });
       (t.tags || []).forEach((k: string) => { if (k && k.trim()) kwSet.add(k.trim()); });
     });
+    tracks.forEach(t => [t.title, t.speaker, t.speakerRank, t.series, t.seriesOrder, t.speechDate, t.uploadDate, t.description, t.remarks, t.uploaderName, t.requiredRank, ...(t.externalFiles||[]).map(f=>f.name), ...(t.externalVideos||[]).map(f=>f.name), ...(t.externalPpts||[]).map(f=>f.name)].forEach(value => { if (value) kwSet.add(value); }));
     const matchedKeywords = Array.from(kwSet)
       .filter(kw => !q || kw.toLowerCase().includes(q))
       .slice(0, 10);
@@ -463,7 +466,7 @@ export default function App() {
 
             // Check URL query param ?track=t-1
             const urlParams = new URLSearchParams(window.location.search);
-            const trackParam = urlParams.get('track');
+            const trackParam = urlParams.get('track') || (window.location.pathname.startsWith('/share/') ? decodeURIComponent(window.location.pathname.slice(7)) : null);
             if (trackParam) {
               const found = tData.find((t: Track) => t.id === trackParam);
               if (found) {
@@ -580,7 +583,7 @@ export default function App() {
   };
 
   // 2. Play / Select Track with Memory Resume & Fullscreen Loading
-  const handlePlayTrack = (track: Track, targetMode?: PlayerDisplayMode) => {
+  const handlePlayTrack = async (track: Track, targetMode?: PlayerDisplayMode) => {
     // Requirement 11 (v2.7): 私秘VIP音檔播放守護
     if (track.isPrivateVip && !isTrackVipUnlocked(track)) {
       alert('此音檔為私秘VIP專屬，請聯絡上傳者給您專屬連結');
@@ -612,7 +615,7 @@ export default function App() {
     fetch(`/api/tracks/${track.id}/play`, { method: 'POST' }).catch(() => {});
 
     // Record to offline cache registry
-    recordOfflineTrack(track.id);
+    recordOfflineTrack(track.id, track.audioUrl);
 
     // Show huge loading overlay until audio starts playing
     setIsLoadingAudio(true);
@@ -621,7 +624,9 @@ export default function App() {
     const resumeTime = saved && !saved.completed ? saved.currentTime : 0;
 
     if (audioRef.current) {
-      audioRef.current.src = track.audioUrl;
+      const cachedUrl = !navigator.onLine ? await getOfflineAudioUrl(track.audioUrl) : null;
+      if (audioRef.current.src.startsWith('blob:')) URL.revokeObjectURL(audioRef.current.src);
+      audioRef.current.src = cachedUrl || track.audioUrl;
       audioRef.current.currentTime = resumeTime;
       audioRef.current.playbackRate = playbackRate;
       audioRef.current
@@ -833,6 +838,7 @@ export default function App() {
   const handleDeleteComment = async (commentId: string) => {
     const targetTrack = selectedDetailTrack || currentTrack;
     const res = await fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('只能修改自己的留言，或連線暫時失敗。');
     if (res.ok) {
       setComments(prev => prev.filter(c => c.id !== commentId));
       setAllComments(prev => prev.filter(c => c.id !== commentId));
@@ -857,7 +863,7 @@ export default function App() {
     const res = await fetch(`/api/comments/${commentId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: newContent })
+      body: JSON.stringify({ content: newContent, userEmail: currentUser?.email, deviceId: visitor.deviceId })
     });
     if (res.ok) {
       setComments(prev =>
@@ -901,6 +907,7 @@ export default function App() {
   const handleToggleAdminUser = async (userId: string) => {
     try {
       const res = await fetch(`/api/users/${userId}/admin-role`, { method: 'PUT' });
+      if (!res.ok) throw new Error('儲存失敗');
       if (res.ok) {
         const updated = await res.json();
         setAllUsers(prev => prev.map(u => (u.id === userId ? updated : u)));
@@ -924,7 +931,8 @@ export default function App() {
         body: JSON.stringify({
           action: rank ? 'modify_and_approve' : 'approve',
           rank,
-          auditedBy: auditorName
+          auditedBy: auditorName,
+          auditorEmail: currentUser?.email
         })
       });
       if (res.ok) {
@@ -936,6 +944,7 @@ export default function App() {
         }
       }
     } catch (e) {
+      alert('審核儲存失敗，請稍後再試。');
       console.error('Approve rank failed:', e);
     }
   };
@@ -966,7 +975,7 @@ export default function App() {
       console.warn('Sync playback memories error:', e);
     }
 
-    setIsProfileOpen(false);
+    setIsProfileOpen(Boolean(data.isNewUser));
   };
 
   const handleLogout = () => {
@@ -1169,6 +1178,7 @@ export default function App() {
               (t.remarks || '').toLowerCase().includes(token) ||
               (t.category || '').toLowerCase().includes(token) ||
               (t.categories || []).some(c => c.toLowerCase().includes(token)) ||
+              [t.speechDate, t.uploadDate, t.seriesOrder, t.requiredRank, t.uploaderName, t.uploaderEmail, t.audioUrl, t.duration, ...(t.externalFiles||[]).flatMap(f=>[f.name,f.url]), ...(t.externalVideos||[]).flatMap(f=>[f.name,f.url]), ...(t.externalPpts||[]).flatMap(f=>[f.name,f.url])].some(value=>value?.toLowerCase().includes(token)) ||
               allKeywords.some(k => k.includes(token))
             );
           });
@@ -1576,10 +1586,10 @@ export default function App() {
                   <Hash className="w-3.5 h-3.5 text-amber-500" />
                   <span>網友關鍵字交叉篩選</span>
                   <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-900/60 font-mono">
-                    {selectedKeywords.length > 0 ? `已選 ${selectedKeywords.length} 組` : `${allAvailableKeywords.length}組可選`}
+                    {selectedKeywords.length > 0 ? `已選 ${selectedKeywords.length} 組` : ''}
                   </span>
                   <span className="text-[10px] text-slate-400">
-                    {showKeywordsDrawer ? '▲ 收起' : '▼ 點擊展開標籤庫'}
+                    {showKeywordsDrawer ? '▲ 收起' : '▼ 展開'}
                   </span>
                 </button>
 
@@ -1665,7 +1675,7 @@ export default function App() {
             </div>
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
-            <div className="sort-toolbar relative flex items-center justify-between gap-1.5 pt-0.5">
+            <div className="sort-toolbar relative flex flex-wrap items-center justify-center gap-1.5 pt-0.5">
               {/* Left: 5 Sort fields arranged in a tight row: 時間、評價、留言、按讚、演講人 */}
               <div className="sort-options flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5">
                 {(['時間', '評價', '留言', '按讚', '演講人'] as SortField[]).map(field => {
@@ -1698,7 +1708,7 @@ export default function App() {
               </div>
 
               {/* Right: Dropdowns (分類選單與講師獎銜指標篩選) */}
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="filter-dropdowns flex items-center justify-center gap-1.5 shrink-0">
                 {/* 1. 講師獎銜篩選下拉選單 */}
                 <div className="relative shrink-0">
                   <button
@@ -1726,7 +1736,7 @@ export default function App() {
                         onClick={() => setIsSpeakerRankDropdownOpen(false)}
                       />
                       <div
-                        className="absolute right-0 top-full mt-1.5 z-40 w-44 max-h-64 overflow-y-auto rounded-2xl shadow-xl py-1 border border-white/20 animate-in fade-in zoom-in-95 text-white scrollbar-thin"
+                        className="absolute left-0 top-full mt-1.5 z-40 w-44 max-h-64 overflow-y-auto rounded-2xl shadow-xl py-1 border border-white/20 animate-in fade-in zoom-in-95 text-white scrollbar-thin"
                         style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                         onClick={e => e.stopPropagation()}
                       >
@@ -1903,11 +1913,13 @@ export default function App() {
             if (m === 'expanded') {
               setSelectedDetailTrack(currentTrack);
               setCurrentTab('home');
+              requestAnimationFrame(()=>requestAnimationFrame(()=>document.getElementById('audio-timeline')?.scrollIntoView({behavior:'smooth',block:'center'})));
             } else {
               setSelectedDetailTrack(null);
             }
             setPlayerMode(m);
           }}
+          onScrollToTop={() => { window.scrollTo({top:0,behavior:'smooth'}); document.getElementById('detail-view-container')?.scrollTo({top:0,behavior:'smooth'}); }}
           onTogglePlay={handleTogglePlay}
           onSeek={handleSeek}
           onSkip={handleSkip}
@@ -1916,7 +1928,7 @@ export default function App() {
       )}
 
       {/* Requirement 15: Comment Preview Modal */}
-      <CommentPreviewModal
+      <CommentPreviewModal initialComments={allComments}
         isOpen={!!commentPreviewTrack}
         onClose={() => setCommentPreviewTrack(null)}
         track={commentPreviewTrack}
@@ -1965,7 +1977,7 @@ export default function App() {
             id: trackData?.id || `t-${Date.now()}`,
             title: trackData?.title || '新上傳音檔',
             speaker: trackData?.speaker || '特邀講師',
-            speakerRank: trackData?.speakerRank || '領袖',
+            speakerRank: trackData?.speakerRank || '無',
             speakerAvatar: trackData?.speakerAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
             categories: Array.isArray(trackData?.categories) && trackData.categories.length > 0 ? trackData.categories : ['未分類'],
             keywords: Array.isArray(trackData?.keywords) ? trackData.keywords : [],
@@ -2098,7 +2110,7 @@ export default function App() {
       </Suspense>}
 
       {/* Requirement 3 (v2.8): 首頁播放清單和音檔詳細介紹畫面這二處，網頁左下角，新增：半透明浮動的向上箭頭按鈕，按了會回到頁面的最前面 */}
-      {(currentTab === 'home' || selectedDetailTrack !== null || playerMode === 'expanded') && (
+      {!currentTrack && (currentTab === 'home' || selectedDetailTrack !== null || playerMode === 'expanded') && (
         <button
           type="button"
           onClick={() => {
@@ -2110,11 +2122,12 @@ export default function App() {
             const detailContainer = document.getElementById('detail-view-container');
             if (detailContainer) detailContainer.scrollTo({ top: 0, behavior: 'smooth' });
           }}
+          style={{ bottom: "var(--scroll-top-bottom, 24px)" }}
           aria-label="回到頁面最前面"
           title="回到頁面最前面"
-          className="fixed bottom-16 sm:bottom-20 left-3.5 sm:left-5 z-40 w-11 h-11 rounded-full bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 backdrop-blur-md border border-slate-200/80 dark:border-slate-700/80 shadow-xl flex items-center justify-center transition-all cursor-pointer active:scale-90 hover:scale-105 touch-manipulation"
+          className="fixed bottom-40 left-1/2 -translate-x-1/2 z-40 w-[66px] h-[66px] rounded-full bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 backdrop-blur-md border border-slate-200/80 dark:border-slate-700/80 shadow-xl flex items-center justify-center transition-all cursor-pointer active:scale-90 hover:scale-105 touch-manipulation"
         >
-          <ArrowUp className="w-5 h-5 text-[var(--color-primary,#c06c84)] stroke-[2.5]" />
+          <ArrowUp className="w-[30px] h-[30px] text-[var(--color-primary,#c06c84)] stroke-[2.5]" />
         </button>
       )}
 

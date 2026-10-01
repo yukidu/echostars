@@ -182,7 +182,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
         {/* Requirement 4: 刪除每一張音檔卡右邊的箭頭符號 */}
       </div>
           {/* Row 4: Ratings, Comments, Likes - Requirement 15 (v2.7): 嚴格單行排列，避免評分後整列變成二行 */}
-          <div className="track-actions flex items-center flex-nowrap gap-1 sm:gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 whitespace-nowrap overflow-hidden min-w-0 select-none">
+          <div className="track-actions flex items-center flex-nowrap gap-1 sm:gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 pt-1 mt-1 border-t border-slate-100 dark:border-slate-800 whitespace-nowrap overflow-hidden min-w-0 select-none">
             {/* 5-Star Interactive Rating */}
             <div
               className="flex items-center flex-nowrap gap-[1px] shrink-0"
@@ -212,7 +212,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
                 );
               })}
               <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 ml-0.5 tabular-nums shrink-0">
-                {userRating && userRating > 0 ? userRating.toFixed(1) : '-'}
+                {(track.rating || 0).toFixed(1)} · {track.ratingCount || 0}人
               </span>
             </div>
 

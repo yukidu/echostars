@@ -23,13 +23,11 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   if (!isOpen) return null;
 
   const currentHost = typeof window !== 'undefined' ? window.location.origin : '';
-  const shareUrl = `${currentHost}?track=${track.id}`;
+  const shareUrl = `${currentHost}/share/${encodeURIComponent(track.id)}`;
 
   const categoryName = track.categories?.[0] || track.category || '演講';
   // Requirement 4: 如果未登入的訪客，則預覽訊息不顯示暱稱，取消輸入暱稱的框框
-  const shareText = currentUser
-    ? `「${currentUser.name}特別有感！分享給你這部${categoryName}錄音檔，我聽了${excitement}：${track.speaker}《${track.title}》 ${shareUrl}」`
-    : `「特別有感！分享給你這部${categoryName}錄音檔，聽了${excitement}：${track.speaker}《${track.title}》 ${shareUrl}」`;
+  const shareText = `${track.speaker}《${track.title}》`;
 
   const handleNativeShare = async () => {
     if (navigator.share) {
@@ -41,15 +39,15 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         });
         onClose();
         return;
-      } catch {
-        // Fallback to clipboard
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
       }
     }
     handleCopy();
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(shareText);
+  const handleCopy = async () => {
+    try { await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`); } catch { return; }
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
@@ -57,7 +55,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   return (
     <div
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/65 backdrop-blur-xs overflow-y-auto"
+      className="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/65 backdrop-blur-xs overflow-y-auto"
     >
       <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden shadow-2xl border border-rose-100/60 dark:border-slate-800 my-auto">
         {/* Header - Fixed & Prominent Close Button (Requirement 4: 小螢幕裝置確保右上角 X 良好點擊) */}
@@ -70,9 +68,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm sm:text-base truncate">
                 分享此音檔給學習夥伴
               </h3>
-              <p className="text-[10px] sm:text-xs text-slate-400 truncate">
-                自動生成溫馨推薦文案，支援點擊直達播放
-              </p>
+
             </div>
           </div>
           <button
@@ -91,7 +87,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
           {/* Preview Card */}
           <div>
             <span className="text-xs font-bold text-slate-500 block mb-1.5">
-              分享訊息預覽 (含20組隨機興奮形容詞)：
+              分享內容
             </span>
             <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 sm:p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed font-sans select-all">
               {shareText}
@@ -143,7 +139,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
             >
               <Smartphone className="w-4 h-4" />
-              <span>呼叫原生分享</span>
+              <span>分享到APP或Line</span>
             </button>
           </div>
 

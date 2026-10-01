@@ -145,7 +145,7 @@ export interface UserListeningRecord {
 
 export type UserRole = '超級管理員' | '獎銜審核員' | '管理員' | '繁星家人' | '銅章' | '銀章' | '白金' | string;
 
-export type PlayerDisplayMode = 'bubble' | 'bar' | 'expanded';
+export type PlayerDisplayMode = 'bubble' | 'expanded';
 
 export interface ExternalLinkItem {
   name: string;

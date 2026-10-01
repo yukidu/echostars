@@ -29,10 +29,12 @@ export interface VersionLog {
 }
 
 export const DEFAULT_CHANGELOG_DATA: VersionLog[] = [
+{"version":"v3.0","date":"2026/10/02","isLatest":true,"summary":"依 33 項回饋修正介面、會員管理、分享與離線播放。","added":["浮動播放器可拖曳移動；置頂箭頭位於左側，點擊音檔資訊直達詳細頁時間軸；新增首頁教學。","真正保存離線音檔，完成超過95%或15天未聽自動清除。","分享連結提供音檔封面預覽。"],"modified":["統一視窗頂端標題與儲存操作、配色下拉選單，縮短會員分頁。","修復正式站關鍵字與獎銜審核；留言僅作者可修改，姓名與獎銜同步。","學習卡同步評分、留言與生命靈數資料。","調整首頁密度、搜尋建議、評價人數、篩選選單及排行日期。","九宮格天賦圈亮綠，星座與命數排版一致。"],"removed":["底部長條播放器與三態控制、工具列安裝按鈕、安裝說明彈窗。","AI Studio 範例資料與未使用預設關鍵字；分享重複網址。"]},
+{"version":"v2.9","date":"2026/10/01","summary":"正式站資料持久化與手機版修復。","added":["PWA 安裝基礎、會員資料保存與 Google 頭像同步。"],"modified":["正式站按讚、評價、留言 API；愛心狀態同步。","手機字體、觸控按鈕與 SVG 九宮格圈線。","延遲載入大型管理與匯出功能。"],"removed":["主選單三倍字體按鈕；網頁翻譯提示。"]},
   {
     version: 'v2.8',
     date: '2026/10/01',
-    isLatest: true,
+    isLatest: false,
     summary: 'Cloudflare 邊緣雲端全面整合（D1 資料庫、R2 音訊直傳、KV 播放記憶）、音檔詳細頁全方位體驗升級（匯出圖卡相容修復、五星評價緊湊即時響應、留言圖示化）、分享錄音小螢幕防遮擋與訪客文案去暱稱化、播放器緊實化、個人圖卡隱私個資防護（去生日與電話）、多組網友關鍵字交叉複合搜尋、首頁與詳細頁左下角浮動回頂按鈕，以及高解析度手機字體 3 倍放大適配。',
     added: [
       'Cloudflare 邊緣雲端原生整合：打通 D1 SQLite 關聯資料庫持久化、R2 物件儲存桶直傳串流、KV 分散式播放秒數記憶。',
@@ -298,7 +300,7 @@ export const ChangelogModal: React.FC<ChangelogModalProps> = ({
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             const hasV28 = data.some((v: any) => v.version === 'v2.8');
-            const finalData = hasV28 ? data : [DEFAULT_CHANGELOG_DATA[0], ...data];
+            const finalData = [...DEFAULT_CHANGELOG_DATA.filter(v => !data.some((d: VersionLog) => d.version === v.version)), ...data].map(v=>({...v,isLatest:v.version==='v3.0'})).sort((a,b)=>b.version.localeCompare(a.version,undefined,{numeric:true}));
             setChangelogList(finalData);
             setSelectedVersion(finalData[0].version);
             return;
@@ -387,7 +389,7 @@ export const ChangelogModal: React.FC<ChangelogModalProps> = ({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
+      className="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
     >
       <div
         onClick={e => e.stopPropagation()}
@@ -728,16 +730,7 @@ export const ChangelogModal: React.FC<ChangelogModalProps> = ({
         <div className="p-3 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-400">
           <span>繁星的回聲 知識音檔平台 · 持續維護更新中</span>
           <div className="flex items-center gap-2">
-            {isEditing && (
-              <button
-                type="button"
-                disabled={isSaving}
-                onClick={handleSaveChangelog}
-                className="px-3.5 py-1.5 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors shadow-2xs disabled:opacity-50 cursor-pointer"
-              >
-                {isSaving ? '儲存中...' : '儲存變更'}
-              </button>
-            )}
+
             <button
               onClick={onClose}
               className="px-4 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors cursor-pointer"

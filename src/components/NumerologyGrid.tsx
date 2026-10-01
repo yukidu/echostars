@@ -1,5 +1,4 @@
 import React from 'react';
-import { Heart } from 'lucide-react';
 import { calculateNumerology } from '../utils/numerology';
 
 interface NumerologyGridProps {
@@ -33,7 +32,7 @@ export const NumerologyGrid: React.FC<NumerologyGridProps> = ({ birthday }) => {
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 dark:border-slate-700/80 pb-2.5">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
-            星座：<span className="text-rose-600 dark:text-rose-400 font-extrabold">{zodiac}</span>
+            星座：<span className="text-black dark:text-white font-extrabold">{zodiac}</span>
             <span className="px-1.5 py-0.2 rounded-md bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 font-mono font-extrabold border border-purple-300 dark:border-purple-800 text-[11px]" title={`星座數：${zodiacNumber} (紫色圈線)`}>
               {zodiacNumber}
             </span>
@@ -48,23 +47,11 @@ export const NumerologyGrid: React.FC<NumerologyGridProps> = ({ birthday }) => {
           <span className="text-slate-300 dark:text-slate-600">|</span>
           <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
             天賦數：
-            <span className="px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-mono font-extrabold border border-emerald-300 dark:border-emerald-800 text-[11px]">
+            <span className="px-1.5 py-0.2 rounded-md bg-emerald-100 text-black dark:bg-emerald-950 dark:text-white font-mono font-extrabold border border-emerald-300 dark:border-emerald-800 text-[11px]">
               {talentNumber}
             </span>
           </span>
-        </div>
-
-        {/* Highlighted Life Number (Red Ring around number in the middle) */}
-        <div className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/60 px-2.5 py-1 rounded-xl border border-rose-200 dark:border-rose-900 shadow-2xs">
-          <span className="w-4 h-4 rounded-full border-2 border-red-500 flex items-center justify-center text-[10px] font-black text-red-600 font-mono">
-            {lifeNumber}
-          </span>
-          <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-            加總命數：
-          </span>
-          <span className="text-sm font-black text-red-600 dark:text-red-400 font-mono">
-            {lifeNumber}
-          </span>
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">加總命數：<span className="px-1.5 rounded-md bg-emerald-100 text-black dark:bg-emerald-950 dark:text-white font-mono font-extrabold text-[11px]">{lifeNumber}</span></span>
         </div>
       </div>
 
@@ -73,7 +60,7 @@ export const NumerologyGrid: React.FC<NumerologyGridProps> = ({ birthday }) => {
         1. 先天數生日數字：黑圈線，出現幾次畫幾圈
         2. 生日數：黃色圈線
         3. 星座數：紫色圈線
-        4. 天賦數：深綠圈線
+        4. 天賦數：亮綠圈線
         5. 加總命數：紅色圓圈包圍數字
       */}
       <div className="flex flex-col items-center">
@@ -92,7 +79,7 @@ export const NumerologyGrid: React.FC<NumerologyGridProps> = ({ birthday }) => {
                 ...Array.from({ length: birthCount }, () => 'stroke-slate-900 dark:stroke-slate-200'),
                 ...(isBirthdayNum ? ['stroke-amber-400 dark:stroke-amber-300'] : []),
                 ...(isZodiacNum ? ['stroke-purple-600 dark:stroke-purple-400'] : []),
-                ...Array.from({ length: talentCount }, () => 'stroke-emerald-700 dark:stroke-emerald-400'),
+                ...Array.from({ length: talentCount }, () => 'stroke-lime-500 dark:stroke-lime-400'),
                 ...(isLifeNum ? ['stroke-red-500'] : [])
               ];
 
@@ -130,8 +117,8 @@ export const NumerologyGrid: React.FC<NumerologyGridProps> = ({ birthday }) => {
             <span>星座數 (紫色圈線)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-3.5 h-3.5 rounded-full border-2 border-emerald-700 dark:border-emerald-400 bg-emerald-600/20 inline-block shrink-0" />
-            <span>天賦數 (深綠圈線)</span>
+            <span className="w-3.5 h-3.5 rounded-full border-2 border-lime-500 dark:border-lime-400 bg-emerald-600/20 inline-block shrink-0" />
+            <span>天賦數 (亮綠圈線)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3.5 h-3.5 rounded-full border-2 border-red-500 bg-red-500/20 inline-block shrink-0" />

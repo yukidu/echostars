@@ -245,7 +245,7 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
   const speakerRankStats = useMemo(() => {
     const map: Record<string, { count: number; totalPlays: number; totalRating: number; ratedCount: number; isGar: boolean }> = {};
     (tracks || []).forEach(t => {
-      const r = (t.speakerRank || '未設定').trim() || '未設定';
+      const r = (t.speakerRank || '無').trim() || '無';
       if (!map[r]) {
         map[r] = {
           count: 0,
@@ -369,7 +369,7 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
       1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0
     };
     users.forEach(u => {
-      const calc = calculateNumerology(u.birthday || '1990-01-01');
+      const calc = calculateNumerology(u.birthday || '');
       const num = u.lifeNumber || calc?.lifeNumber;
       if (num && num >= 1 && num <= 9) {
         counts[num] = (counts[num] || 0) + 1;
@@ -704,7 +704,7 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
               recentlyUpdated,
               item => (
                 <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                  {item.value || '近期'}
+                  {item.value ? item.value.replace('T', ' ').slice(0, 16) : '近期'}
                 </span>
               )
             )}

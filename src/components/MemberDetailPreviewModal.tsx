@@ -51,6 +51,14 @@ export const MemberDetailPreviewModal: React.FC<MemberDetailPreviewModalProps> =
   const [activeTab, setActiveTab] = useState<'basic' | 'upline' | 'numerology' | 'listened'>('basic');
   const [isExporting, setIsExporting] = useState(false);
 
+  const [records,setRecords] = useState<Record<string,any>>({});
+  useEffect(()=>{
+    if(!isOpen || !user)return;
+    const controller = new AbortController();
+    setRecords({});
+    fetch('/api/playback/history/'+encodeURIComponent(user.email||user.id),{signal:controller.signal}).then(r=>r.ok?r.json():{}).then(data=>setRecords(data)).catch(()=>{});
+    return()=>controller.abort();
+  },[isOpen,user?.id,user?.email]);
   if (!isOpen || !user) return null;
 
   const numResult = calculateNumerology(user.birthday || '');
@@ -61,17 +69,13 @@ export const MemberDetailPreviewModal: React.FC<MemberDetailPreviewModalProps> =
     const userCommentObj = comments.find(c => (c.authorEmail === user.email || c.authorName === user.name) && c.trackId === track.id);
     const userComment = userCommentObj ? userCommentObj.content : null;
 
-    // Simulate/derive realistic listening metrics based on playCount, ratings, and comments
-    const seed = (user.id.charCodeAt(0) + idx * 7) % 100;
-    const hasInteracted = !!userRatingVal || !!userComment || seed > 40;
-    const clickCount = hasInteracted ? Math.max(1, Math.floor(((user.playCount || 10) / (idx + 2)) + (seed % 6))) : 0;
-    const progressPercent = hasInteracted ? (userRatingVal ? Math.min(100, 96 + (seed % 5)) : Math.min(100, 30 + (seed % 70))) : 0;
-    const isCompleted = progressPercent >= 95;
-
-    const baseYear = 2026;
-    const firstListenedDate = `${baseYear}/01/${String((seed % 28) + 1).padStart(2, '0')}`;
-    const lastListenedDate = `${baseYear}/03/${String(((seed + 12) % 28) + 1).padStart(2, '0')}`;
-    const completedDate = isCompleted ? `${baseYear}/02/${String(((seed + 8) % 28) + 1).padStart(2, '0')}` : null;
+    const record=records[track.id] || Object.values(records).find(r=>r.trackId===track.id);
+    const clickCount=record?.clickCount||0;
+    const progressPercent=record?.progressPercent||0;
+    const isCompleted=Boolean(record?.completed);
+    const firstListenedDate=record?.firstListenDate||'-';
+    const lastListenedDate=record?.lastListenDate||'-';
+    const completedDate=record?.finishDate||null;
 
     return {
       track,
@@ -243,7 +247,7 @@ export const MemberDetailPreviewModal: React.FC<MemberDetailPreviewModalProps> =
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/65 backdrop-blur-xs cursor-pointer animate-in fade-in"
+      className="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/65 backdrop-blur-xs cursor-pointer animate-in fade-in"
     >
       <div
         onClick={e => e.stopPropagation()}

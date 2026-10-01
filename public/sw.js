@@ -1,4 +1,4 @@
-const CACHE_NAME = 'echostars-shell-v2';
+const CACHE_NAME = 'echostars-shell-v3';
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', event => {
@@ -12,9 +12,9 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin || (url.pathname.startsWith('/api/') && url.pathname !== '/api/tracks')) return;
   const navigation = event.request.mode === 'navigate';
-  const staticAsset = url.pathname.startsWith('/assets/') || APP_SHELL.includes(url.pathname);
+  const staticAsset = url.pathname === '/api/tracks' || url.pathname.startsWith('/assets/') || APP_SHELL.includes(url.pathname);
   if (!navigation && !staticAsset) return;
   event.respondWith((async () => {
     try {
