@@ -34,20 +34,77 @@ const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUN
 const CF_API_TOKEN = process.env.CF_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN || '';
 const R2_BUCKET = process.env.R2_BUCKET_NAME || 'echoes-audio-bucket';
 
+let audioSequenceCounter = 0;
+
+function getNextAudioSequence(): number {
+  let maxSeq = audioSequenceCounter;
+  tracks.forEach(t => {
+    const match = (t.audioUrl || '').match(/ES(\d{4,})/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+  });
+  audioSequenceCounter = maxSeq + 1;
+  saveStoreToDisk();
+  return audioSequenceCounter;
+}
+
 // POST /api/r2/upload
 app.post('/api/r2/upload', uploadMiddleware.single('file') as any, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: '缺少上傳檔案 (file)' });
   }
-  const key = `uploads/${req.file.filename}`;
+
+  const ext = path.extname(req.file.originalname || req.file.filename || '.mp3').toLowerCase() || '.mp3';
+  const fileType = (req.body.fileType || '').toLowerCase();
+  const isImage = ext === '.jpg' || ext === '.jpeg' || ext === '.png' || ext === '.webp';
+
+  let finalFileName: string;
+
+  if (fileType === 'cover' || isImage) {
+    const cleanSpeaker = (req.body.speaker || '').replace(/[\\/:*?"<>|#&+=\s]/g, '').trim() || 'speaker';
+    finalFileName = `cover-${cleanSpeaker}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}${ext}`;
+  } else {
+    // 命名格式：「ES00001-演講者+獎銜-中文曲目名稱.副檔名」
+    // 00001 = 系統自動編號的五位數/四位數序號，+ 符號不顯示，- 符號保留顯示
+    const seq = getNextAudioSequence();
+    const seqStr = String(seq).padStart(5, '0');
+
+    const cleanSpeaker = (req.body.speaker || '').replace(/[\\/:*?"<>|#&+=\s]/g, '').trim() || '寰宇講師';
+    const rawRank = (req.body.speakerRank || '').trim();
+    const cleanRank = (rawRank && rawRank !== '無' && rawRank !== '公開')
+      ? rawRank.replace(/[\\/:*?"<>|#&+=\s]/g, '').trim()
+      : '';
+    const speakerPart = `${cleanSpeaker}${cleanRank}`;
+
+    const rawTitle = (req.body.title || '').trim();
+    const cleanTitle = (rawTitle || path.basename(req.file.originalname || '演講錄音', ext))
+      .replace(/[\\/:*?"<>|#&+]/g, '')
+      .trim() || '演講錄音';
+
+    finalFileName = `ES${seqStr}-${speakerPart}-${cleanTitle}${ext}`;
+  }
+
+  // Target local destination path
+  const targetFilePath = path.join(uploadDir, finalFileName);
+  try {
+    if (fs.existsSync(req.file.path) && req.file.path !== targetFilePath) {
+      fs.copyFileSync(req.file.path, targetFilePath);
+    }
+  } catch (copyErr) {
+    console.warn('[Upload] Local copy warning:', copyErr);
+  }
+
+  const key = `uploads/${finalFileName}`;
   const fileUrl = `/api/r2/file/${encodeURIComponent(key)}`;
 
   // Direct sync to Cloudflare R2 bucket when credentials are provided
   if (CF_ACCOUNT_ID && CF_API_TOKEN) {
     try {
-      const filePath = req.file.path;
-      const fileBuffer = fs.readFileSync(filePath);
-      const ext = path.extname(req.file.filename).toLowerCase();
+      const fileBuffer = fs.readFileSync(targetFilePath);
       let contentType = req.file.mimetype;
       if (!contentType || contentType === 'application/octet-stream') {
         if (ext === '.mp3') contentType = 'audio/mpeg';
@@ -1363,7 +1420,8 @@ export function saveStoreToDisk() {
       comments,
       categories: categoryList,
       playbackRecords,
-      customChangelog
+      customChangelog,
+      audioSequenceCounter
     };
     fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
@@ -1376,6 +1434,9 @@ export function loadStoreFromDisk() {
     if (fs.existsSync(STORE_FILE)) {
       const raw = fs.readFileSync(STORE_FILE, 'utf-8');
       const data = JSON.parse(raw);
+      if (typeof data.audioSequenceCounter === 'number') {
+        audioSequenceCounter = data.audioSequenceCounter;
+      }
       if (Array.isArray(data.users) && data.users.length > 0) {
         // Merge any new built-in registered users (e.g. 張佩君, 黃俊傑, 許建國, 陳欣宜, 李冠廷)
         const existingEmails = new Set(data.users.map((u: any) => u.email?.toLowerCase().trim()));

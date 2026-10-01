@@ -348,6 +348,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         setUploadStatusText('正在直傳音訊至 Cloudflare R2 儲存桶...');
         const audioFormData = new FormData();
         audioFormData.append('file', audioFile);
+        audioFormData.append('title', title.trim());
+        audioFormData.append('speaker', speaker.trim());
+        audioFormData.append('speakerRank', speakerRank.trim());
+        audioFormData.append('fileType', 'audio');
         const uploadAudioRes = await fetch('/api/r2/upload', {
           method: 'POST',
           body: audioFormData
@@ -374,6 +378,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         setUploadStatusText('正在上傳講師封面至 Cloudflare R2...');
         const coverFormData = new FormData();
         coverFormData.append('file', coverFile);
+        coverFormData.append('title', title.trim());
+        coverFormData.append('speaker', speaker.trim());
+        coverFormData.append('speakerRank', speakerRank.trim());
+        coverFormData.append('fileType', 'cover');
         const uploadCoverRes = await fetch('/api/r2/upload', {
           method: 'POST',
           body: coverFormData

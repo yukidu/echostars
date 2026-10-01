@@ -317,8 +317,51 @@ export default {
         if (!file) return errorResponse('缺少上傳檔案 (file)', 400);
 
         const fileName = file.name || 'audio.mp3';
-        const ext = fileName.split('.').pop()?.toLowerCase() || 'mp3';
-        const key = `uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const ext = (fileName.split('.').pop()?.toLowerCase() || 'mp3').replace(/^\./, '');
+        const fileType = ((formData.get('fileType') as string) || '').toLowerCase();
+        const isImage = ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'webp';
+
+        let finalFileName: string;
+
+        if (fileType === 'cover' || isImage) {
+          const speaker = ((formData.get('speaker') as string) || '').replace(/[\\/:*?"<>|#&+=\s]/g, '').trim() || 'speaker';
+          finalFileName = `cover-${speaker}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+        } else {
+          // 命名格式：「ES00001-演講者+獎銜-中文曲目名稱.副檔名」
+          // 00001 = 系統自動編號序號，+ 符號不顯示，- 符號保留顯示
+          let nextSeq = 1;
+          if (env.KV) {
+            const currentSeqStr = await env.KV.get('AUDIO_SEQUENCE_COUNTER');
+            const currentSeq = currentSeqStr ? parseInt(currentSeqStr, 10) : 0;
+            nextSeq = (isNaN(currentSeq) ? 0 : currentSeq) + 1;
+            await env.KV.put('AUDIO_SEQUENCE_COUNTER', String(nextSeq));
+          } else if (env.DB) {
+            try {
+              const res = await env.DB.prepare('SELECT COUNT(*) as count FROM tracks').first();
+              nextSeq = ((res?.count as number) || 0) + 1;
+            } catch {
+              nextSeq = 1;
+            }
+          }
+
+          const seqStr = String(nextSeq).padStart(5, '0');
+
+          const cleanSpeaker = ((formData.get('speaker') as string) || '').replace(/[\\/:*?"<>|#&+=\s]/g, '').trim() || '寰宇講師';
+          const rawRank = ((formData.get('speakerRank') as string) || '').trim();
+          const cleanRank = (rawRank && rawRank !== '無' && rawRank !== '公開')
+            ? rawRank.replace(/[\\/:*?"<>|#&+=\s]/g, '').trim()
+            : '';
+          const speakerPart = `${cleanSpeaker}${cleanRank}`;
+
+          const rawTitle = ((formData.get('title') as string) || '').trim();
+          const cleanTitle = (rawTitle || fileName.replace(/\.[^/.]+$/, ''))
+            .replace(/[\\/:*?"<>|#&+]/g, '')
+            .trim() || '演講錄音';
+
+          finalFileName = `ES${seqStr}-${speakerPart}-${cleanTitle}.${ext}`;
+        }
+
+        const key = `uploads/${finalFileName}`;
         
         let contentType = file.type;
         if (!contentType || contentType === 'application/octet-stream') {
