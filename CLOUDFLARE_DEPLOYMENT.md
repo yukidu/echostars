@@ -7,6 +7,27 @@
 - **已綁定 D1 資料庫**: `echoes_db` (ID: `e0a696a9-0233-4186-be4d-229435b19a27`)
 - **已綁定 KV 命名空間**: `KV` (ID: `a2e345e244cb40b4a804be3f89584b90`)
 
+## 2026-10-02 功能與部署修正
+
+- 新增 PWA 安裝按鈕、manifest、192/512 PNG 圖示與 Service Worker。Chrome/Edge 支援原生安裝提示；iPhone/iPad 提供 Safari「加入主畫面」步驟。
+- `/api/*` 優先進入 Worker，其他頁面使用 SPA 路由。API 和音訊不會被新增的 Service Worker 快取。
+- `worker/community.ts` 統一正式環境的按讚、評分、留言及會員 API 回傳格式。互動失敗會回傳錯誤，前端會復原顯示。
+- Google 重新登入只更新 Google 預設照片與登入時間，保留已編輯的姓名、基本資料、會員 ID 及自訂照片。
+- 首次 API 請求會補齊舊 D1 的會員與收聽紀錄欄位，屬於新增欄位的遷移，保留現有資料。全新資料庫仍須先執行本文件的 `schema.sql` 初始化步驟。
+- 手機採用 CSS 可用寬度調整排版，改善字級、點按區域與留言視窗；九宮格使用 SVG 同心圓。
+- 管理、會員、上傳、分享圖卡及 PDF 程式依使用情境載入，降低首頁下載量。
+
+驗證指令（測試使用 Node.js 22.13+ 的內建 SQLite，建議 Node.js 24）：
+
+```bash
+npm run lint
+npm test
+npm run build
+npx wrangler deploy --dry-run
+```
+
+上傳 GitHub 後，若 Cloudflare 已綁定 `main` 的自動部署，等待組建成功即可生效。GitHub 上的提交成功與 Cloudflare 部署成功是兩個獨立狀態。
+
 ---
 
 ## 🛠️ 常見問題排查：解決 Cloudflare Pages / Workers CI「npm ci / EUSAGE」錯誤

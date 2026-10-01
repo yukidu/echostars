@@ -2214,31 +2214,28 @@ app.post('/api/users', (req, res) => {
   res.json({ success: true, user: profile, isNewUser: true });
 });
 
-// POST /api/users/google-sync
+// Google login retrieves the saved profile and only refreshes the Google photo.
 app.post('/api/users/google-sync', (req, res) => {
-  const profile: UserProfile = req.body;
-  const cleanEmail = (profile.email || '').toLowerCase().trim();
-  const isOwner = cleanEmail === 'yukidu@gmail.com';
-  const existingIdx = users.findIndex(u => u.email?.toLowerCase().trim() === cleanEmail);
-  if (existingIdx !== -1) {
-    users[existingIdx] = {
-      ...users[existingIdx],
-      ...profile,
-      role: isOwner ? '超級管理員' : users[existingIdx].role,
-      isAdminUser: isOwner ? true : users[existingIdx].isAdminUser,
-      isContributor: isOwner ? true : users[existingIdx].isContributor
-    };
-    saveStoreToDisk();
-    return res.json({ success: true, user: users[existingIdx] });
+  const email = String(req.body.email || '').toLowerCase().trim();
+  if (!email) return res.status(400).json({ error: '會員 Email 為必填欄位' });
+  let user = users.find(u => u.email?.toLowerCase().trim() === email);
+  const isNewUser = !user;
+  const owner = email === 'yukidu@gmail.com';
+  if (!user) {
+    user = { id: owner ? 'u-admin' : `u-${crypto.randomUUID()}`, email, name: req.body.name || email.split('@')[0],
+      avatar: req.body.avatar || '👤', rank: owner ? '鑽石' : '無', role: owner ? '超級管理員' : '繁星家人',
+      isAdminUser: owner, isContributor: owner, canUpload: owner, rankApproved: owner,
+      rankAuditStatus: owner ? 'approved' : 'pending', registerDate: new Date().toISOString(), birthday: '', center: '', residence: '', playCount: 0, isBlocked: false, lastActive: new Date().toISOString() } as UserProfile;
+    users.push(user);
+  } else {
+    const customPhoto = (user as any).avatarUploadCount > 0 || user.avatar?.startsWith('data:') ||
+      (user.avatar?.startsWith('http') && !(user as any).googleAvatar && !/googleusercontent|unsplash/.test(user.avatar));
+    if (!customPhoto && req.body.avatar) user.avatar = req.body.avatar;
   }
-  if (isOwner) {
-    profile.role = '超級管理員';
-    profile.isAdminUser = true;
-    profile.isContributor = true;
-  }
-  users.push(profile);
+  (user as any).googleAvatar = req.body.avatar || (user as any).googleAvatar || '';
+  user.lastActive = new Date().toISOString();
   saveStoreToDisk();
-  res.json({ success: true, user: profile, isNewUser: true });
+  res.json({ success: true, user, isNewUser });
 });
 
 // PUT /api/users/:id (Update user profile - can be called by user or admin!)

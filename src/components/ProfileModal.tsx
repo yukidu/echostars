@@ -53,9 +53,9 @@ interface ProfileModalProps {
   currentUser: UserProfile | null;
   tracks: Track[];
   comments: Comment[];
-  onLoginWithGoogle: (email?: string, name?: string, avatarUrl?: string) => void;
+  onLoginWithGoogle: (email?: string, name?: string, avatarUrl?: string) => void | Promise<void>;
   onLogout: () => void;
-  onUpdateProfile: (updatedData: Partial<UserProfile>) => void;
+  onUpdateProfile: (updatedData: Partial<UserProfile>) => void | Promise<void>;
   onSelectTrack: (track: Track) => void;
   onSelectCategory?: (category: CategoryType) => void;
   onRateTrack?: (trackId: string, rating: number) => void;
@@ -144,6 +144,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthorizing, setIsAuthorizing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Standard Google OAuth 2.0 Sign In
   const handleGoogleSignIn = () => {
@@ -157,30 +159,33 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           client_id: clientId,
           scope: 'email profile openid',
           callback: async (tokenResponse: any) => {
-            setIsAuthorizing(false);
             if (tokenResponse && tokenResponse.access_token) {
               try {
                 const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                   headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
                 });
+                if (!res.ok) throw new Error('無法取得 Google 帳戶資訊。');
                 const userInfo = await res.json();
                 if (userInfo.email) {
-                  onLoginWithGoogle(userInfo.email, userInfo.name || userInfo.email.split('@')[0], userInfo.picture);
+                  await onLoginWithGoogle(userInfo.email, userInfo.name || userInfo.email.split('@')[0], userInfo.picture);
                 } else {
                   setAuthError('無法解析 Google 使用者資訊，請重試。');
                 }
               } catch (err) {
                 console.error('Failed to fetch Google userinfo:', err);
-                setAuthError('連線至 Google 服務失敗，請稍候重試。');
+                setAuthError(err instanceof Error ? err.message : '登入失敗，請稍候重試。');
               }
             } else if (tokenResponse?.error) {
               console.warn('Google auth response error:', tokenResponse);
               if (tokenResponse.error === 'popup_closed_by_user') {
+                setIsAuthorizing(false);
                 return;
               }
               setAuthError(`Google 登入失敗: ${tokenResponse.error_description || tokenResponse.error}`);
             }
-          }
+            setIsAuthorizing(false);
+          },
+          error_callback: () => { setIsAuthorizing(false); setAuthError('Google 授權視窗已關閉，請重試。'); }
         });
         client.requestAccessToken();
       } catch (err: any) {
@@ -279,8 +284,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setIsEditing(true);
   };
 
-  const handleSaveProfile = () => {
-    if (!name.trim()) return;
+  const handleSaveProfile = async () => {
+    if (!name.trim() || isSaving) return;
+    setIsSaving(true);
+    setSaveError(null);
 
     const calc = calculateNumerology(birthday);
     const newProfileCount = currentProfileEditCount + 1;
@@ -306,18 +313,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       profileEditMonth: currentMonth
     };
 
-    onUpdateProfile(payload);
-    setIsEditing(false);
+    try {
+      await onUpdateProfile(payload);
+      setIsEditing(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '資料儲存失敗，請重試。');
+    } finally { setIsSaving(false); }
   };
 
-  const handleAvatarCropped = (compressedBase64: string) => {
-    setAvatar(compressedBase64);
-    const newCount = currentUploadCount + 1;
-    onUpdateProfile({
-      avatar: compressedBase64,
-      avatarUploadCount: newCount,
-      avatarUploadMonth: currentMonth
-    });
+  const handleAvatarCropped = async (compressedBase64: string) => {
+    setSaveError(null);
+    try {
+      await onUpdateProfile({ avatar: compressedBase64, avatarUploadCount: currentUploadCount + 1, avatarUploadMonth: currentMonth });
+      setAvatar(compressedBase64);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '照片儲存失敗，請重試。');
+    }
   };
 
   // Find tracks rated by this user
@@ -369,6 +380,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-rose-100/60 dark:border-slate-800 my-8">
+        {saveError && <p role="alert" className="px-4 py-3 text-sm text-red-600 bg-red-50 dark:bg-red-950">{saveError}</p>}
         {/* Header - Requirement 20: 統一底色與麥克風相同色 */}
         <div
           className="p-4 sm:p-5 flex items-center justify-between text-white"
@@ -702,6 +714,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                           <button
                             type="button"
                             onClick={handleSaveProfile}
+                            disabled={isSaving}
                             className="px-3.5 py-1 rounded-xl text-white font-bold text-xs flex items-center gap-1 shadow-xs hover:opacity-95"
                             style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                           >

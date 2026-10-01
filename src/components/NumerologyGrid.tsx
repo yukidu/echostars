@@ -88,7 +88,13 @@ export const NumerologyGrid: React.FC<NumerologyGridProps> = ({ birthday }) => {
               const hasAny = birthCount > 0 || isLifeNum || isBirthdayNum || isZodiacNum || talentCount > 0;
 
               // Total rings to calculate outer size
-              let ringOffset = 0;
+              const rings = [
+                ...Array.from({ length: birthCount }, () => 'stroke-slate-900 dark:stroke-slate-200'),
+                ...(isBirthdayNum ? ['stroke-amber-400 dark:stroke-amber-300'] : []),
+                ...(isZodiacNum ? ['stroke-purple-600 dark:stroke-purple-400'] : []),
+                ...Array.from({ length: talentCount }, () => 'stroke-emerald-700 dark:stroke-emerald-400'),
+                ...(isLifeNum ? ['stroke-red-500'] : [])
+              ];
 
               return (
                 <div
@@ -99,105 +105,10 @@ export const NumerologyGrid: React.FC<NumerologyGridProps> = ({ birthday }) => {
                       : 'border-slate-100 dark:border-slate-800 opacity-40'
                   }`}
                 >
-                  {/* Center: Number wrapped by concentric rings */}
-                  <div className="relative flex items-center justify-center w-14 h-14">
-                    {/* 1. 先天數生日數字 occurrence rings (黑色線條圈包在外面，幾次就幾圈) */}
-                    {birthCount > 0 &&
-                      Array.from({ length: birthCount }).map((_, i) => {
-                        const size = 30 + ringOffset * 7;
-                        ringOffset++;
-                        return (
-                          <span
-                            key={`birth-${i}`}
-                            title={`先天數生日包含 ${num} (${birthCount}次，黑圈線)`}
-                            className="absolute rounded-full border-2 border-slate-900 dark:border-slate-200 pointer-events-none"
-                            style={{
-                              width: `${size}px`,
-                              height: `${size}px`
-                            }}
-                          />
-                        );
-                      })}
-
-                    {/* 2. 生日數 (黃色圈線，出生日期相加至個位數) */}
-                    {isBirthdayNum && (() => {
-                      const size = 30 + ringOffset * 7;
-                      ringOffset++;
-                      return (
-                        <span
-                          title={`生日數 ${num} (黃色圈線)`}
-                          className="absolute rounded-full border-2 border-amber-400 dark:border-amber-300 bg-amber-400/10 pointer-events-none"
-                          style={{
-                            width: `${size}px`,
-                            height: `${size}px`
-                          }}
-                        />
-                      );
-                    })()}
-
-                    {/* 3. 星座數 (紫色圈線) */}
-                    {isZodiacNum && (() => {
-                      const size = 30 + ringOffset * 7;
-                      ringOffset++;
-                      return (
-                        <span
-                          title={`星座數 ${num} (${zodiac}，紫色圈線)`}
-                          className="absolute rounded-full border-2 border-purple-600 dark:border-purple-400 bg-purple-500/10 pointer-events-none"
-                          style={{
-                            width: `${size}px`,
-                            height: `${size}px`
-                          }}
-                        />
-                      );
-                    })()}
-
-                    {/* 4. 天賦數 rings (深綠色線條圈包在外面) */}
-                    {talentCount > 0 &&
-                      Array.from({ length: talentCount }).map((_, i) => {
-                        const size = 30 + ringOffset * 7;
-                        ringOffset++;
-                        return (
-                          <span
-                            key={`talent-${i}`}
-                            title={`天賦數包含 ${num} (${talentCount}次，深綠圈線)`}
-                            className="absolute rounded-full border-2 border-emerald-700 dark:border-emerald-400 bg-emerald-600/5 pointer-events-none"
-                            style={{
-                              width: `${size}px`,
-                              height: `${size}px`
-                            }}
-                          />
-                        );
-                      })}
-
-                    {/* 5. 加總命數 (紅色圓圈包圍數字在中間) */}
-                    {isLifeNum && (() => {
-                      const size = 30 + ringOffset * 7;
-                      ringOffset++;
-                      return (
-                        <span
-                          title={`加總命數 ${num} (紅色圓圈)`}
-                          className="absolute rounded-full border-2 border-red-500 bg-red-500/10 pointer-events-none shadow-xs"
-                          style={{
-                            width: `${size}px`,
-                            height: `${size}px`
-                          }}
-                        />
-                      );
-                    })()}
-
-                    {/* Central Number itself */}
-                    <span
-                      className={`text-xl font-black font-mono leading-none z-10 ${
-                        isLifeNum
-                          ? 'text-red-600 dark:text-red-400 font-extrabold'
-                          : hasAny
-                          ? 'text-slate-900 dark:text-slate-100'
-                          : 'text-slate-300 dark:text-slate-600'
-                      }`}
-                    >
-                      {num}
-                    </span>
-                  </div>
+                  <svg viewBox="0 0 100 100" className="w-full h-full aspect-square" role="img" aria-label={`${num}：先天數 ${birthCount} 圈，生日數 ${isBirthdayNum ? 1 : 0} 圈，星座數 ${isZodiacNum ? 1 : 0} 圈，天賦數 ${talentCount} 圈，命數 ${isLifeNum ? 1 : 0} 圈`}>
+                    {rings.map((color, index) => <circle key={index} cx="50" cy="50" r={rings.length === 1 ? 26 : 19 + index * (25 / Math.max(1, rings.length - 1))} fill="none" strokeWidth={rings.length > 8 ? 1.3 : 2} className={color} />)}
+                    <text x="50" y="50" dominantBaseline="central" textAnchor="middle" fontSize="25" fontWeight="900" className={isLifeNum ? 'fill-red-600 dark:fill-red-400' : hasAny ? 'fill-slate-900 dark:fill-slate-100' : 'fill-slate-300 dark:fill-slate-600'}>{num}</text>
+                  </svg>
                 </div>
               );
             })

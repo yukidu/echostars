@@ -1,4 +1,6 @@
-import React, { useState, useRef, useMemo } from 'react';
+import { commentThreads } from '../utils/comments';
+import { apiJson, identityKeys } from '../utils/api';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   MessageSquare,
   Trash2,
@@ -59,12 +61,18 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   const [mentionKeyword, setMentionKeyword] = useState('');
   const [mentionTab, setMentionTab] = useState<'members' | 'tracks'>('members');
 
-  const myId = currentUser?.email || visitor.deviceId;
+  const myKeys = identityKeys(currentUser, visitor.deviceId);
+  const myId = myKeys[0];
+
+  const pendingLikes = useRef(new Set<string>());
+  useEffect(() => { setLikeStats({}); }, [myId]);
 
   const handleLikeComment = async (comment: Comment) => {
+    if (pendingLikes.current.has(comment.id)) return;
+    pendingLikes.current.add(comment.id);
     const currentLiked = likeStats[comment.id] !== undefined
       ? likeStats[comment.id].hasLiked
-      : (comment.likedBy || []).includes(myId);
+      : (comment.likedBy || []).some(k => myKeys.includes(k));
     const currentCount = likeStats[comment.id] !== undefined
       ? likeStats[comment.id].likes
       : (comment.likes || 0);
@@ -78,14 +86,14 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     }));
 
     try {
-      await fetch(`/api/comments/${comment.id}/like`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: myId })
+      const data = await apiJson(`/api/comments/${encodeURIComponent(comment.id)}/like`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: myId, userId: currentUser?.id, userEmail: currentUser?.email, deviceId: visitor?.deviceId })
       });
-    } catch {
-      // revert if failed
-    }
+      setLikeStats(prev => ({ ...prev, [comment.id]: { likes: data.likes, hasLiked: data.hasLiked } }));
+    } catch (error) {
+      setLikeStats(prev => ({ ...prev, [comment.id]: { likes: currentCount, hasLiked: currentLiked } }));
+      setErrorMessage(error instanceof Error ? error.message : '按讚失敗，請重試。');
+    } finally { pendingLikes.current.delete(comment.id); }
   };
 
   // Requirement 2 & 3: 個人基本資料名稱修改後與用戶資料庫同步一致，超級管理員同步最新名稱
@@ -287,7 +295,8 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
   };
 
   // Requirement 9: 解析留言內容中的 @會員 與 @錄音檔
-  const renderFormattedContent = (content: string) => {
+  const renderFormattedContent = (value: string) => {
+    const content = typeof value === 'string' ? value : '';
     // Regex matching @label or ＠label (Requirement 4)
     const regex = /[@＠]([^\s@＠\n,，。！!？?]+)/g;
     const elements: React.ReactNode[] = [];
@@ -551,9 +560,8 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
           </div>
         ) : (
           (() => {
-            const rootComments = comments.filter(c => !c.replyToId);
-            const rootIds = new Set(rootComments.map(c => c.id));
-            const orphanedReplies = comments.filter(c => c.replyToId && !rootIds.has(c.replyToId));
+const threads = commentThreads(comments);
+              const rootComments = threads.roots;
 
             const renderCommentItem = (c: Comment, isReply = false) => {
               // Requirement 5: 可以刪除和編輯自己的留言
@@ -579,7 +587,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
 
               const userLiked = likeStats[c.id] !== undefined
                 ? likeStats[c.id].hasLiked
-                : (c.likedBy || []).includes(myId);
+                : (c.likedBy || []).some(k => myKeys.includes(k));
               const userLikesCount = likeStats[c.id] !== undefined
                 ? likeStats[c.id].likes
                 : (c.likes || 0);
@@ -742,7 +750,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
             return (
               <div className="space-y-3">
                 {rootComments.map(parent => {
-                  const replies = comments.filter(r => r.replyToId === parent.id);
+                  const replies = threads.replies.get(parent.id) || [];
                   return (
                     <div key={parent.id} className="pb-2 border-b border-slate-100 dark:border-slate-800/80 last:border-b-0">
                       {renderCommentItem(parent, false)}
@@ -754,11 +762,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
                     </div>
                   );
                 })}
-                {orphanedReplies.map(orphan => (
-                  <div key={orphan.id} className="pb-2 border-b border-slate-100 dark:border-slate-800/80 last:border-b-0">
-                    {renderCommentItem(orphan, false)}
-                  </div>
-                ))}
+
               </div>
             );
           })()
@@ -767,4 +771,3 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     </div>
   );
 };
-

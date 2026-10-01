@@ -405,7 +405,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               onClick={onSwitchToAdmin}
               className="px-3 py-1 rounded-xl bg-amber-600 text-white font-bold shrink-0 hover:bg-amber-700"
             >
-              一鍵切換超級管理員
+              使用 Google 登入
             </button>
           </div>
         )}

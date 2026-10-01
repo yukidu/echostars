@@ -1,4 +1,3 @@
-import { jsPDF } from 'jspdf';
 
 export interface DataCenterStats {
   totalCount: number;
@@ -360,6 +359,7 @@ export async function exportDataCenterPdf(
 
   // Convert canvas to image data and build PDF
   const imgData = canvas.toDataURL('image/jpeg', 0.95);
+  const { jsPDF } = await import('jspdf');
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',

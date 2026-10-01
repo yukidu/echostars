@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { apiJson, identityKeys } from './utils/api';
+import React, { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Search, ChevronDown, Check, X, ShieldAlert, UploadCloud, Mic, ArrowDown, ArrowUp, Hash } from 'lucide-react';
 import {
   Track,
@@ -40,17 +41,17 @@ import { Navbar, NavTab } from './components/Navbar';
 import { AudioCard } from './components/AudioCard';
 import { MiniPlayer } from './components/MiniPlayer';
 import { DetailView } from './components/DetailView';
-import { UploadModal } from './components/UploadModal';
-import { AdminModal } from './components/AdminModal';
-import { ProfileModal } from './components/ProfileModal';
+const UploadModal = lazy(() => import('./components/UploadModal').then(module => ({ default: module.UploadModal })));
+const AdminModal = lazy(() => import('./components/AdminModal').then(module => ({ default: module.AdminModal })));
+const ProfileModal = lazy(() => import('./components/ProfileModal').then(module => ({ default: module.ProfileModal })));
 import { ShareModal } from './components/ShareModal';
-import { BwExportModal } from './components/BwExportModal';
+const BwExportModal = lazy(() => import('./components/BwExportModal').then(module => ({ default: module.BwExportModal })));
 import { StatisticsView } from './components/StatisticsView';
 import { CommentPreviewModal } from './components/CommentPreviewModal';
-import { MemberPreviewModal } from './components/MemberPreviewModal';
+const MemberPreviewModal = lazy(() => import('./components/MemberPreviewModal').then(module => ({ default: module.MemberPreviewModal })));
 import { NotificationsView } from './components/NotificationsView';
 import { TwinklingStars } from './components/TwinklingStars';
-import { ChangelogModal } from './components/ChangelogModal';
+const ChangelogModal = lazy(() => import('./components/ChangelogModal').then(module => ({ default: module.ChangelogModal })));
 
 const DEFAULT_CATEGORIES: string[] = [
   '全部',
@@ -76,33 +77,6 @@ export default function App() {
 
   // Dynamic Categories (Requirement 5: 後台修改或刪除分類標籤後，首頁下拉選單同步更新)
   const [categoryOptions, setCategoryOptions] = useState<string[]>(DEFAULT_CATEGORIES);
-
-  // Requirement 4 (v2.7): 自適應字體大小計算邏輯：當視窗寬度 < 360px 時，將 html 的 font-size 動態調整為 12px 或 13px，並透過 CSS 變數將此縮小比例應用於所有 UI 元件
-  useEffect(() => {
-    const handleResize = () => {
-      const width = window.innerWidth;
-      const root = document.documentElement;
-      if (width < 320) {
-        root.style.fontSize = '12px';
-        root.style.setProperty('--ui-pad-scale', '0.78');
-        root.style.setProperty('--ui-gap-scale', '0.78');
-        root.style.setProperty('--ui-scale', '0.82');
-      } else if (width < 360) {
-        root.style.fontSize = '13px';
-        root.style.setProperty('--ui-pad-scale', '0.86');
-        root.style.setProperty('--ui-gap-scale', '0.86');
-        root.style.setProperty('--ui-scale', '0.89');
-      } else {
-        root.style.fontSize = '';
-        root.style.setProperty('--ui-pad-scale', '1');
-        root.style.setProperty('--ui-gap-scale', '1');
-        root.style.setProperty('--ui-scale', '1');
-      }
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // Requirement 11 (v2.7): 記憶已解鎖的私秘VIP音檔，支援經由專屬連結永久解鎖
   const [unlockedVipTracks, setUnlockedVipTracks] = useState<string[]>(() => {
@@ -562,23 +536,16 @@ export default function App() {
     }
   }, [currentTab]);
 
-  // Fetch comments when current track or selected detail track changes
   useEffect(() => {
-    const targetTrack = selectedDetailTrack || currentTrack;
-    if (!targetTrack) return;
-    async function loadComments() {
-      try {
-        const res = await fetch(`/api/tracks/${targetTrack!.id}/comments`);
-        if (res.ok) {
-          const cData = await res.json();
-          setComments(cData);
-        }
-      } catch (err) {
-        console.error('Failed to load comments:', err);
-      }
-    }
-    loadComments();
-  }, [currentTrack, selectedDetailTrack]);
+    const trackId = (selectedDetailTrack || currentTrack)?.id;
+    setComments([]);
+    if (!trackId) return;
+    const controller = new AbortController();
+    apiJson(`/api/tracks/${encodeURIComponent(trackId)}/comments`, { signal: controller.signal })
+      .then(data => { if (!controller.signal.aborted) setComments(Array.isArray(data) ? data : []); })
+      .catch(error => { if (!controller.signal.aborted) console.error('Failed to load comments:', error); });
+    return () => controller.abort();
+  }, [currentTrack?.id, selectedDetailTrack?.id]);
 
   // Requirement 10, 11, 12: 權限判定 (超級管理員全通、管理員鑽石級權限、未審核通過前僅能看公開)
   const checkCanAccess = (track: Track): boolean => {
@@ -764,122 +731,51 @@ export default function App() {
     }
   };
 
-  // Rating Action (Requirement 11 & 12: clicking same score cancels rating, turning all 5 stars gray!)
-  const handleRateTrack = async (trackId: string, score: number) => {
-    const idKey = currentUser ? currentUser.email : visitor.deviceId;
-
-    // 1. Optimistic instant local update
-    const updateTrackRating = (t: Track, newRating: number, newCount: number) => {
-      const nextRatings = { ...(t.ratings || {}) };
-      if (score === 0) {
-        delete nextRatings[idKey];
-        if (currentUser) {
-          delete nextRatings[currentUser.email];
-          delete nextRatings[currentUser.id];
-        }
-        delete nextRatings[visitor.deviceId];
-        delete nextRatings['u-admin'];
-      } else {
-        if (currentUser) {
-          delete nextRatings[currentUser.id];
-          delete nextRatings['u-admin'];
-        }
-        nextRatings[idKey] = score;
-      }
-      return {
-        ...t,
-        rating: newRating,
-        ratingCount: newCount,
-        ratings: nextRatings
-      };
-    };
-
-    setTracks(prev => prev.map(t => {
-      if (t.id !== trackId) return t;
-      const hadRating = Boolean(t.ratings && (t.ratings[idKey] || (currentUser && t.ratings[currentUser.email])));
-      const newCount = score === 0 ? Math.max(1, (t.ratingCount || 1) - (hadRating ? 1 : 0)) : ((t.ratingCount || 0) + (hadRating ? 0 : 1));
-      return updateTrackRating(t, score > 0 ? score : t.rating, newCount);
-    }));
-
-    if (currentTrack?.id === trackId) {
-      setCurrentTrack(prev => prev ? updateTrackRating(prev, score > 0 ? score : prev.rating, prev.ratingCount || 1) : null);
-    }
-    if (selectedDetailTrack?.id === trackId) {
-      setSelectedDetailTrack(prev => prev ? updateTrackRating(prev, score > 0 ? score : prev.rating, prev.ratingCount || 1) : null);
-    }
-
-    try {
-      const res = await fetch(`/api/tracks/${trackId}/rate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          identifier: idKey,
-          score,
-          userId: currentUser?.id,
-          userEmail: currentUser?.email,
-          deviceId: visitor.deviceId
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setTracks(prev => prev.map(t => t.id === trackId ? updateTrackRating(t, data.rating, data.ratingCount) : t));
-        if (currentTrack?.id === trackId) {
-          setCurrentTrack(prev => prev ? updateTrackRating(prev, data.rating, data.ratingCount) : null);
-        }
-        if (selectedDetailTrack?.id === trackId) {
-          setSelectedDetailTrack(prev => prev ? updateTrackRating(prev, data.rating, data.ratingCount) : null);
-        }
-      }
-    } catch (err) {
-      console.error('Rate failed:', err);
-    }
+  const pendingInteractions = useRef(new Set<string>());
+  const updateTrackCopies = (trackId: string, change: (track: Track) => Track) => {
+    setTracks(prev => prev.map(t => t.id === trackId ? change(t) : t));
+    setCurrentTrack(prev => prev?.id === trackId ? change(prev) : prev);
+    setSelectedDetailTrack(prev => prev?.id === trackId ? change(prev) : prev);
   };
 
-  // Like Action Toggle
-  const handleToggleLike = async (trackId: string) => {
-    const idKey = currentUser ? currentUser.email : visitor.deviceId;
-
+  const handleTrackInteraction = async (trackId: string, action: 'like' | 'rate', score?: number) => {
+    const pendingKey = trackId;
+    if (pendingInteractions.current.has(pendingKey)) return;
+    const track = tracks.find(t => t.id === trackId);
+    if (!track) return;
+    const keys = identityKeys(currentUser, visitor.deviceId);
+    const identifier = keys[0];
+    const snapshot = { likes: track.likes, likedBy: track.likedBy, rating: track.rating, ratingCount: track.ratingCount, ratings: track.ratings };
+    const ratings = { ...(track.ratings || {}) };
+    const hasLiked = !keys.some(k => (track.likedBy || []).includes(k));
+    const likedBy = (track.likedBy || []).filter(k => !keys.includes(k));
+    if (hasLiked) likedBy.push(identifier);
+    keys.forEach(k => delete ratings[k]);
+    if (score) ratings[identifier] = score;
+    const scores = Object.values(ratings);
+    const optimistic = action === 'like'
+      ? { likedBy, likes: Math.max(0, (track.likes || 0) + (hasLiked ? 1 : -1)) }
+      : { ratings, ratingCount: scores.length, rating: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10 : 0 };
+    pendingInteractions.current.add(pendingKey);
+    updateTrackCopies(trackId, t => ({ ...t, ...optimistic }));
     try {
-      const res = await fetch(`/api/tracks/${trackId}/like`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: idKey })
+      const data = await apiJson(`/api/tracks/${encodeURIComponent(trackId)}/${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, score, userId: currentUser?.id, userEmail: currentUser?.email, deviceId: visitor.deviceId })
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        setTracks(prev =>
-          prev.map(t =>
-            t.id === trackId
-              ? {
-                  ...t,
-                  likes: data.likes,
-                  likedBy: data.hasLiked
-                    ? [...(t.likedBy || []), idKey]
-                    : (t.likedBy || []).filter(x => x !== idKey)
-                }
-              : t
-          )
-        );
-        if (currentTrack?.id === trackId) {
-          setCurrentTrack(prev =>
-            prev
-              ? {
-                  ...prev,
-                  likes: data.likes,
-                  likedBy: data.hasLiked
-                    ? [...(prev.likedBy || []), idKey]
-                    : (prev.likedBy || []).filter(x => x !== idKey)
-                }
-              : null
-          );
-        }
-      }
-    } catch (err) {
-      console.error('Like failed:', err);
+      const confirmed = action === 'like'
+        ? { likes: data.likes, likedBy: data.likedBy || (data.hasLiked ?? data.liked ? likedBy : likedBy.filter(k => k !== identifier)) }
+        : { rating: data.rating, ratingCount: data.ratingCount, ratings: data.ratings || ratings };
+      updateTrackCopies(trackId, t => ({ ...t, ...confirmed }));
+    } catch (error) {
+      updateTrackCopies(trackId, t => ({ ...t, ...snapshot }));
+      alert(error instanceof Error ? error.message : '操作失敗，請再試一次。');
+    } finally {
+      pendingInteractions.current.delete(pendingKey);
     }
   };
+  const handleRateTrack = (trackId: string, score: number) => handleTrackInteraction(trackId, 'rate', score);
+  const handleToggleLike = (trackId: string) => handleTrackInteraction(trackId, 'like');
 
   // Add Comment (Requirement 3 & 6: 支持最大化視窗與通知頁直接快速回覆留言)
   const handleAddComment = async (content: string, replyToId?: string, replyToAuthor?: string, trackIdOverride?: string) => {
@@ -917,7 +813,8 @@ export default function App() {
       throw new Error(errData.error || '留言失敗');
     }
 
-    const newComment = await res.json();
+    const commentData = await res.json();
+    const newComment = commentData.comment || commentData;
     setComments(prev => [newComment, ...prev]);
     setAllComments(prev => [newComment, ...prev]);
     fetchAllComments();
@@ -1043,94 +940,18 @@ export default function App() {
     }
   };
 
-  // User Login & Google Bind Simulation (Yukidu is guaranteed Super Admin)
-  const handleLoginWithGoogle = async (email = 'yukidu@gmail.com', name = '杜杜龍', avatarUrl?: string) => {
+  const handleLoginWithGoogle = async (email?: string, name?: string, avatarUrl?: string) => {
+    if (!email) throw new Error('無法取得 Google 帳戶，請重新登入。');
     const cleanEmail = email.toLowerCase().trim();
-    const isOwner = isSuperAdminEmail(cleanEmail);
-    const existing = allUsers.find(u => u.email?.toLowerCase().trim() === cleanEmail);
-    const profile: UserProfile = existing
-      ? {
-          ...existing,
-          email: cleanEmail,
-          name: existing.name || name,
-          avatar: avatarUrl || existing.avatar,
-          role: isOwner ? '超級管理員' : existing.role,
-          isAdminUser: isOwner ? true : existing.isAdminUser,
-          isContributor: isOwner ? true : existing.isContributor,
-          canUpload: isOwner ? true : existing.canUpload,
-          rank: isOwner ? (existing.rank || '鑽石級以上') : existing.rank,
-          approvedRank: isOwner ? (existing.approvedRank || '鑽石級以上') : existing.approvedRank,
-          rankApproved: isOwner ? true : existing.rankApproved,
-          rankAuditStatus: isOwner ? 'approved' : existing.rankAuditStatus
-        }
-      : {
-        id: isOwner ? 'u-admin' : `u-${Date.now()}`,
-        email: cleanEmail,
-        name,
-        residence: '臺北',
-        center: '南京',
-        rank: isOwner ? '鑽石級以上' : '無',
-        approvedRank: isOwner ? '鑽石級以上' : '無',
-        rankApproved: isOwner,
-        rankAuditStatus: isOwner ? 'approved' : 'pending',
-        rankAuditType: 'new_register',
-        role: isOwner ? '超級管理員' : '繁星家人',
-        isAdminUser: isOwner,
-        registerDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        rankUpdatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        joinReason: '事業',
-        avatar:
-          avatarUrl ||
-          (isOwner
-            ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'
-            : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80'),
-        birthday: '1985-07-03',
-        talentNumber: 33,
-        lifeNumber: 6,
-        playCount: 15,
-        isBlocked: false,
-        isContributor: isOwner,
-        canUpload: isOwner,
-        lastActive: '剛才'
-      };
-
+    const data = await apiJson('/api/users/google-sync', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, name, avatar: avatarUrl })
+    });
+    if (!data.user?.id) throw new Error('無法取得已保存的會員資料。');
+    const profile: UserProfile = data.user;
     setCurrentUser(profile);
     localStorage.setItem('sq_current_user_v1', JSON.stringify(profile));
-    setAllUsers(prev => {
-      const idx = prev.findIndex(u => u.email?.toLowerCase().trim() === cleanEmail || u.id === profile.id);
-      if (idx !== -1) {
-        const next = [...prev];
-        next[idx] = profile;
-        return next;
-      }
-      return [...prev, profile];
-    });
-
-    try {
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.user) {
-          const syncedUser = {
-            ...profile,
-            ...data.user,
-            role: isOwner ? '超級管理員' : data.user.role,
-            isAdminUser: isOwner ? true : Boolean(data.user.isAdminUser),
-            isContributor: isOwner ? true : Boolean(data.user.isContributor),
-            canUpload: isOwner ? true : Boolean(data.user.canUpload)
-          };
-          setCurrentUser(syncedUser);
-          localStorage.setItem('sq_current_user_v1', JSON.stringify(syncedUser));
-          setAllUsers(prev => prev.map(u => (u.id === syncedUser.id || (u.email && u.email.toLowerCase().trim() === cleanEmail) ? syncedUser : u)));
-        }
-      }
-    } catch (e) {
-      console.warn('Sync user to D1 error:', e);
-    }
+    setAllUsers(prev => [...prev.filter(u => u.email?.toLowerCase().trim() !== cleanEmail && u.id !== profile.id), profile]);
 
     // Load permanent playback memories from Cloudflare D1
     try {
@@ -1155,7 +976,7 @@ export default function App() {
   };
 
   // Requirement 12: 會員初次設定或修改獎銜，自動標記待審核
-  const handleUpdateProfile = (updatedProfile: Partial<UserProfile>) => {
+  const handleUpdateProfile = async (updatedProfile: Partial<UserProfile>) => {
     if (!currentUser) return;
 
     const isRankChanged = updatedProfile.rank && updatedProfile.rank !== currentUser.rank;
@@ -1185,6 +1006,11 @@ export default function App() {
       updated.rankAuditStatus = 'approved';
     }
 
+    const saved = await apiJson(`/api/users/${encodeURIComponent(updated.id)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...updatedProfile, ...rankAuditFields, email: updated.email })
+    });
+    Object.assign(updated, saved.user || saved);
     setCurrentUser(updated);
     localStorage.setItem('sq_current_user_v1', JSON.stringify(updated));
     setAllUsers(prev => prev.map(u => (u.id === updated.id || (u.email && u.email.toLowerCase().trim() === updated.email?.toLowerCase().trim()) ? updated : u)));
@@ -1206,11 +1032,6 @@ export default function App() {
       }));
     }
 
-    fetch(`/api/users/${updated.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...updatedProfile, ...rankAuditFields, email: updated.email })
-    }).catch(() => {});
   };
 
   // Admin Actions
@@ -1399,7 +1220,8 @@ export default function App() {
       .filter(x => x.rating > 0);
   }, [tracks, currentUser]);
 
-  const currentIdentifier = currentUser ? currentUser.email : visitor.deviceId;
+  const currentIdentityKeys = identityKeys(currentUser, visitor.deviceId);
+  const currentIdentifier = currentIdentityKeys[0];
   const currentRatings = currentTrack?.ratings || {};
   const currentTrackRating = (currentTrack && (
     currentRatings[currentIdentifier] ||
@@ -1407,10 +1229,10 @@ export default function App() {
     currentRatings[visitor.deviceId] ||
     (currentUser?.email === 'yukidu@gmail.com' ? currentRatings['u-admin'] : undefined)
   )) || 0;
-  const hasLikedCurrent = Boolean(currentTrack?.likedBy && Array.isArray(currentTrack.likedBy) && currentTrack.likedBy.includes(currentIdentifier));
+  const hasLikedCurrent = Boolean(currentTrack?.likedBy && Array.isArray(currentTrack.likedBy) && currentTrack.likedBy.some(k => currentIdentityKeys.includes(k)));
 
   return (
-    <div className="min-h-screen flex flex-col antialiased selection:bg-rose-200 selection:text-rose-900">
+    <div className="min-h-screen flex flex-col antialiased selection:bg-rose-200 selection:text-rose-900" translate="no">
       {/* Hidden Native Audio Element */}
       <audio
         ref={audioRef}
@@ -1561,7 +1383,7 @@ export default function App() {
               activeRatings[visitor.deviceId] ||
               (currentUser?.email === 'yukidu@gmail.com' ? activeRatings['u-admin'] : undefined) ||
               0;
-            const hasLikedActive = Boolean(activeTrack.likedBy && Array.isArray(activeTrack.likedBy) && activeTrack.likedBy.includes(currentIdentifier));
+            const hasLikedActive = Boolean(activeTrack.likedBy && Array.isArray(activeTrack.likedBy) && activeTrack.likedBy.some(k => currentIdentityKeys.includes(k)));
 
             return (
               <DetailView
@@ -1843,9 +1665,9 @@ export default function App() {
             </div>
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
-            <div className="relative flex items-center justify-between gap-1.5 pt-0.5">
+            <div className="sort-toolbar relative flex items-center justify-between gap-1.5 pt-0.5">
               {/* Left: 5 Sort fields arranged in a tight row: 時間、評價、留言、按讚、演講人 */}
-              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5">
+              <div className="sort-options flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5">
                 {(['時間', '評價', '留言', '按讚', '演講人'] as SortField[]).map(field => {
                   const isActive = sortField === field;
                   return (
@@ -2009,7 +1831,7 @@ export default function App() {
                     tRatings[visitor.deviceId] ||
                     (currentUser?.email === 'yukidu@gmail.com' ? tRatings['u-admin'] : undefined) ||
                     0;
-                  const hasLiked = Boolean(track?.likedBy && Array.isArray(track.likedBy) && track.likedBy.includes(currentIdentifier));
+                  const hasLiked = Boolean(track?.likedBy && Array.isArray(track.likedBy) && track.likedBy.some(k => currentIdentityKeys.includes(k)));
 
                   return (
                     <AudioCard
@@ -2061,7 +1883,7 @@ export default function App() {
             >
               !
             </button>
-            <span>繁星的回聲 · 全功能音頻知識管理與互動平台</span>
+            <span>繁星的回聲</span>
           </div>
         </footer>
       </main>
@@ -2125,6 +1947,7 @@ export default function App() {
       />
 
       {/* Upload Modal (Cloudflare R2 Direct Upload & Multi-Category & Edit Support) */}
+      {isUploadOpen && <Suspense fallback={<div role="status" className="fixed inset-0 z-50 grid place-items-center bg-black/50 text-white">載入功能中…</div>}>
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => {
@@ -2180,8 +2003,10 @@ export default function App() {
           }
         }}
       />
+      </Suspense>}
 
       {/* Admin Management Modal (Requirement 4, 5, 17: 權限控制、正常進入修改視窗與刪除) */}
+      {isAdminOpen && <Suspense fallback={<div role="status" className="fixed inset-0 z-50 grid place-items-center bg-black/50 text-white">載入功能中…</div>}>
       <AdminModal
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
@@ -2201,11 +2026,13 @@ export default function App() {
           setIsUploadOpen(true);
         }}
         onUpdateTrack={handleUpdateTrack}
-        onSwitchToAdmin={() => handleLoginWithGoogle('yukidu@gmail.com', '杜杜龍')}
+        onSwitchToAdmin={() => { setIsAdminOpen(false); setIsProfileOpen(true); }}
         onCategoriesUpdated={fetchCategories}
       />
+      </Suspense>}
 
       {/* Profile & Google Binding Modal (With Amway Fields & Numerology) */}
+      {isProfileOpen && <Suspense fallback={<div role="status" className="fixed inset-0 z-50 grid place-items-center bg-black/50 text-white">載入功能中…</div>}>
       <ProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
@@ -2222,8 +2049,10 @@ export default function App() {
         }}
         onRateTrack={(trackId, score) => handleRateTrack(trackId, score)}
       />
+      </Suspense>}
 
       {/* Member Profile & Numerology Preview Modal (Clicking any comment author) */}
+      {!!previewMember && <Suspense fallback={<div role="status" className="fixed inset-0 z-50 grid place-items-center bg-black/50 text-white">載入功能中…</div>}>
       <MemberPreviewModal
         isOpen={!!previewMember}
         onClose={() => setPreviewMember(null)}
@@ -2233,6 +2062,7 @@ export default function App() {
         allUsers={allUsers}
         currentUser={currentUser}
       />
+      </Suspense>}
 
       {/* Social Share Modal */}
       {currentTrack && (
@@ -2246,6 +2076,7 @@ export default function App() {
       )}
 
       {/* Black & White Minimalist Canvas Share Modal - Requirement 4: 支援訪客與會員匯出圖卡 */}
+      {isBwExportOpen && <Suspense fallback={<div role="status" className="fixed inset-0 z-50 grid place-items-center bg-black/50 text-white">載入功能中…</div>}>
       <BwExportModal
         isOpen={isBwExportOpen}
         onClose={() => setIsBwExportOpen(false)}
@@ -2264,6 +2095,7 @@ export default function App() {
           lastActive: '剛才'
         }}
       />
+      </Suspense>}
 
       {/* Requirement 3 (v2.8): 首頁播放清單和音檔詳細介紹畫面這二處，網頁左下角，新增：半透明浮動的向上箭頭按鈕，按了會回到頁面的最前面 */}
       {(currentTab === 'home' || selectedDetailTrack !== null || playerMode === 'expanded') && (
@@ -2287,12 +2119,14 @@ export default function App() {
       )}
 
       {/* Version Changelog Modal */}
+      {isChangelogOpen && <Suspense fallback={<div role="status" className="fixed inset-0 z-50 grid place-items-center bg-black/50 text-white">載入功能中…</div>}>
       <ChangelogModal
         isOpen={isChangelogOpen}
         onClose={() => setIsChangelogOpen(false)}
         currentUser={currentUser}
         isAdmin={isSuperAdmin}
       />
+      </Suspense>}
     </div>
   );
 }

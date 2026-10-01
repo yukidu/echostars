@@ -136,20 +136,13 @@ export const DetailView: React.FC<DetailViewProps> = ({
     onTogglePlay();
   };
 
-  // Requirement 7: Local like state to fix jitter and guarantee instant reaction
-  const [localLiked, setLocalLiked] = useState(hasLiked);
-  const [localLikesCount, setLocalLikesCount] = useState(track.likes);
-
-  useEffect(() => {
-    setLocalLiked(hasLiked);
-    setLocalLikesCount(track.likes);
-  }, [hasLiked, track.likes, track.id]);
-
+  const localLiked = hasLiked;
+  const localLikesCount = track.likes;
+  const [isLikeSubmitting, setIsLikeSubmitting] = useState(false);
   const handleToggleLikeClick = async () => {
-    const nextLiked = !localLiked;
-    setLocalLiked(nextLiked);
-    setLocalLikesCount(prev => nextLiked ? prev + 1 : Math.max(0, prev - 1));
-    await onToggleLike();
+    if (isLikeSubmitting) return;
+    setIsLikeSubmitting(true);
+    try { await onToggleLike(); } finally { setIsLikeSubmitting(false); }
   };
 
   // Requirement 1: 網友關鍵字狀態
@@ -378,8 +371,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
   const handleStarClick = async (score: number) => {
     const currentScore = effectiveUserRating;
     const finalScore = currentScore === score ? 0 : score;
-    setOptimisticRating(finalScore);
     if (isRatingSubmitting) return;
+    setOptimisticRating(finalScore);
     setIsRatingSubmitting(true);
     try {
       await onRate(finalScore);
@@ -388,6 +381,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
       setOptimisticRating(null); // revert on error
     } finally {
       setIsRatingSubmitting(false);
+      setOptimisticRating(null);
     }
   };
 
@@ -714,6 +708,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
             {/* Interactive Heart */}
             <button
               onClick={handleToggleLikeClick}
+              disabled={isLikeSubmitting}
+              aria-pressed={localLiked}
               className="inline-flex items-center gap-1 transition-transform active:scale-95 cursor-pointer text-slate-500 text-xs font-semibold tabular-nums whitespace-nowrap"
               style={{
                 color: localLiked ? 'var(--color-primary, #c06c84)' : undefined

@@ -77,7 +77,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`group relative w-full rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs border transition-all duration-200 cursor-pointer overflow-hidden p-1.5 sm:p-2 shadow-2xs hover:shadow-md hover:-translate-y-0.5 ${
+      className={`audio-card group relative w-full rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs border transition-all duration-200 cursor-pointer overflow-hidden p-1.5 sm:p-2 shadow-2xs hover:shadow-md hover:-translate-y-0.5 ${
         isCurrentTrack
           ? 'border-[var(--color-primary,#c06c84)] dark:border-rose-600 ring-2 ring-rose-200/70 dark:ring-rose-950'
           : 'border-rose-100/70 dark:border-slate-800 hover:border-rose-200 dark:hover:border-slate-700'
@@ -176,8 +176,13 @@ export const AudioCard: React.FC<AudioCardProps> = ({
             </div>
           </div>
 
+
+        </div>
+
+        {/* Requirement 4: 刪除每一張音檔卡右邊的箭頭符號 */}
+      </div>
           {/* Row 4: Ratings, Comments, Likes - Requirement 15 (v2.7): 嚴格單行排列，避免評分後整列變成二行 */}
-          <div className="flex items-center flex-nowrap gap-1 sm:gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 pt-1 mt-auto whitespace-nowrap overflow-hidden min-w-0 select-none">
+          <div className="track-actions flex items-center flex-nowrap gap-1 sm:gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 whitespace-nowrap overflow-hidden min-w-0 select-none">
             {/* 5-Star Interactive Rating */}
             <div
               className="flex items-center flex-nowrap gap-[1px] shrink-0"
@@ -192,7 +197,9 @@ export const AudioCard: React.FC<AudioCardProps> = ({
                     key={starNum}
                     type="button"
                     onClick={() => onRate && onRate(userRating === starNum ? 0 : starNum)}
-                    className="p-0 hover:scale-125 transition-transform shrink-0"
+                    aria-label={`評分 ${starNum} 星`}
+                    aria-pressed={userRating === starNum}
+                    className="rating-star p-0 hover:scale-125 transition-transform shrink-0"
                   >
                     <Star
                       className={`w-3 h-3 ${
@@ -218,7 +225,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
                 e.stopPropagation();
                 if (onOpenCommentPreview) onOpenCommentPreview();
               }}
-              className="flex items-center flex-nowrap gap-0.5 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-colors px-1 py-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
+              className="reaction-button flex items-center flex-nowrap gap-0.5 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-colors px-1 py-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
               title="點擊預覽留言"
             >
               <MessageSquare className="w-3 h-3 text-slate-400 shrink-0" />
@@ -234,8 +241,10 @@ export const AudioCard: React.FC<AudioCardProps> = ({
                 e.stopPropagation();
                 if (onToggleLike) onToggleLike();
               }}
-              className="flex items-center flex-nowrap gap-0.5 hover:scale-105 transition-transform shrink-0 px-1 py-0.5"
+              className="reaction-button flex items-center flex-nowrap gap-0.5 hover:scale-105 transition-transform shrink-0 px-1 py-0.5"
               title="點擊切換喜愛"
+              aria-label={hasLiked ? '收回按讚' : '按讚'}
+              aria-pressed={hasLiked}
             >
               <Heart
                 className="w-3 h-3 transition-colors shrink-0"
@@ -255,10 +264,6 @@ export const AudioCard: React.FC<AudioCardProps> = ({
               </span>
             </button>
           </div>
-        </div>
-
-        {/* Requirement 4: 刪除每一張音檔卡右邊的箭頭符號 */}
-      </div>
     </div>
   );
 };

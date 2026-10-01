@@ -28,7 +28,21 @@ CREATE TABLE IF NOT EXISTS users (
   rankAuditStatus TEXT DEFAULT 'approved',
   isContributor INTEGER DEFAULT 0,
   isAdminUser INTEGER DEFAULT 0,
-  isBlocked INTEGER DEFAULT 0
+  isBlocked INTEGER DEFAULT 0,
+  residence TEXT,
+  birthday TEXT,
+  approvedRank TEXT,
+  rankAuditType TEXT,
+  canUpload INTEGER DEFAULT 0,
+  playCount INTEGER DEFAULT 0,
+  googleAvatar TEXT,
+  avatarUploadCount INTEGER DEFAULT 0,
+  avatarUploadMonth TEXT,
+  profileEditCount INTEGER DEFAULT 0,
+  profileEditMonth TEXT,
+  zodiac TEXT,
+  talentNumber INTEGER,
+  lifeNumber INTEGER
 );
 
 -- 2. 音檔表 (tracks)
@@ -105,7 +119,9 @@ CREATE TABLE IF NOT EXISTS playback_memories (
   trackTitle TEXT,
   trackSpeaker TEXT,
   trackSpeakerRank TEXT,
-  isDeleted INTEGER DEFAULT 0
+  isDeleted INTEGER DEFAULT 0,
+  lastListenDate TEXT,
+  finishDate TEXT
 );
 
 -- 6. 會員行為與異動歷程紀錄表 (user_activity_logs)

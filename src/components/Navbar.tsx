@@ -3,6 +3,7 @@ import { Home, BarChart3, Bell, User, UploadCloud, Settings, Palette, Moon, Sun,
 import { UserProfile, RANK_ORDER } from '../types';
 import { VisitorIdentity } from '../utils/visitor';
 import { TwinklingStars } from './TwinklingStars';
+import { InstallAppButton } from './InstallAppButton';
 
 export type NavTab = 'home' | 'stats' | 'notifications' | 'profile' | 'upload' | 'admin';
 
@@ -252,6 +253,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Divider */}
           <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
 
+          <InstallAppButton compact />
+
           {/* Dynamic Light Theme Generator */}
           <button
             onClick={onRandomPalette}
@@ -328,6 +331,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* Quick theme toggle on mobile */}
+          <InstallAppButton compact />
+
           <button
             onClick={onToggleTheme}
             className="p-1.5 sm:p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -431,6 +436,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>個人中心</span>
           </button>
 
+          <InstallAppButton />
+
           {canAccessSettings && (
             <button
               onClick={() => handleMobileNav('admin')}
@@ -449,4 +456,3 @@ export const Navbar: React.FC<NavbarProps> = ({
     </header>
   );
 };
-

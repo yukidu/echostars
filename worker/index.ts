@@ -3,6 +3,8 @@
  * 架構: Cloudflare Workers + D1 資料庫 + R2 物件儲存 + KV 快取
  */
 
+import { communityApi } from './community';
+
 export interface Env {
   DB?: any; // Cloudflare D1Database
   R2_BUCKET?: any; // Cloudflare R2Bucket
@@ -289,6 +291,9 @@ export default {
     if (method === 'OPTIONS') {
       return new Response(null, { headers: CORS_HEADERS });
     }
+
+    const communityResponse = await communityApi(request, env, DEFAULT_TRACKS);
+    if (communityResponse) return communityResponse;
 
     // 2. Cloudflare 架構狀態確認
     if (path === '/api/cloudflare/status' && method === 'GET') {
@@ -581,7 +586,7 @@ export default {
         }
 
         // 5.3.0 更新錄音檔 (PUT /api/tracks/:id)
-        if (path.startsWith('/api/tracks/') && method === 'PUT') {
+        if (/^\/api\/tracks\/[^/]+$/.test(path) && method === 'PUT') {
           const trackId = path.split('/api/tracks/')[1];
           const body: any = await request.json().catch(() => ({}));
           if (env.DB && trackId) {
@@ -615,88 +620,6 @@ export default {
           return jsonResponse({ success: true, track: updatedTrack, ...updatedTrack });
         }
 
-        // 5.3.1 音檔評分 (POST /api/tracks/:id/rate)
-        if (path.match(/^\/api\/tracks\/[^/]+\/rate$/) && method === 'POST') {
-          const trackId = path.split('/')[3];
-          const body: any = await request.json().catch(() => ({}));
-          const { identifier, score } = body;
-
-          let rating = score || 5.0;
-          let ratingCount = 1;
-
-          if (env.DB && trackId) {
-            try {
-              const { results } = await env.DB.prepare('SELECT ratings, rating, ratingCount FROM tracks WHERE id = ?').bind(trackId).all();
-              if (results && results.length > 0) {
-                const row = results[0];
-                let ratingsMap: Record<string, number> = {};
-                try {
-                  ratingsMap = row.ratings ? JSON.parse(row.ratings) : {};
-                } catch {}
-
-                if (score === 0) {
-                  delete ratingsMap[identifier];
-                } else if (identifier) {
-                  ratingsMap[identifier] = score;
-                }
-
-                const scores = Object.values(ratingsMap);
-                ratingCount = scores.length > 0 ? scores.length : 1;
-                rating = scores.length > 0 
-                  ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
-                  : (score > 0 ? score : 5.0);
-
-                await env.DB.prepare('UPDATE tracks SET rating = ?, ratingCount = ?, ratings = ? WHERE id = ?')
-                  .bind(rating, ratingCount, JSON.stringify(ratingsMap), trackId)
-                  .run();
-              }
-            } catch (e) {
-              console.error('D1 rate track error:', e);
-            }
-          }
-          return jsonResponse({ success: true, rating, ratingCount, canceled: score === 0 });
-        }
-
-        // 5.3.2 音檔按讚 (POST /api/tracks/:id/like)
-        if (path.match(/^\/api\/tracks\/[^/]+\/like$/) && method === 'POST') {
-          const trackId = path.split('/')[3];
-          const body: any = await request.json().catch(() => ({}));
-          const { identifier } = body;
-
-          let likes = 0;
-          let liked = false;
-
-          if (env.DB && trackId) {
-            try {
-              const { results } = await env.DB.prepare('SELECT likes, likedBy FROM tracks WHERE id = ?').bind(trackId).all();
-              if (results && results.length > 0) {
-                const row = results[0];
-                let likedBy: string[] = [];
-                try {
-                  likedBy = row.likedBy ? JSON.parse(row.likedBy) : [];
-                } catch {}
-
-                if (likedBy.includes(identifier)) {
-                  likedBy = likedBy.filter(x => x !== identifier);
-                  likes = Math.max(0, (row.likes || 1) - 1);
-                  liked = false;
-                } else {
-                  likedBy.push(identifier);
-                  likes = (row.likes || 0) + 1;
-                  liked = true;
-                }
-
-                await env.DB.prepare('UPDATE tracks SET likes = ?, likedBy = ? WHERE id = ?')
-                  .bind(likes, JSON.stringify(likedBy), trackId)
-                  .run();
-              }
-            } catch (e) {
-              console.error('D1 like track error:', e);
-            }
-          }
-          return jsonResponse({ success: true, likes, liked });
-        }
-
         // 5.3.3 音檔播放計數 (POST /api/tracks/:id/play)
         if (path.match(/^\/api\/tracks\/[^/]+\/play$/) && method === 'POST') {
           const trackId = path.split('/')[3];
@@ -710,7 +633,7 @@ export default {
           return jsonResponse({ success: true, trackId });
         }
 
-        if (method === 'DELETE') {
+        if (/^\/api\/tracks\/[^/]+$/.test(path) && method === 'DELETE') {
           const trackId = path.split('/api/tracks/')[1];
           if (env.DB && trackId) {
             try {
@@ -744,285 +667,6 @@ export default {
           }
         }
         return jsonResponse(DEFAULT_USERS);
-      }
-
-      // 5.4.1 單一會員資料查詢 (GET /api/users/profile)
-      if (path === '/api/users/profile' && method === 'GET') {
-        const email = url.searchParams.get('email')?.toLowerCase().trim();
-        const id = url.searchParams.get('id');
-
-        if (!email && !id) {
-          return errorResponse('請提供 email 或 id 參數', 400);
-        }
-
-        if (env.DB) {
-          try {
-            let row: any = null;
-            if (email) {
-              const { results } = await env.DB.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1').bind(email).all();
-              if (results && results.length > 0) row = results[0];
-            }
-            if (!row && id) {
-              const { results } = await env.DB.prepare('SELECT * FROM users WHERE id = ? LIMIT 1').bind(id).all();
-              if (results && results.length > 0) row = results[0];
-            }
-
-            if (row) {
-              const isOwner = row.email?.toLowerCase().trim() === 'yukidu@gmail.com';
-              const user = {
-                ...row,
-                role: isOwner ? '超級管理員' : (row.role || '一般夥伴'),
-                isAdminUser: isOwner ? true : Boolean(row.isAdminUser),
-                isContributor: isOwner ? true : Boolean(row.isContributor),
-                canUpload: isOwner ? true : Boolean(row.isContributor || row.canUpload),
-                rankApproved: isOwner ? true : Boolean(row.rankApproved),
-                rankAuditStatus: isOwner ? 'approved' : (row.rankAuditStatus || 'approved'),
-                isBlocked: Boolean(row.isBlocked),
-                playCount: row.playCount || 0
-              };
-              return jsonResponse({ success: true, user });
-            }
-          } catch (e) {
-            console.error('D1 user profile fetch error:', e);
-          }
-        }
-
-        // Fallback to KV or DEFAULT_USERS
-        const defaultMatch = DEFAULT_USERS.find(u => (email && u.email?.toLowerCase().trim() === email) || (id && u.id === id));
-        if (defaultMatch) {
-          return jsonResponse({ success: true, user: defaultMatch });
-        }
-        return errorResponse('找不到此會員資料', 404);
-      }
-
-      // 5.4.2 會員註冊 / Google 登入永續儲存 (POST /api/users & POST /api/users/google-sync)
-      if ((path === '/api/users' || path === '/api/users/google-sync') && method === 'POST') {
-        const body: any = await request.json().catch(() => ({}));
-        const cleanEmail = (body.email || '').toLowerCase().trim();
-        if (!cleanEmail) {
-          return errorResponse('會員 Email 為必填欄位', 400);
-        }
-
-        const isOwner = cleanEmail === 'yukidu@gmail.com';
-        const id = body.id || (isOwner ? 'u-admin' : `u-${Date.now()}`);
-        const name = body.name || cleanEmail.split('@')[0];
-        const role = isOwner ? '超級管理員' : (body.role || '繁星家人');
-        const rank = isOwner ? '鑽石' : (body.rank || '無');
-        const approvedRank = isOwner ? '鑽石' : (body.approvedRank || rank);
-        const rankApproved = isOwner ? 1 : (body.rankApproved ? 1 : 0);
-        const rankAuditStatus = isOwner ? 'approved' : (body.rankAuditStatus || 'pending');
-        const rankAuditType = body.rankAuditType || (isOwner ? 'approved' : 'new_register');
-        const isAdminUser = isOwner ? 1 : (body.isAdminUser ? 1 : 0);
-        const isContributor = isOwner ? 1 : (body.isContributor ? 1 : 0);
-        const canUpload = isOwner ? 1 : (body.canUpload ? 1 : 0);
-        const avatar = body.avatar || (isOwner ? '🐉' : '👤');
-        const residence = body.residence || '臺北';
-        const center = body.center || '南京';
-        const joinReason = body.joinReason || '事業';
-        const stayReason = body.stayReason || '打造自己的事業與團隊';
-        const sponsor = body.sponsor || '';
-        const platinumUpline = body.platinumUpline || '';
-        const diamondUpline = body.diamondUpline || '';
-        const birthday = body.birthday || body.birthDate || '1985-07-03';
-        const phone = body.phone || '';
-        const amwayId = body.amwayId || '';
-        const notes = body.notes || '';
-        const registerDate = body.registerDate || new Date().toISOString().replace('T', ' ').substring(0, 16);
-        const rankUpdatedAt = body.rankUpdatedAt || registerDate;
-        const lastActive = '剛才';
-        const isBlocked = body.isBlocked ? 1 : 0;
-        const playCount = typeof body.playCount === 'number' ? body.playCount : 0;
-
-        let isNewUser = false;
-
-        if (env.DB) {
-          try {
-            // Check if user already exists
-            const { results } = await env.DB.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ? OR id = ? LIMIT 1')
-              .bind(cleanEmail, id)
-              .all();
-
-            if (results && results.length > 0) {
-              // Existing user: Update mutable fields while keeping existing Amway credentials
-              const existing = results[0];
-              await env.DB.prepare(`
-                UPDATE users SET
-                  name = COALESCE(?, name),
-                  avatar = COALESCE(?, avatar),
-                  residence = COALESCE(?, residence),
-                  center = COALESCE(?, center),
-                  rank = CASE WHEN ? = 1 THEN '鑽石' ELSE COALESCE(?, rank) END,
-                  approvedRank = CASE WHEN ? = 1 THEN '鑽石' ELSE COALESCE(?, approvedRank) END,
-                  rankApproved = CASE WHEN ? = 1 THEN 1 ELSE rankApproved END,
-                  rankAuditStatus = CASE WHEN ? = 1 THEN 'approved' ELSE rankAuditStatus END,
-                  role = CASE WHEN ? = 1 THEN '超級管理員' ELSE role END,
-                  isAdminUser = CASE WHEN ? = 1 THEN 1 ELSE isAdminUser END,
-                  isContributor = CASE WHEN ? = 1 THEN 1 ELSE isContributor END,
-                  sponsor = COALESCE(?, sponsor),
-                  platinumUpline = COALESCE(?, platinumUpline),
-                  diamondUpline = COALESCE(?, diamondUpline),
-                  joinReason = COALESCE(?, joinReason),
-                  stayReason = COALESCE(?, stayReason),
-                  birthday = COALESCE(?, birthday),
-                  phone = COALESCE(?, phone),
-                  amwayId = COALESCE(?, amwayId),
-                  lastActive = ?
-                WHERE id = ? OR LOWER(TRIM(email)) = ?
-              `).bind(
-                name, avatar, residence, center,
-                isOwner ? 1 : 0, rank,
-                isOwner ? 1 : 0, approvedRank,
-                isOwner ? 1 : 0,
-                isOwner ? 1 : 0,
-                isOwner ? 1 : 0,
-                isOwner ? 1 : 0,
-                isOwner ? 1 : 0,
-                sponsor, platinumUpline, diamondUpline,
-                joinReason, stayReason, birthday, phone, amwayId,
-                lastActive, existing.id, cleanEmail
-              ).run();
-
-              // Record activity log
-              await env.DB.prepare(`
-                INSERT INTO user_activity_logs (id, userEmail, userId, actionType, details, timestamp, createdAt)
-                VALUES (?, ?, ?, 'login', ?, ?, ?)
-              `).bind(
-                `act-${Date.now()}`, cleanEmail, existing.id,
-                JSON.stringify({ method: 'google_oauth', loginAt: new Date().toISOString() }),
-                Date.now(), new Date().toISOString()
-              ).run();
-            } else {
-              // New user registration
-              isNewUser = true;
-              await env.DB.prepare(`
-                INSERT INTO users (
-                  id, name, email, amwayId, phone, center, rank, role, avatar,
-                  joinReason, stayReason, sponsor, platinumUpline, diamondUpline,
-                  birthDate, notes, registerDate, rankUpdatedAt, lastActive,
-                  auditedBy, auditedAt, rankApproved, rankAuditStatus, isContributor,
-                  isAdminUser, isBlocked, residence, birthday, approvedRank, rankAuditType, playCount
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              `).bind(
-                id, name, cleanEmail, amwayId, phone, center, rank, role, avatar,
-                joinReason, stayReason, sponsor, platinumUpline, diamondUpline,
-                birthday, notes, registerDate, rankUpdatedAt, lastActive,
-                isOwner ? '系統初始' : '', isOwner ? registerDate : '',
-                rankApproved, rankAuditStatus, isContributor, isAdminUser,
-                isBlocked, residence, birthday, approvedRank, rankAuditType, playCount
-              ).run();
-
-              // Record activity log
-              await env.DB.prepare(`
-                INSERT INTO user_activity_logs (id, userEmail, userId, actionType, details, timestamp, createdAt)
-                VALUES (?, ?, ?, 'register', ?, ?, ?)
-              `).bind(
-                `act-${Date.now()}`, cleanEmail, id,
-                JSON.stringify({ method: 'google_register', role, rank, registerDate }),
-                Date.now(), new Date().toISOString()
-              ).run();
-            }
-          } catch (e) {
-            console.error('D1 save user error:', e);
-          }
-        }
-
-        // Sync to KV for fast lookup
-        if (env.KV) {
-          try {
-            await env.KV.put(`user:${cleanEmail}`, JSON.stringify({
-              id, name, email: cleanEmail, role, rank, approvedRank, avatar, residence, center, sponsor, lastActive: new Date().toISOString()
-            }));
-          } catch {}
-        }
-
-        const savedUser = {
-          id,
-          name,
-          email: cleanEmail,
-          role,
-          rank,
-          approvedRank,
-          rankApproved: Boolean(rankApproved),
-          rankAuditStatus,
-          rankAuditType,
-          isAdminUser: Boolean(isAdminUser),
-          isContributor: Boolean(isContributor),
-          canUpload: Boolean(canUpload),
-          avatar,
-          residence,
-          center,
-          joinReason,
-          stayReason,
-          sponsor,
-          platinumUpline,
-          diamondUpline,
-          birthday,
-          phone,
-          amwayId,
-          notes,
-          registerDate,
-          rankUpdatedAt,
-          lastActive,
-          isBlocked: Boolean(isBlocked),
-          playCount
-        };
-
-        return jsonResponse({ success: true, user: savedUser, isNewUser });
-      }
-
-      // 5.4.3 更新會員個人資料 (PUT /api/users/:id)
-      if (path.startsWith('/api/users/') && method === 'PUT' && !path.includes('/block') && !path.includes('/admin-role')) {
-        const userId = path.split('/api/users/')[1];
-        const body: any = await request.json().catch(() => ({}));
-
-        if (env.DB && userId) {
-          try {
-            await env.DB.prepare(`
-              UPDATE users SET
-                name = COALESCE(?, name),
-                avatar = COALESCE(?, avatar),
-                phone = COALESCE(?, phone),
-                amwayId = COALESCE(?, amwayId),
-                residence = COALESCE(?, residence),
-                center = COALESCE(?, center),
-                rank = COALESCE(?, rank),
-                approvedRank = COALESCE(?, approvedRank),
-                rankApproved = COALESCE(?, rankApproved),
-                rankAuditStatus = COALESCE(?, rankAuditStatus),
-                rankAuditType = COALESCE(?, rankAuditType),
-                joinReason = COALESCE(?, joinReason),
-                stayReason = COALESCE(?, stayReason),
-                sponsor = COALESCE(?, sponsor),
-                platinumUpline = COALESCE(?, platinumUpline),
-                diamondUpline = COALESCE(?, diamondUpline),
-                birthday = COALESCE(?, birthday),
-                rankUpdatedAt = COALESCE(?, rankUpdatedAt),
-                lastActive = '剛才'
-              WHERE id = ?
-            `).bind(
-              body.name ?? null, body.avatar ?? null, body.phone ?? null, body.amwayId ?? null,
-              body.residence ?? null, body.center ?? null, body.rank ?? null, body.approvedRank ?? null,
-              body.rankApproved !== undefined ? (body.rankApproved ? 1 : 0) : null,
-              body.rankAuditStatus ?? null, body.rankAuditType ?? null,
-              body.joinReason ?? null, body.stayReason ?? null,
-              body.sponsor ?? null, body.platinumUpline ?? null, body.diamondUpline ?? null,
-              body.birthday ?? null, body.rankUpdatedAt ?? null,
-              userId
-            ).run();
-
-            // Record audit log
-            await env.DB.prepare(`
-              INSERT INTO user_activity_logs (id, userEmail, userId, actionType, details, timestamp, createdAt)
-              VALUES (?, ?, ?, 'update_profile', ?, ?, ?)
-            `).bind(
-              `act-${Date.now()}`, body.email || '', userId,
-              JSON.stringify(body), Date.now(), new Date().toISOString()
-            ).run();
-          } catch (e) {
-            console.error('D1 update user error:', e);
-          }
-        }
-        return jsonResponse({ success: true, updatedFields: body });
       }
 
       // 5.4.4 會員行為與變更紀錄查詢 (GET /api/users/activity-logs)
@@ -1063,55 +707,6 @@ export default {
           }
         }
         return jsonResponse({ success: true, count: usersList.length });
-      }
-
-      // 5.6 留言清單 (/api/comments)
-      if (path === '/api/comments' || path.match(/^\/api\/tracks\/[^/]+\/comments$/)) {
-        if (method === 'GET') {
-          if (env.DB) {
-            try {
-              const { results } = await env.DB.prepare('SELECT * FROM comments ORDER BY createdAt DESC').all();
-              if (results && results.length > 0) {
-                const parsed = results.map((c: any) => ({
-                  ...c,
-                  isAdmin: Boolean(c.isAdmin),
-                  likedBy: c.likedBy ? JSON.parse(c.likedBy) : []
-                }));
-                return jsonResponse(parsed);
-              }
-            } catch (e) {
-              console.error('D1 comments query error:', e);
-            }
-          }
-          return jsonResponse(DEFAULT_COMMENTS);
-        }
-
-        if (method === 'POST') {
-          const body: any = await request.json().catch(() => ({}));
-          const id = body.id || `c-${Date.now()}`;
-          const newComment = {
-            ...body,
-            id,
-            createdAt: body.createdAt || Date.now(),
-            likes: body.likes || 0
-          };
-
-          if (env.DB) {
-            try {
-              await env.DB.prepare(`
-                INSERT INTO comments (id, trackId, authorName, authorAvatar, authorBadge, authorEmail, content, timestamp, createdAt, likes, isAdmin)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-              `).bind(
-                id, newComment.trackId || '', newComment.authorName || '訪客', newComment.authorAvatar || '👤',
-                newComment.authorBadge || '', newComment.authorEmail || '', newComment.content || '',
-                newComment.timestamp || '剛剛', newComment.createdAt, newComment.likes, newComment.isAdmin ? 1 : 0
-              ).run();
-            } catch (e) {
-              console.error('D1 insert comment error:', e);
-            }
-          }
-          return jsonResponse({ success: true, comment: newComment });
-        }
       }
 
       // 5.7 播放進度記憶與跨裝置永久紀錄 (POST /api/playback/record & GET /api/playback/history/:id)

@@ -1,3 +1,5 @@
+import { commentThreads } from '../utils/comments';
+import { apiJson, identityKeys } from '../utils/api';
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   MessageSquare,
@@ -53,31 +55,25 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
   // Comment likes state
   const [likeStats, setLikeStats] = useState<Record<string, { likes: number; hasLiked: boolean }>>({});
 
-  const myId = currentUser?.email || visitor?.deviceId || 'guest';
+  const myKeys = identityKeys(currentUser, visitor?.deviceId);
+  const myId = myKeys[0] || 'guest';
 
   useEffect(() => {
-    if (!isOpen || !track) {
-      setComments([]);
-      setInputText('');
-      setReplyingTo(null);
-      setErrorMsg(null);
-      setIsMentionOpen(false);
-      return;
-    }
-
+    setComments([]);
+    setLikeStats({});
+    setInputText('');
+    setReplyingTo(null);
+    setErrorMsg(null);
+    setIsMentionOpen(false);
+    if (!isOpen || !track) return;
+    const controller = new AbortController();
     setIsLoading(true);
-    fetch(`/api/tracks/${track.id}/comments`)
-      .then(res => res.json())
-      .then(data => {
-        setComments(Array.isArray(data) ? data : []);
-      })
-      .catch(err => {
-        console.error('Failed to load comments preview:', err);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, [isOpen, track]);
+    apiJson(`/api/tracks/${encodeURIComponent(track.id)}/comments`, { signal: controller.signal })
+      .then(data => { if (!controller.signal.aborted) setComments(Array.isArray(data) ? data : []); })
+      .catch(error => { if (!controller.signal.aborted) setErrorMsg(error.message || '留言載入失敗'); })
+      .finally(() => { if (!controller.signal.aborted) setIsLoading(false); });
+    return () => controller.abort();
+  }, [isOpen, track?.id]);
 
   // Requirement 1 & 8: 判斷留言作者是否為已註冊會員。若是訪客，則回傳 null
   const getRegisteredAuthor = (c: Comment): UserProfile | null => {
@@ -229,10 +225,15 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
     return [...members, ...speakers, ...trackItems].slice(0, 12);
   }, [allUsers, tracks, mentionKeyword]);
 
+  const pendingLikes = useRef(new Set<string>());
+  useEffect(() => { setLikeStats({}); }, [myId]);
+
   const handleLikeComment = async (comment: Comment) => {
+    if (pendingLikes.current.has(comment.id)) return;
+    pendingLikes.current.add(comment.id);
     const currentLiked = likeStats[comment.id] !== undefined
       ? likeStats[comment.id].hasLiked
-      : (comment.likedBy || []).includes(myId);
+      : (comment.likedBy || []).some(k => myKeys.includes(k));
     const currentCount = likeStats[comment.id] !== undefined
       ? likeStats[comment.id].likes
       : (comment.likes || 0);
@@ -246,14 +247,14 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
     }));
 
     try {
-      await fetch(`/api/comments/${comment.id}/like`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: myId })
+      const data = await apiJson(`/api/comments/${encodeURIComponent(comment.id)}/like`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: myId, userId: currentUser?.id, userEmail: currentUser?.email, deviceId: visitor?.deviceId })
       });
-    } catch {
-      // ignore
-    }
+      setLikeStats(prev => ({ ...prev, [comment.id]: { likes: data.likes, hasLiked: data.hasLiked } }));
+    } catch (error) {
+      setLikeStats(prev => ({ ...prev, [comment.id]: { likes: currentCount, hasLiked: currentLiked } }));
+      setErrorMsg(error instanceof Error ? error.message : '按讚失敗，請重試。');
+    } finally { pendingLikes.current.delete(comment.id); }
   };
 
   const handleQuickSubmit = async (e: React.FormEvent) => {
@@ -300,7 +301,8 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
         throw new Error(errData.error || '留言失敗');
       }
 
-      const newC = await res.json();
+      const data = await res.json();
+      const newC = data.comment || data;
       setComments(prev => [newC, ...prev]);
       setInputText('');
       setReplyingTo(null);
@@ -314,7 +316,8 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
   };
 
   // Requirement 3 & 4: 解析留言文字中被 @ 與 ＠ 標記的內容
-  const renderFormattedContent = (content: string) => {
+  const renderFormattedContent = (value: string) => {
+    const content = typeof value === 'string' ? value : '';
     const regex = /[@＠]([^\s@＠\n,，。！!？?]+)/g;
     const elements: React.ReactNode[] = [];
     let lastIndex = 0;
@@ -399,7 +402,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-[var(--theme-border-subtle,#f1e7ea)] dark:border-slate-800 flex flex-col max-h-[85vh] relative"
+        className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl border border-[var(--theme-border-subtle,#f1e7ea)] dark:border-slate-800 flex flex-col max-h-[85dvh] relative"
       >
         {/* Header */}
         <div className="p-3.5 sm:p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -408,7 +411,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
               <MessageSquare className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+              <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex flex-wrap items-center gap-1.5">
                 <span>留言即時預覽</span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-light-pill,#fae8ed)] text-[var(--color-primary,#c06c84)] font-mono font-bold">
                   共 {comments.length} 則
@@ -428,7 +431,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
         </div>
 
         {/* Comments Body */}
-        <div className="p-4 overflow-y-auto flex-1 space-y-3">
+        <div className="p-4 overflow-y-auto min-h-0 flex-1 space-y-3">
           {isLoading ? (
             <div className="text-center py-10 text-xs text-slate-400 animate-pulse">
               載入留言中...
@@ -439,9 +442,8 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
             </div>
           ) : (
             (() => {
-              const rootComments = comments.filter(c => !c.replyToId);
-              const rootIds = new Set(rootComments.map(c => c.id));
-              const orphanedReplies = comments.filter(c => c.replyToId && !rootIds.has(c.replyToId));
+const threads = commentThreads(comments);
+              const rootComments = threads.roots;
 
               const renderSingleComment = (c: Comment, isReply = false) => {
                 const registeredAuthor = getRegisteredAuthor(c);
@@ -460,7 +462,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
 
                 const userLiked = likeStats[c.id] !== undefined
                   ? likeStats[c.id].hasLiked
-                  : (c.likedBy || []).includes(myId);
+                  : (c.likedBy || []).some(k => myKeys.includes(k));
                 const userLikesCount = likeStats[c.id] !== undefined
                   ? likeStats[c.id].likes
                   : (c.likes || 0);
@@ -469,7 +471,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
 
                 return (
                   <div key={c.id} className={`space-y-1 ${isReply ? 'pt-2' : 'pt-3 first:pt-0'}`}>
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                       {/* Author Line - Requirement 1 & 8: 訪客名字不可被點選，刪除連結 */}
                       <div
                         onClick={isClickable ? () => handleAuthorClick(c) : undefined}
@@ -567,7 +569,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
               return (
                 <div className="space-y-3">
                   {rootComments.map(parent => {
-                    const replies = comments.filter(r => r.replyToId === parent.id);
+                    const replies = threads.replies.get(parent.id) || [];
                     return (
                       <div key={parent.id} className="pb-2 border-b border-slate-100 dark:border-slate-800/80 last:border-b-0">
                         {renderSingleComment(parent, false)}
@@ -579,11 +581,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
                       </div>
                     );
                   })}
-                  {orphanedReplies.map(orphan => (
-                    <div key={orphan.id} className="pb-2 border-b border-slate-100 dark:border-slate-800/80 last:border-b-0">
-                      {renderSingleComment(orphan, false)}
-                    </div>
-                  ))}
+
                 </div>
               );
             })()
@@ -691,7 +689,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
                   : '發表快速留言... (輸入 @ 或 ＠ 標記)'
               }
               maxLength={300}
-              className="flex-1 px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-hidden focus:ring-1 focus:ring-[var(--color-primary,#c06c84)]"
+              className="min-w-0 flex-1 px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-hidden focus:ring-1 focus:ring-[var(--color-primary,#c06c84)]"
             />
             <button
               type="submit"

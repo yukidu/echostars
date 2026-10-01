@@ -1,0 +1,214 @@
+import type { Env } from './index';
+
+// These endpoints share one persistent contract with the development server.
+const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' };
+const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers });
+const parse = (value: any, fallback: any) => {
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value ?? fallback;
+    if (Array.isArray(fallback)) return Array.isArray(parsed) ? parsed : fallback;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+  } catch { return fallback; }
+};
+const boolFields = ['rankApproved', 'isContributor', 'isAdminUser', 'isBlocked', 'canUpload'];
+const userColumns: Record<string, string> = {
+  residence: 'TEXT', birthday: 'TEXT', approvedRank: 'TEXT', rankAuditType: 'TEXT', canUpload: 'INTEGER DEFAULT 0',
+  playCount: 'INTEGER DEFAULT 0', googleAvatar: 'TEXT', avatarUploadCount: 'INTEGER DEFAULT 0', avatarUploadMonth: 'TEXT',
+  profileEditCount: 'INTEGER DEFAULT 0', profileEditMonth: 'TEXT', zodiac: 'TEXT', talentNumber: 'INTEGER', lifeNumber: 'INTEGER'
+};
+const editable = ['name', 'avatar', 'phone', 'amwayId', 'center', 'rank', 'approvedRank', 'rankApproved', 'rankAuditStatus', 'rankAuditType',
+  'joinReason', 'stayReason', 'sponsor', 'platinumUpline', 'diamondUpline', 'birthDate', 'notes', 'rankUpdatedAt', ...Object.keys(userColumns).filter(k => k !== 'googleAvatar')];
+const initialized = new WeakMap<object, Promise<void>>();
+
+async function ensureSchema(db: any) {
+  if (!initialized.has(db)) {
+    const promise = (async () => {
+      for (const [table, fields] of Object.entries({ users: userColumns, playback_memories: { lastListenDate: 'TEXT', finishDate: 'TEXT' } })) {
+        const { results } = await db.prepare(`PRAGMA table_info(${table})`).all();
+        if (!results?.length) throw new Error(`Missing database table: ${table}`);
+        const existing = new Set(results.map((r: any) => r.name));
+        for (const [name, type] of Object.entries(fields)) {
+          if (!existing.has(name)) {
+            try { await db.prepare(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`).run(); }
+            catch (error) { // Another Worker may have added the same column concurrently.
+              const check = await db.prepare(`PRAGMA table_info(${table})`).all();
+              if (!check.results.some((r: any) => r.name === name)) throw error;
+            }
+          }
+        }
+      }
+      await db.prepare('CREATE INDEX IF NOT EXISTS comments_track_created ON comments(trackId, createdAt)').run();
+      await db.prepare('CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY)').run();
+    })();
+    initialized.set(db, promise);
+    promise.catch(() => initialized.delete(db));
+  }
+  await initialized.get(db);
+}
+
+function normalizeUser(row: any) {
+  const user = { ...row, birthday: row.birthday ?? row.birthDate ?? '' };
+  boolFields.forEach(k => user[k] = Boolean(user[k]));
+  user.canUpload = Boolean(row.canUpload || row.isContributor);
+  if (user.email?.toLowerCase().trim() === 'yukidu@gmail.com') Object.assign(user, { role: '超級管理員', isAdminUser: true, isContributor: true, canUpload: true });
+  return user;
+}
+function normalizeTrack(row: any) {
+  const track = { ...row, isPrivateVip: Boolean(row.isPrivateVip) };
+  ['categories', 'keywords', 'externalVideos', 'externalPpts', 'externalFiles', 'likedBy'].forEach(k => track[k] = parse(row[k], []));
+  track.ratings = parse(row.ratings, {});
+  return track;
+}
+const normalizeComment = (row: any) => ({ ...row, isAdmin: Boolean(row.isAdmin), likedBy: parse(row.likedBy, []) });
+const keysFor = (body: any) => [...new Set([body.identifier, body.userEmail, body.userId, body.deviceId].filter(x => typeof x === 'string' && x.trim()).map(x => x.includes('@') ? x.toLowerCase().trim() : x))];
+
+async function seedTracks(db: any, defaults: any[]) {
+  // Persist the initial demo list once; deliberately deleted tracks stay deleted.
+  const done = await db.prepare("SELECT name FROM app_migrations WHERE name = 'persistent-initial-tracks'").first();
+  if (done) return;
+  const count = await db.prepare('SELECT COUNT(*) AS count FROM tracks').first();
+  const statements = [];
+  if (!count.count) {
+    for (const track of defaults) {
+      const columns = ['id', 'title', 'speaker', 'speakerRank', 'speakerAvatar', 'categories', 'keywords', 'rating', 'ratingCount', 'commentsCount', 'likes', 'duration', 'durationSeconds', 'audioUrl', 'series', 'speechDate', 'requiredRank', 'seriesOrder', 'uploadDate', 'description', 'uploaderId', 'uploaderEmail', 'playCount', 'likedBy', 'ratings'];
+      const values = columns.map(k => ['categories', 'keywords', 'likedBy'].includes(k) ? JSON.stringify(track[k] || []) : k === 'ratings' ? JSON.stringify(track[k] || {}) : track[k] ?? (['ratingCount', 'commentsCount', 'likes', 'playCount'].includes(k) ? 0 : ''));
+      statements.push(db.prepare(`INSERT OR IGNORE INTO tracks (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})`).bind(...values));
+    }
+  }
+  statements.push(db.prepare("INSERT OR IGNORE INTO app_migrations(name) VALUES ('persistent-initial-tracks')"));
+  await db.batch(statements);
+}
+
+export async function communityApi(request: Request, env: Env, defaults: any[]): Promise<Response | null> {
+  const url = new URL(request.url), path = url.pathname, method = request.method;
+  const trackAction = path.match(/^\/api\/tracks\/([^/]+)\/(like|rate)$/);
+  const commentList = path.match(/^\/api\/tracks\/([^/]+)\/comments$/);
+  const commentAction = path.match(/^\/api\/comments\/([^/]+)(\/like)?$/);
+  const userUpdate = path.match(/^\/api\/users\/([^/]+)$/);
+  const handled = (path === '/api/tracks' && method === 'GET') || (trackAction && method === 'POST') ||
+    ((path === '/api/comments' || commentList) && ['GET', 'POST'].includes(method)) ||
+    (commentAction && ['POST', 'PUT', 'DELETE'].includes(method)) ||
+    (['/api/users', '/api/users/profile', '/api/users/google-sync'].includes(path) && ['GET', 'POST'].includes(method)) || (userUpdate && method === 'PUT');
+  if (!handled) return null;
+  if (!env.DB) return json({ error: '資料庫尚未連線，請稍後重試或聯絡管理員。' }, 503);
+  const db = env.DB;
+  try {
+    await ensureSchema(db);
+    if (path.startsWith('/api/tracks')) await seedTracks(db, defaults);
+    if (path === '/api/tracks') {
+      const { results } = await db.prepare('SELECT * FROM tracks ORDER BY uploadDate DESC').all();
+      return json(results.map(normalizeTrack));
+    }
+    if (trackAction || (commentAction && commentAction[2] && method === 'POST')) {
+      const body: any = await request.json();
+      const keys = keysFor(body), identifier = keys[0];
+      if (!identifier) return json({ error: '缺少使用者識別資料' }, 400);
+      const table = trackAction ? 'tracks' : 'comments', id = decodeURIComponent((trackAction || commentAction)![1]);
+      const action = trackAction?.[2] || 'like';
+      if (action === 'rate' && (!Number.isInteger(body.score) || body.score < 0 || body.score > 5)) return json({ error: '評分必須是 0 至 5 的整數' }, 400);
+      // Compare-and-swap prevents parallel likes/ratings from losing another visitor's update.
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const row = await db.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first();
+        if (!row) return json({ error: '找不到此項目' }, 404);
+        if (action === 'rate') {
+          const ratings = parse(row.ratings, {});
+          keys.forEach(k => delete ratings[k]);
+          if (body.score) ratings[identifier] = body.score;
+          const scores = Object.values(ratings).filter((n: any) => Number.isFinite(n) && n > 0 && n <= 5) as number[];
+          const ratingCount = scores.length, rating = ratingCount ? Math.round(scores.reduce((a, b) => a + b, 0) / ratingCount * 10) / 10 : 0;
+          const update = await db.prepare("UPDATE tracks SET ratings = ?, rating = ?, ratingCount = ? WHERE id = ? AND COALESCE(ratings, '') = ?")
+            .bind(JSON.stringify(ratings), rating, ratingCount, id, row.ratings ?? '').run();
+          if (update.meta.changes) return json({ rating, ratingCount, ratings, canceled: body.score === 0 });
+        } else {
+          const previous: string[] = parse(row.likedBy, []), hasLiked = !previous.some(k => keys.includes(k));
+          const likedBy = previous.filter(k => !keys.includes(k));
+          if (hasLiked) likedBy.push(identifier);
+          const likes = Math.max(0, (row.likes || 0) + (hasLiked ? 1 : -1));
+          const update = await db.prepare(`UPDATE ${table} SET likedBy = ?, likes = ? WHERE id = ? AND COALESCE(likedBy, '') = ? AND COALESCE(likes, 0) = ?`)
+            .bind(JSON.stringify(likedBy), likes, id, row.likedBy ?? '', row.likes || 0).run();
+          if (update.meta.changes) return json({ likes, hasLiked, likedBy });
+        }
+      }
+      return json({ error: '同時操作過多，請再試一次。' }, 409);
+    }
+    if (path === '/api/comments' || commentList) {
+      const trackId = commentList ? decodeURIComponent(commentList[1]) : null;
+      if (method === 'GET') {
+        const statement = trackId ? db.prepare('SELECT * FROM comments WHERE trackId = ? ORDER BY createdAt DESC').bind(trackId) : db.prepare('SELECT * FROM comments ORDER BY createdAt DESC');
+        return json((await statement.all()).results.map(normalizeComment));
+      }
+      const body: any = await request.json();
+      const target = trackId || body.trackId;
+      if (!target || !body.content?.trim()) return json({ error: '請輸入留言內容與音檔' }, 400);
+      if (!await db.prepare('SELECT id FROM tracks WHERE id = ?').bind(target).first()) return json({ error: '找不到音檔' }, 404);
+      if (body.replyToId && !await db.prepare('SELECT id FROM comments WHERE id = ? AND trackId = ?').bind(body.replyToId, target).first()) return json({ error: '回覆的留言已不存在' }, 400);
+      const comment = { id: `c-${crypto.randomUUID()}`, trackId: target, authorName: body.authorName || '訪客', authorAvatar: body.authorAvatar || '👤', authorBadge: body.authorBadge || '', authorEmail: body.authorEmail || '', deviceId: body.deviceId || '', content: body.content.trim(), timestamp: '剛剛', createdAt: Date.now(), replyToId: body.replyToId || null, replyToAuthor: body.replyToAuthor || null, isAdmin: !!body.isAdmin, likes: 0, likedBy: [] };
+      const columns = Object.keys(comment);
+      await db.batch([
+        db.prepare(`INSERT INTO comments (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})`).bind(...columns.map(k => k === 'likedBy' ? '[]' : k === 'isAdmin' ? (comment.isAdmin ? 1 : 0) : (comment as any)[k])),
+        db.prepare('UPDATE tracks SET commentsCount = (SELECT COUNT(*) FROM comments WHERE trackId = ?) WHERE id = ?').bind(target, target)
+      ]);
+      return json(comment, 201);
+    }
+    if (commentAction) {
+      const id = decodeURIComponent(commentAction[1]);
+      const row = await db.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
+      if (!row) return json({ error: '留言不存在' }, 404);
+      if (method === 'PUT') {
+        const body: any = await request.json();
+        if (!body.content?.trim()) return json({ error: '留言不可空白' }, 400);
+        await db.prepare('UPDATE comments SET content = ? WHERE id = ?').bind(body.content.trim(), id).run();
+        return json(normalizeComment({ ...row, content: body.content.trim() }));
+      }
+      if (method === 'DELETE') {
+        await db.batch([
+          db.prepare('UPDATE comments SET replyToId = NULL WHERE replyToId = ?').bind(id),
+          db.prepare('DELETE FROM comments WHERE id = ?').bind(id),
+          db.prepare('UPDATE tracks SET commentsCount = (SELECT COUNT(*) FROM comments WHERE trackId = ?) WHERE id = ?').bind(row.trackId, row.trackId)
+        ]);
+        return json({ success: true });
+      }
+      return json({ error: '不支援此操作' }, 405);
+    }
+    if (method === 'GET') {
+      if (path === '/api/users') return json((await db.prepare('SELECT * FROM users ORDER BY registerDate DESC').all()).results.map(normalizeUser));
+      const email = url.searchParams.get('email')?.toLowerCase().trim(), id = url.searchParams.get('id');
+      const row = email ? await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1').bind(email).first() : id ? await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first() : null;
+      return row ? json({ success: true, user: normalizeUser(row) }) : json({ error: '找不到此會員' }, 404);
+    }
+    const body: any = await request.json();
+    if (method === 'POST') {
+      const email = body.email?.toLowerCase().trim();
+      if (!email) return json({ error: '會員 Email 為必填欄位' }, 400);
+      const existing = await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1').bind(email).first();
+      const googleLogin = path === '/api/users/google-sync';
+      const owner = email === 'yukidu@gmail.com';
+      if (existing) {
+        if (googleLogin) {
+          const customAvatar = existing.avatarUploadCount > 0 || existing.avatar?.startsWith('data:') || (existing.avatar?.startsWith('http') && !existing.googleAvatar && !/googleusercontent|unsplash/.test(existing.avatar));
+          await db.prepare('UPDATE users SET googleAvatar = ?, avatar = ?, lastActive = ? WHERE id = ?').bind(body.avatar || existing.googleAvatar || '', customAvatar ? existing.avatar : body.avatar || existing.avatar || '👤', new Date().toISOString(), existing.id).run();
+        }
+        return json({ success: true, user: normalizeUser(await db.prepare('SELECT * FROM users WHERE id = ?').bind(existing.id).first()), isNewUser: false });
+      }
+      const date = new Date().toISOString();
+      const user: any = { id: owner ? 'u-admin' : `u-${crypto.randomUUID()}`, email, name: body.name || email.split('@')[0], avatar: body.avatar || '👤', googleAvatar: googleLogin ? body.avatar || '' : '', role: owner ? '超級管理員' : '繁星家人', rank: owner ? '鑽石' : '無', approvedRank: owner ? '鑽石' : '無', rankApproved: owner ? 1 : 0, rankAuditStatus: owner ? 'approved' : 'pending', isAdminUser: owner ? 1 : 0, isContributor: owner ? 1 : 0, canUpload: owner ? 1 : 0, registerDate: date, lastActive: date, birthday: '', residence: '', center: '' };
+      if (!googleLogin) editable.forEach(k => { if (body[k] !== undefined) user[k] = boolFields.includes(k) ? Number(!!body[k]) : body[k]; });
+      const columns = Object.keys(user);
+      await db.prepare(`INSERT INTO users (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})`).bind(...columns.map(k => user[k])).run();
+      return json({ success: true, user: normalizeUser(user), isNewUser: true });
+    }
+    const id = decodeURIComponent(userUpdate![1]);
+    const existing = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+    if (!existing) return json({ error: '會員不存在，請重新登入' }, 404);
+    const fields = editable.filter(k => body[k] !== undefined);
+    if (fields.length) {
+      const changes = fields.map(k => boolFields.includes(k) ? Number(!!body[k]) : body[k]);
+      await db.prepare(`UPDATE users SET ${fields.map(k => `${k} = ?`).join(',')}, lastActive = ? WHERE id = ?`).bind(...changes, new Date().toISOString(), id).run();
+      if (body.name !== undefined || body.avatar !== undefined) await db.prepare('UPDATE comments SET authorName = COALESCE(?, authorName), authorAvatar = COALESCE(?, authorAvatar) WHERE LOWER(TRIM(authorEmail)) = ?').bind(body.name ?? null, body.avatar ?? null, existing.email?.toLowerCase().trim() || '').run();
+    }
+    return json(normalizeUser(await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first()));
+  } catch (error) {
+    console.error('Persistent community API failed:', error);
+    return json({ error: '資料讀取或儲存失敗，請稍後重試。' }, 500);
+  }
+}

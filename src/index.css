@@ -41,30 +41,29 @@
   --ui-gap-scale: 1;
 }
 
-@media (max-width: 360px) {
-  html {
-    font-size: 13px;
+/* Physical pixels are converted to CSS pixels by the phone's pixel ratio. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+@media (max-width: 640px) {
+  html { font-size: 16px; }
+  .text-xs { font-size: .875rem; line-height: 1.5; }
+  .text-sm { font-size: 1rem; line-height: 1.5; }
+  [class*="text-[8"], [class*="text-[9"], [class*="text-[10"], [class*="text-[11"], [class*="text-[12"] {
+    font-size: .8125rem;
   }
-  :root {
-    --ui-scale: 0.88;
-    --ui-pad-scale: 0.85;
-    --ui-gap-scale: 0.85;
-  }
-  * {
-    max-width: 100%;
-    box-sizing: border-box;
-  }
+  input:not([type="range"]), textarea, select { font-size: 16px; }
+  .audio-card { padding: .75rem; }
+  .audio-card h3 { font-size: 1rem; line-height: 1.5; }
+  .sort-toolbar { flex-wrap: wrap; gap: .5rem; }
+  .sort-toolbar .sort-options { flex-basis: 100%; flex-wrap: wrap; overflow: visible; }
+  .sort-toolbar button { min-height: 44px; }
+  .audio-card .track-actions { flex-wrap: wrap; overflow: visible; gap: .375rem; }
+  .track-actions button { min-height: 44px; }
+  .track-actions .rating-star { width: 28px; min-height: 44px; display: grid; place-items: center; }
+  .track-actions svg { width: 18px; height: 18px; }
+  .track-actions .reaction-button { min-width: 44px; gap: .25rem; }
 }
-
-@media (max-width: 320px) {
-  html {
-    font-size: 12px;
-  }
-  :root {
-    --ui-scale: 0.82;
-    --ui-pad-scale: 0.78;
-    --ui-gap-scale: 0.78;
-  }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
 
 /* Rainbow animated text for Admin Dudu Dragon */
@@ -267,4 +266,3 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
 .star-pulse-glow {
   animation: starPulseGlow 3s ease-in-out infinite;
 }
-

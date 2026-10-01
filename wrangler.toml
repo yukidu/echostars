@@ -12,6 +12,8 @@ command = "npm run build"
 [assets]
 directory = "./dist"
 binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
 
 # 1. Cloudflare D1 資料庫 (SQLite)
 [[d1_databases]]
@@ -31,4 +33,3 @@ id = "a2e345e244cb40b4a804be3f89584b90"
 
 [vars]
 ENVIRONMENT = "production"
-
