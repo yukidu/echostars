@@ -1115,7 +1115,7 @@ export default function App() {
         rankApproved: isOwner,
         rankAuditStatus: isOwner ? 'approved' : 'pending',
         rankAuditType: 'new_register',
-        role: isOwner ? '超級管理員' : '寰宇家人',
+        role: isOwner ? '超級管理員' : '繁星家人',
         isAdminUser: isOwner,
         registerDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
         rankUpdatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),

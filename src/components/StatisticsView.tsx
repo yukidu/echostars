@@ -324,7 +324,7 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
       .sort((a, b) => b.count - a.count);
   }, [users]);
 
-  // (3) 寰宇中心 (僅顯示已有數據的選項)
+  // (3) 繁星中心 (僅顯示已有數據的選項)
   const memberCenterStats = useMemo(() => {
     const map: Record<string, number> = {};
     users.forEach(u => {
@@ -458,7 +458,7 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
 
   /**
    * Helper to render a member row with format:
-   * 「照片＋寰宇會場＋名字＋獎銜」
+   * 「照片＋繁星會場＋名字＋獎銜」
    */
   const renderMemberRow = (user: UserProfile, idx: number, extraValue: React.ReactNode) => {
     const venue = user.center || '無會場';
@@ -481,10 +481,10 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
             />
           </div>
 
-          {/* 會員資訊：寰宇會場＋名字＋獎銜 */}
+          {/* 會員資訊：繁星會場＋名字＋獎銜 */}
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
-              {/* 寰宇會場 */}
+              {/* 繁星會場 */}
               <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium border border-slate-200/70 dark:border-slate-600 shrink-0">
                 {venue}
               </span>
@@ -1037,9 +1037,9 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
               'text-blue-500'
             )}
 
-            {/* 3. 寰宇中心 */}
+            {/* 3. 繁星中心 */}
             {renderStatBreakdownList(
-              '寰宇中心歸屬',
+              '繁星中心歸屬',
               <Building className="w-4 h-4" />,
               memberCenterStats.map(s => ({ label: s.name, count: s.count })),
               'text-emerald-500'

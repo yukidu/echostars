@@ -339,7 +339,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       const track: Track = foundTrack || {
         id: rec.trackId,
         title: rec.trackTitle || '演講錄音檔',
-        speaker: rec.trackSpeaker || '寰宇講師',
+        speaker: rec.trackSpeaker || '繁星講師',
         speakerRank: rec.trackSpeakerRank || '鑽石',
         speakerAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&auto=format&fit=crop&q=80',
         categories: ['未分類'],
@@ -769,7 +769,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                         <div>
                           <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
-                            寰宇中心
+                            繁星中心
                           </label>
                           <select
                             value={center}
@@ -1081,7 +1081,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     userComments.map(c => {
                       const foundTrack = tracks.find(t => t.id === c.trackId);
                       const trackTitle = foundTrack?.title || '演講錄音檔';
-                      const speaker = foundTrack?.speaker || '寰宇講師';
+                      const speaker = foundTrack?.speaker || '繁星講師';
                       const speakerRank = foundTrack?.speakerRank || '';
                       const categories = foundTrack?.categories && foundTrack.categories.length > 0
                         ? foundTrack.categories

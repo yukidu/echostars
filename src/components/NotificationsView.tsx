@@ -225,7 +225,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <span>寰宇動態通知與獎銜審核</span>
+                <span>繁星動態通知與獎銜審核</span>
                 {pendingUsers.length > 0 && (
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500 text-white font-bold animate-pulse">
                     {pendingUsers.length} 位待審核
