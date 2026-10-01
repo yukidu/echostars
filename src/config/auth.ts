@@ -1,9 +1,9 @@
 /**
  * Google OAuth 2.0 Client ID Configuration
  *
- * 此處直接寫入專案的 Google OAuth Client ID，無需一般用戶手動輸入。
- * 若日後有新網域或更新的 Client ID，可在此檔案中修改，或透過環境變數 VITE_GOOGLE_CLIENT_ID 覆蓋。
+ * 專案已綁定 Google Cloud Console 用戶端 ID (echostars 專案)。
+ * 無需一般用戶手動輸入，直接內建生效。
  */
 export const GOOGLE_CLIENT_ID =
   (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
-  '1023793086940-echostars.apps.googleusercontent.com';
+  '400699489182-lb412nhvj4s6t1qr5ovkg40hc646dq79.apps.googleusercontent.com';
