@@ -57,7 +57,7 @@ export const MemberDetailPreviewModal: React.FC<MemberDetailPreviewModalProps> =
 
   // Build listening details for the user
   const listenedDetails: UserTrackListeningDetail[] = tracks.map((track, idx) => {
-    const userRatingVal = track.ratings[user.email] || track.ratings[user.id] || null;
+    const userRatingVal = (track.ratings && (track.ratings[user.email] || track.ratings[user.id])) || null;
     const userCommentObj = comments.find(c => (c.authorEmail === user.email || c.authorName === user.name) && c.trackId === track.id);
     const userComment = userCommentObj ? userCommentObj.content : null;
 

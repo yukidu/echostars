@@ -432,7 +432,31 @@ export default {
         if (path === '/api/tracks' && method === 'POST') {
           const body: any = await request.json().catch(() => ({}));
           const id = body.id || `t-${Date.now()}`;
-          const newTrack = { ...body, id, uploadDate: body.uploadDate || new Date().toISOString().split('T')[0] };
+          const cleanCategories = Array.isArray(body.categories) && body.categories.length > 0 ? body.categories : ['未分類'];
+          const cleanKeywords = Array.isArray(body.keywords) ? body.keywords : [];
+          const cleanVideos = Array.isArray(body.externalVideos) ? body.externalVideos : [];
+          const cleanPpts = Array.isArray(body.externalPpts) ? body.externalPpts : [];
+          const cleanFiles = Array.isArray(body.externalFiles) ? body.externalFiles : [];
+          const cleanLikedBy = Array.isArray(body.likedBy) ? body.likedBy : [];
+          const cleanRatings = typeof body.ratings === 'object' && body.ratings !== null ? body.ratings : {};
+
+          const newTrack = {
+            ...body,
+            id,
+            uploadDate: body.uploadDate || new Date().toISOString().split('T')[0],
+            categories: cleanCategories,
+            keywords: cleanKeywords,
+            rating: typeof body.rating === 'number' ? body.rating : 5.0,
+            ratingCount: typeof body.ratingCount === 'number' ? body.ratingCount : 1,
+            commentsCount: typeof body.commentsCount === 'number' ? body.commentsCount : 0,
+            likes: typeof body.likes === 'number' ? body.likes : 0,
+            playCount: typeof body.playCount === 'number' ? body.playCount : 0,
+            externalVideos: cleanVideos,
+            externalPpts: cleanPpts,
+            externalFiles: cleanFiles,
+            likedBy: cleanLikedBy,
+            ratings: cleanRatings
+          };
 
           if (env.DB) {
             try {
@@ -446,20 +470,55 @@ export default {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).bind(
                 id, newTrack.title || '無標題', newTrack.speaker || '未知講者', newTrack.speakerRank || '無',
-                newTrack.speakerAvatar || '', JSON.stringify(newTrack.categories || []), JSON.stringify(newTrack.keywords || []),
-                newTrack.rating || 5.0, newTrack.ratingCount || 1, newTrack.commentsCount || 0, newTrack.likes || 0,
+                newTrack.speakerAvatar || '', JSON.stringify(newTrack.categories), JSON.stringify(newTrack.keywords),
+                newTrack.rating, newTrack.ratingCount, newTrack.commentsCount, newTrack.likes,
                 newTrack.duration || '約 10 分鐘', newTrack.durationSeconds || 600, newTrack.audioUrl || '',
                 newTrack.series || '', newTrack.speechDate || '', newTrack.requiredRank || '無', newTrack.seriesOrder || '',
                 newTrack.uploadDate, newTrack.description || '', newTrack.uploaderId || '', newTrack.uploaderEmail || '',
-                newTrack.playCount || 0, newTrack.isPrivateVip ? 1 : 0, JSON.stringify(newTrack.externalVideos || []),
-                JSON.stringify(newTrack.externalPpts || []), JSON.stringify(newTrack.externalFiles || []),
-                JSON.stringify(newTrack.likedBy || []), JSON.stringify(newTrack.ratings || {})
+                newTrack.playCount, newTrack.isPrivateVip ? 1 : 0, JSON.stringify(newTrack.externalVideos),
+                JSON.stringify(newTrack.externalPpts), JSON.stringify(newTrack.externalFiles),
+                JSON.stringify(newTrack.likedBy), JSON.stringify(newTrack.ratings)
               ).run();
             } catch (e) {
               console.error('D1 insert track error:', e);
             }
           }
-          return jsonResponse({ success: true, track: newTrack });
+          return jsonResponse({ success: true, track: newTrack, ...newTrack });
+        }
+
+        // 5.3.0 更新錄音檔 (PUT /api/tracks/:id)
+        if (path.startsWith('/api/tracks/') && method === 'PUT') {
+          const trackId = path.split('/api/tracks/')[1];
+          const body: any = await request.json().catch(() => ({}));
+          if (env.DB && trackId) {
+            try {
+              await env.DB.prepare(`
+                UPDATE tracks SET
+                  title = ?, speaker = ?, speakerRank = ?, speakerAvatar = ?,
+                  categories = ?, keywords = ?, series = ?, speechDate = ?,
+                  requiredRank = ?, seriesOrder = ?, description = ?,
+                  externalVideos = ?, externalPpts = ?, externalFiles = ?
+                WHERE id = ?
+              `).bind(
+                body.title || '無標題', body.speaker || '未知講者', body.speakerRank || '無',
+                body.speakerAvatar || '', JSON.stringify(body.categories || []), JSON.stringify(body.keywords || []),
+                body.series || '', body.speechDate || '', body.requiredRank || '無', body.seriesOrder || '',
+                body.description || '', JSON.stringify(body.externalVideos || []), JSON.stringify(body.externalPpts || []),
+                JSON.stringify(body.externalFiles || []), trackId
+              ).run();
+            } catch (e) {
+              console.error('D1 update track error:', e);
+            }
+          }
+          const updatedTrack = {
+            ...body,
+            id: trackId,
+            categories: Array.isArray(body.categories) ? body.categories : ['未分類'],
+            keywords: Array.isArray(body.keywords) ? body.keywords : [],
+            likedBy: Array.isArray(body.likedBy) ? body.likedBy : [],
+            ratings: typeof body.ratings === 'object' && body.ratings !== null ? body.ratings : {}
+          };
+          return jsonResponse({ success: true, track: updatedTrack, ...updatedTrack });
         }
 
         // 5.3.1 音檔評分 (POST /api/tracks/:id/rate)

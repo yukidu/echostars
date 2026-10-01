@@ -93,7 +93,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
   // User rated tracks
   const userRatedTracks = tracks
     .map(t => {
-      const rating = t.ratings[liveUser.email] || t.ratings[liveUser.id] || 0;
+      const rating = (t.ratings && (t.ratings[liveUser.email] || t.ratings[liveUser.id])) || 0;
       return { track: t, rating };
     })
     .filter(x => x.rating > 0);
@@ -135,7 +135,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
       ratings: {}
     };
     // Requirement 7: 確保學習檔案包含音檔學習進度、給予評價、留言內容
-    const effectiveRating = rec.rating || (foundTrack ? (foundTrack.ratings[liveUser.email] || foundTrack.ratings[liveUser.id] || 0) : 0);
+    const effectiveRating = rec.rating || (foundTrack?.ratings ? (foundTrack.ratings[liveUser.email] || foundTrack.ratings[liveUser.id] || 0) : 0);
     const userCommentObj = userComments.find(c => c.trackId === rec.trackId);
     const effectiveComment = rec.comment || userCommentObj?.content || '';
 

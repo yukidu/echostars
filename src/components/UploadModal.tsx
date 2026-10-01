@@ -388,8 +388,21 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         throw new Error(errData.error || '伺服器處理失敗');
       }
 
-      const savedTrack = await res.json();
-      onSuccess(savedTrack);
+      const resData = await res.json();
+      const trackObj = (resData && typeof resData === 'object' && ('track' in resData)) ? resData.track : resData;
+      const normalizedTrack = {
+        ...trackObj,
+        ratings: (trackObj && typeof trackObj.ratings === 'object' && trackObj.ratings !== null) ? trackObj.ratings : {},
+        likedBy: Array.isArray(trackObj?.likedBy) ? trackObj.likedBy : [],
+        categories: Array.isArray(trackObj?.categories) && trackObj.categories.length > 0 ? trackObj.categories : (selectedCategories.length > 0 ? selectedCategories.slice(0, 3) : ['未分類']),
+        keywords: Array.isArray(trackObj?.keywords) ? trackObj.keywords : (keywords.length > 0 ? keywords.slice(0, 20) : []),
+        rating: typeof trackObj?.rating === 'number' ? trackObj.rating : 5.0,
+        ratingCount: typeof trackObj?.ratingCount === 'number' ? trackObj.ratingCount : 1,
+        commentsCount: typeof trackObj?.commentsCount === 'number' ? trackObj.commentsCount : 0,
+        likes: typeof trackObj?.likes === 'number' ? trackObj.likes : 0,
+        playCount: typeof trackObj?.playCount === 'number' ? trackObj.playCount : 0
+      };
+      onSuccess(normalizedTrack);
       onClose();
     } catch (err: any) {
       setErrorMessage(err.message || '上傳失敗，請檢查網路連線');

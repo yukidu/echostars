@@ -709,7 +709,7 @@ export default function App() {
 
     // 1. Optimistic instant local update
     const updateTrackRating = (t: Track, newRating: number, newCount: number) => {
-      const nextRatings = { ...t.ratings };
+      const nextRatings = { ...(t.ratings || {}) };
       if (score === 0) {
         delete nextRatings[idKey];
         if (currentUser) {
@@ -795,8 +795,8 @@ export default function App() {
                   ...t,
                   likes: data.likes,
                   likedBy: data.hasLiked
-                    ? [...t.likedBy, idKey]
-                    : t.likedBy.filter(x => x !== idKey)
+                    ? [...(t.likedBy || []), idKey]
+                    : (t.likedBy || []).filter(x => x !== idKey)
                 }
               : t
           )
@@ -808,8 +808,8 @@ export default function App() {
                   ...prev,
                   likes: data.likes,
                   likedBy: data.hasLiked
-                    ? [...prev.likedBy, idKey]
-                    : prev.likedBy.filter(x => x !== idKey)
+                    ? [...(prev.likedBy || []), idKey]
+                    : (prev.likedBy || []).filter(x => x !== idKey)
                 }
               : null
           );
@@ -983,7 +983,7 @@ export default function App() {
   };
 
   // User Login & Google Bind Simulation (Yukidu is guaranteed Super Admin)
-  const handleLoginWithGoogle = (email = 'yukidu@gmail.com', name = '杜杜龍') => {
+  const handleLoginWithGoogle = async (email = 'yukidu@gmail.com', name = '杜杜龍', avatarUrl?: string) => {
     const cleanEmail = email.toLowerCase().trim();
     const isOwner = isSuperAdminEmail(cleanEmail);
     const existing = allUsers.find(u => u.email?.toLowerCase().trim() === cleanEmail);
@@ -992,6 +992,7 @@ export default function App() {
           ...existing,
           email: cleanEmail,
           name: existing.name || name,
+          avatar: avatarUrl || existing.avatar,
           role: isOwner ? '超級管理員' : existing.role,
           isAdminUser: isOwner ? true : existing.isAdminUser,
           isContributor: isOwner ? true : existing.isContributor,
@@ -1018,9 +1019,10 @@ export default function App() {
         rankUpdatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
         joinReason: '事業',
         avatar:
-          isOwner
+          avatarUrl ||
+          (isOwner
             ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80'
-            : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
+            : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80'),
         birthday: '1985-07-03',
         talentNumber: 33,
         lifeNumber: 6,
@@ -1042,6 +1044,17 @@ export default function App() {
       }
       return [...prev, profile];
     });
+
+    try {
+      await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile)
+      });
+    } catch {
+      // non-blocking
+    }
+
     setIsProfileOpen(false);
   };
 
@@ -1272,22 +1285,26 @@ export default function App() {
   // Rated tracks by current user for BW export
   const userRatedTracks = useMemo(() => {
     if (!currentUser) return [];
-    return tracks
-      .map(t => ({
-        track: t,
-        rating: t.ratings[currentUser.email] || t.ratings[currentUser.id] || 0
-      }))
+    return (tracks || [])
+      .map(t => {
+        const tRatings = t?.ratings || {};
+        return {
+          track: t,
+          rating: tRatings[currentUser.email] || tRatings[currentUser.id] || 0
+        };
+      })
       .filter(x => x.rating > 0);
   }, [tracks, currentUser]);
 
   const currentIdentifier = currentUser ? currentUser.email : visitor.deviceId;
+  const currentRatings = currentTrack?.ratings || {};
   const currentTrackRating = (currentTrack && (
-    currentTrack.ratings[currentIdentifier] ||
-    (currentUser && (currentTrack.ratings[currentUser.email] || currentTrack.ratings[currentUser.id])) ||
-    currentTrack.ratings[visitor.deviceId] ||
-    (currentUser?.email === 'yukidu@gmail.com' ? currentTrack.ratings['u-admin'] : undefined)
+    currentRatings[currentIdentifier] ||
+    (currentUser && (currentRatings[currentUser.email] || currentRatings[currentUser.id])) ||
+    currentRatings[visitor.deviceId] ||
+    (currentUser?.email === 'yukidu@gmail.com' ? currentRatings['u-admin'] : undefined)
   )) || 0;
-  const hasLikedCurrent = currentTrack?.likedBy.includes(currentIdentifier) || false;
+  const hasLikedCurrent = Boolean(currentTrack?.likedBy && Array.isArray(currentTrack.likedBy) && currentTrack.likedBy.includes(currentIdentifier));
 
   return (
     <div className="min-h-screen flex flex-col antialiased selection:bg-rose-200 selection:text-rose-900">
@@ -1435,12 +1452,13 @@ export default function App() {
           (() => {
             const activeTrack = selectedDetailTrack || currentTrack!;
             const isPlayingActive = isPlaying && currentTrack?.id === activeTrack.id;
-            const activeRating = activeTrack.ratings[currentIdentifier] ||
-              (currentUser && (activeTrack.ratings[currentUser.email] || activeTrack.ratings[currentUser.id])) ||
-              activeTrack.ratings[visitor.deviceId] ||
-              (currentUser?.email === 'yukidu@gmail.com' ? activeTrack.ratings['u-admin'] : undefined) ||
+            const activeRatings = activeTrack.ratings || {};
+            const activeRating = activeRatings[currentIdentifier] ||
+              (currentUser && (activeRatings[currentUser.email] || activeRatings[currentUser.id])) ||
+              activeRatings[visitor.deviceId] ||
+              (currentUser?.email === 'yukidu@gmail.com' ? activeRatings['u-admin'] : undefined) ||
               0;
-            const hasLikedActive = activeTrack.likedBy.includes(currentIdentifier);
+            const hasLikedActive = Boolean(activeTrack.likedBy && Array.isArray(activeTrack.likedBy) && activeTrack.likedBy.includes(currentIdentifier));
 
             return (
               <DetailView
@@ -1822,12 +1840,13 @@ export default function App() {
                   const isCurrent = currentTrack?.id === track.id;
                   const canAccess = checkCanAccess(track);
                   const isVipUnlocked = isTrackVipUnlocked(track);
-                  const trackRating = track.ratings[currentIdentifier] ||
-                    (currentUser && (track.ratings[currentUser.email] || track.ratings[currentUser.id])) ||
-                    track.ratings[visitor.deviceId] ||
-                    (currentUser?.email === 'yukidu@gmail.com' ? track.ratings['u-admin'] : undefined) ||
+                  const tRatings = track?.ratings || {};
+                  const trackRating = tRatings[currentIdentifier] ||
+                    (currentUser && (tRatings[currentUser.email] || tRatings[currentUser.id])) ||
+                    tRatings[visitor.deviceId] ||
+                    (currentUser?.email === 'yukidu@gmail.com' ? tRatings['u-admin'] : undefined) ||
                     0;
-                  const hasLiked = track.likedBy.includes(currentIdentifier);
+                  const hasLiked = Boolean(track?.likedBy && Array.isArray(track.likedBy) && track.likedBy.includes(currentIdentifier));
 
                   return (
                     <AudioCard
@@ -1954,16 +1973,47 @@ export default function App() {
         trackToEdit={trackToEdit}
         tracks={tracks}
         onCategoriesUpdated={fetchCategories}
-        onSuccess={savedTrack => {
+        onSuccess={rawTrack => {
+          const trackData: any = (rawTrack as any)?.track || rawTrack;
+          const normalizedTrack: Track = {
+            id: trackData?.id || `t-${Date.now()}`,
+            title: trackData?.title || '新上傳音檔',
+            speaker: trackData?.speaker || '特邀講師',
+            speakerRank: trackData?.speakerRank || '領袖',
+            speakerAvatar: trackData?.speakerAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
+            categories: Array.isArray(trackData?.categories) && trackData.categories.length > 0 ? trackData.categories : ['未分類'],
+            keywords: Array.isArray(trackData?.keywords) ? trackData.keywords : [],
+            rating: typeof trackData?.rating === 'number' ? trackData.rating : 5.0,
+            ratingCount: typeof trackData?.ratingCount === 'number' ? trackData.ratingCount : 1,
+            commentsCount: typeof trackData?.commentsCount === 'number' ? trackData.commentsCount : 0,
+            likes: typeof trackData?.likes === 'number' ? trackData.likes : 0,
+            playCount: typeof trackData?.playCount === 'number' ? trackData.playCount : 0,
+            duration: trackData?.duration || '約 10 分鐘',
+            durationSeconds: trackData?.durationSeconds || 600,
+            series: trackData?.series || '精選系列',
+            speechDate: trackData?.speechDate || new Date().toISOString().split('T')[0],
+            requiredRank: trackData?.requiredRank || '無',
+            seriesOrder: trackData?.seriesOrder || '第 1 集',
+            uploadDate: trackData?.uploadDate || new Date().toISOString().split('T')[0],
+            description: trackData?.description || '暫無簡介',
+            audioUrl: trackData?.audioUrl || '',
+            likedBy: Array.isArray(trackData?.likedBy) ? trackData.likedBy : [],
+            ratings: typeof trackData?.ratings === 'object' && trackData.ratings !== null ? trackData.ratings : {},
+            externalVideos: Array.isArray(trackData?.externalVideos) ? trackData.externalVideos : [],
+            externalPpts: Array.isArray(trackData?.externalPpts) ? trackData.externalPpts : [],
+            externalFiles: Array.isArray(trackData?.externalFiles) ? trackData.externalFiles : [],
+            ...trackData
+          };
+
           if (trackToEdit) {
-            setTracks(prev => prev.map(t => (t.id === savedTrack.id ? savedTrack : t)));
-            if (currentTrack?.id === savedTrack.id) {
-              setCurrentTrack(savedTrack);
+            setTracks(prev => prev.map(t => (t.id === normalizedTrack.id ? normalizedTrack : t)));
+            if (currentTrack?.id === normalizedTrack.id) {
+              setCurrentTrack(normalizedTrack);
             }
             setTrackToEdit(null);
           } else {
-            setTracks(prev => [savedTrack, ...prev]);
-            handlePlayTrack(savedTrack, savedPreferredMode);
+            setTracks(prev => [normalizedTrack, ...prev]);
+            handlePlayTrack(normalizedTrack, savedPreferredMode);
           }
         }}
       />
