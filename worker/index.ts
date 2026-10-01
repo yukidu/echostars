@@ -302,21 +302,38 @@ export default {
       });
     }
 
+    if (path === '/favicon.ico') {
+      return new Response(null, { status: 204 });
+    }
+
     // 3. R2 物件儲存: 上傳檔案
     if (path === '/api/r2/upload' && method === 'POST') {
       if (!env.R2_BUCKET) {
-        return errorResponse('R2 儲存桶未設定或未綁定 R2_BUCKET', 503);
+        return errorResponse('Cloudflare R2 儲存桶未綁定 (請確認 wrangler.toml 中的 R2_BUCKET 綁定名稱與 Cloudflare 控制台的儲存桶 echoes-audio-bucket 是否相符)', 503);
       }
       try {
         const formData = await request.formData();
-        const file = formData.get('file') as File | null;
+        const file = (formData.get('file') || formData.get('audio')) as File | null;
         if (!file) return errorResponse('缺少上傳檔案 (file)', 400);
 
-        const ext = file.name.split('.').pop() || 'mp3';
+        const fileName = file.name || 'audio.mp3';
+        const ext = fileName.split('.').pop()?.toLowerCase() || 'mp3';
         const key = `uploads/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
         
+        let contentType = file.type;
+        if (!contentType || contentType === 'application/octet-stream') {
+          if (ext === 'mp3') contentType = 'audio/mpeg';
+          else if (ext === 'm4a') contentType = 'audio/mp4';
+          else if (ext === 'wav') contentType = 'audio/wav';
+          else if (ext === 'ogg') contentType = 'audio/ogg';
+          else if (ext === 'jpg' || ext === 'jpeg') contentType = 'image/jpeg';
+          else if (ext === 'png') contentType = 'image/png';
+          else if (ext === 'webp') contentType = 'image/webp';
+          else contentType = 'audio/mpeg';
+        }
+
         await env.R2_BUCKET.put(key, await file.arrayBuffer(), {
-          httpMetadata: { contentType: file.type || 'audio/mpeg' }
+          httpMetadata: { contentType }
         });
 
         const fileUrl = `/api/r2/file/${encodeURIComponent(key)}`;
@@ -326,22 +343,56 @@ export default {
       }
     }
 
-    // 4. R2 物件儲存: 串流讀取檔案
-    if (path.startsWith('/api/r2/file/') && method === 'GET') {
+    // 4. R2 物件儲存: 串流讀取檔案 (支援 Range 串流，確保 iPhone / Safari / Android 網路裝置皆能順暢播放)
+    if (path.startsWith('/api/r2/file/') && (method === 'GET' || method === 'HEAD')) {
       if (!env.R2_BUCKET) {
-        return new Response('R2 儲存桶未綁定', { status: 503 });
+        return new Response('R2 儲存桶未綁定', { status: 503, headers: CORS_HEADERS });
       }
       const key = decodeURIComponent(path.replace('/api/r2/file/', ''));
-      const object = await env.R2_BUCKET.get(key);
-      if (!object) {
-        return new Response('檔案不存在', { status: 404 });
-      }
+      const rangeHeader = request.headers.get('Range');
 
-      const headers = new Headers();
-      object.writeHttpMetadata(headers);
-      headers.set('etag', object.httpEtag);
-      headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-      return new Response(object.body, { headers });
+      try {
+        const object = await env.R2_BUCKET.get(key, {
+          range: rangeHeader ? request.headers : undefined,
+          onlyIf: request.headers
+        });
+
+        if (!object) {
+          return new Response('檔案不存在', { status: 404, headers: CORS_HEADERS });
+        }
+
+        const headers = new Headers(CORS_HEADERS);
+        object.writeHttpMetadata(headers);
+        headers.set('etag', object.httpEtag);
+        headers.set('Accept-Ranges', 'bytes');
+        headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+
+        const ext = key.split('.').pop()?.toLowerCase();
+        if (!headers.get('Content-Type')) {
+          if (ext === 'mp3') headers.set('Content-Type', 'audio/mpeg');
+          else if (ext === 'm4a') headers.set('Content-Type', 'audio/mp4');
+          else if (ext === 'wav') headers.set('Content-Type', 'audio/wav');
+          else if (ext === 'ogg') headers.set('Content-Type', 'audio/ogg');
+          else if (ext === 'jpg' || ext === 'jpeg') headers.set('Content-Type', 'image/jpeg');
+          else if (ext === 'png') headers.set('Content-Type', 'image/png');
+        }
+
+        if (rangeHeader && object.range) {
+          const { offset, length } = object.range as any;
+          const total = object.size;
+          headers.set('Content-Range', `bytes ${offset}-${offset + length - 1}/${total}`);
+          headers.set('Content-Length', String(length));
+          return new Response(method === 'HEAD' ? null : object.body, {
+            status: 206,
+            headers
+          });
+        }
+
+        headers.set('Content-Length', String(object.size));
+        return new Response(method === 'HEAD' ? null : object.body, { headers });
+      } catch (err: any) {
+        return new Response(err.message || '讀取 R2 檔案錯誤', { status: 500, headers: CORS_HEADERS });
+      }
     }
 
     // 5. API 路由處理 (D1 / KV / Fallback)
@@ -601,6 +652,19 @@ export default {
             }
           }
           return jsonResponse({ success: true, likes, liked });
+        }
+
+        // 5.3.3 音檔播放計數 (POST /api/tracks/:id/play)
+        if (path.match(/^\/api\/tracks\/[^/]+\/play$/) && method === 'POST') {
+          const trackId = path.split('/')[3];
+          if (env.DB && trackId) {
+            try {
+              await env.DB.prepare('UPDATE tracks SET playCount = playCount + 1 WHERE id = ?').bind(trackId).run();
+            } catch (e) {
+              console.error('D1 play count update error:', e);
+            }
+          }
+          return jsonResponse({ success: true, trackId });
         }
 
         if (method === 'DELETE') {

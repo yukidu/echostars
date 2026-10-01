@@ -80,6 +80,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   const [isParsingId3, setIsParsingId3] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatusText, setUploadStatusText] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Requirement 8: 分類標籤動態管理 (新增、修改、刪除)
@@ -337,13 +338,57 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
     setIsUploading(true);
     setErrorMessage(null);
+    setUploadStatusText('準備上傳中...');
 
     try {
-      const finalAudioUrl = audioFile ? URL.createObjectURL(audioFile) : (trackToEdit?.audioUrl || '');
-      const finalCoverUrl =
-        coverPreview ||
+      let finalAudioUrl = trackToEdit?.audioUrl || '';
+
+      // Direct upload audio file to Cloudflare R2
+      if (audioFile) {
+        setUploadStatusText('正在直傳音訊至 Cloudflare R2 儲存桶...');
+        const audioFormData = new FormData();
+        audioFormData.append('file', audioFile);
+        const uploadAudioRes = await fetch('/api/r2/upload', {
+          method: 'POST',
+          body: audioFormData
+        });
+
+        if (!uploadAudioRes.ok) {
+          const errData = await uploadAudioRes.json().catch(() => ({}));
+          throw new Error(errData.error || `音檔直傳 R2 失敗 (HTTP ${uploadAudioRes.status})`);
+        }
+
+        const uploadAudioData = await uploadAudioRes.json();
+        if (!uploadAudioData.url) {
+          throw new Error('R2 伺服器未回傳檔案存取網址');
+        }
+        finalAudioUrl = uploadAudioData.url;
+      }
+
+      let finalCoverUrl =
         trackToEdit?.speakerAvatar ||
         'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80';
+
+      // Direct upload cover file to Cloudflare R2
+      if (coverFile) {
+        setUploadStatusText('正在上傳講師封面至 Cloudflare R2...');
+        const coverFormData = new FormData();
+        coverFormData.append('file', coverFile);
+        const uploadCoverRes = await fetch('/api/r2/upload', {
+          method: 'POST',
+          body: coverFormData
+        });
+        if (uploadCoverRes.ok) {
+          const uploadCoverData = await uploadCoverRes.json();
+          if (uploadCoverData.url) {
+            finalCoverUrl = uploadCoverData.url;
+          }
+        }
+      } else if (coverPreview && !coverPreview.startsWith('blob:')) {
+        finalCoverUrl = coverPreview;
+      }
+
+      setUploadStatusText('正在儲存錄音檔資訊至雲端資料庫...');
 
       const cleanVideos = externalVideos.filter(v => v.url.trim());
       const cleanPpts = externalPpts.filter(p => p.url.trim());
@@ -1071,7 +1116,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
             >
               {isUploading
-                ? (trackToEdit ? '儲存修改中...' : '直傳 Cloudflare R2 中...')
+                ? (uploadStatusText || (trackToEdit ? '儲存修改中...' : '直傳 Cloudflare R2 中...'))
                 : (trackToEdit ? '儲存錄音檔修改' : '確認發佈錄音檔')}
             </button>
           </div>

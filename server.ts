@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import multer from 'multer';
 import { RANK_ORDER, type AmwayRank } from './src/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,6 +13,77 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '150mb' }));
 app.use(express.urlencoded({ extended: true, limit: '150mb' }));
+
+// Setup local uploads storage for dev / R2 emulation
+const uploadDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.mp3';
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+  }
+});
+const uploadMiddleware = multer({ storage, limits: { fileSize: 150 * 1024 * 1024 } });
+
+// POST /api/r2/upload
+app.post('/api/r2/upload', uploadMiddleware.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: '缺少上傳檔案 (file)' });
+  }
+  const key = `uploads/${req.file.filename}`;
+  const fileUrl = `/api/r2/file/${encodeURIComponent(key)}`;
+  res.json({ success: true, key, url: fileUrl });
+});
+
+// GET /api/r2/file/:key (With Range streaming support)
+app.get('/api/r2/file/:key', (req, res) => {
+  const rawKey = decodeURIComponent(req.params.key);
+  const fileName = path.basename(rawKey);
+  const filePath = path.join(uploadDir, fileName);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('檔案不存在');
+  }
+
+  const stat = fs.statSync(filePath);
+  const fileSize = stat.size;
+  const range = req.headers.range;
+
+  const ext = path.extname(fileName).toLowerCase();
+  let contentType = 'audio/mpeg';
+  if (ext === '.m4a') contentType = 'audio/mp4';
+  else if (ext === '.wav') contentType = 'audio/wav';
+  else if (ext === '.ogg') contentType = 'audio/ogg';
+  else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+  else if (ext === '.png') contentType = 'image/png';
+  else if (ext === '.webp') contentType = 'image/webp';
+
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    const chunksize = (end - start) + 1;
+    const file = fs.createReadStream(filePath, { start, end });
+    res.writeHead(206, {
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Content-Length': chunksize
+    });
+    file.pipe(res);
+  } else {
+    res.writeHead(200, {
+      'Content-Length': fileSize
+    });
+    fs.createReadStream(filePath).pipe(res);
+  }
+});
 
 // Cloudflare Configuration
 const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID || '';
