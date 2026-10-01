@@ -17,7 +17,7 @@ import {
   Tag,
   Crown
 } from 'lucide-react';
-import { Track, CategoryType, AmwayRank, RANK_ORDER, ExternalLinkItem, UserProfile } from '../types';
+import { Track, CategoryType, AmwayRank, RANK_ORDER, ExternalLinkItem, UserProfile, SPEAKER_RANK_OPTIONS, GAR_ELIGIBLE_RANKS } from '../types';
 import { parseID3Tags } from '../utils/id3Parser';
 
 interface UploadModalProps {
@@ -56,7 +56,23 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   const [title, setTitle] = useState('');
   const [speaker, setSpeaker] = useState('');
-  const [speakerRank, setSpeakerRank] = useState('鑽石領袖');
+  const [baseSpeakerRank, setBaseSpeakerRank] = useState<string>('無');
+  const [isGarRank, setIsGarRank] = useState(false);
+
+  const speakerRank = React.useMemo(() => {
+    if (baseSpeakerRank === '無') return '無';
+    if (isGarRank && GAR_ELIGIBLE_RANKS.includes(baseSpeakerRank)) {
+      return `GAR${baseSpeakerRank}`;
+    }
+    return baseSpeakerRank;
+  }, [baseSpeakerRank, isGarRank]);
+
+  const handleBaseRankChange = (newRank: string) => {
+    setBaseSpeakerRank(newRank);
+    if (!GAR_ELIGIBLE_RANKS.includes(newRank)) {
+      setIsGarRank(false);
+    }
+  };
   const [selectedCategories, setSelectedCategories] = useState<CategoryType[]>(['事業']);
   const [series, setSeries] = useState('');
   const [speechDate, setSpeechDate] = useState(new Date().toISOString().split('T')[0].replace(/-/g, '/'));
@@ -223,7 +239,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     if (trackToEdit) {
       setTitle(trackToEdit.title || '');
       setSpeaker(trackToEdit.speaker || '');
-      setSpeakerRank(trackToEdit.speakerRank || '鑽石領袖');
+      const rawRank = (trackToEdit.speakerRank || '無').trim();
+      const hasGar = rawRank.startsWith('GAR');
+      const cleanRank = hasGar ? rawRank.replace(/^GAR/, '').trim() : rawRank;
+      const matched = (SPEAKER_RANK_OPTIONS as readonly string[]).includes(cleanRank) ? cleanRank : '無';
+      setBaseSpeakerRank(matched);
+      setIsGarRank(hasGar && GAR_ELIGIBLE_RANKS.includes(matched));
       setSelectedCategories(trackToEdit.categories && trackToEdit.categories.length > 0 ? trackToEdit.categories.slice(0, 3) : ['事業']);
       setKeywords(Array.isArray(trackToEdit.keywords) ? [...trackToEdit.keywords] : []);
       setSeries(trackToEdit.series || '');
@@ -241,7 +262,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     } else {
       setTitle('');
       setSpeaker('');
-      setSpeakerRank('鑽石領袖');
+      setBaseSpeakerRank('無');
+      setIsGarRank(false);
       setSelectedCategories(['事業']);
       setKeywords([]);
       setSeries('');
@@ -405,7 +427,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       const payload = {
         title: title.trim(),
         speaker: speaker.trim() || '特邀講師',
-        speakerRank: speakerRank.trim() || '領袖',
+        speakerRank: speakerRank.trim() || '無',
         speakerAvatar: finalCoverUrl,
         categories: selectedCategories.slice(0, 3),
         keywords: keywords.slice(0, 20),
@@ -847,16 +869,47 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
-                講師獎銜
-              </label>
-              <input
-                type="text"
-                value={speakerRank}
-                onChange={e => setSpeakerRank(e.target.value)}
-                placeholder="例：鑽石領袖 / 皇冠大使"
-                className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-hidden focus:border-rose-400"
-              />
+              <div className="flex items-center justify-between mb-0.5">
+                <label className="block font-bold text-slate-700 dark:text-slate-300">
+                  講師獎銜
+                </label>
+                {speakerRank !== '無' && (
+                  <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 px-2 py-0.5 rounded-md border border-rose-200/60 dark:border-rose-900/60">
+                    目前標記：{speakerRank}
+                  </span>
+                )}
+              </div>
+              <select
+                value={baseSpeakerRank}
+                onChange={e => handleBaseRankChange(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-hidden focus:border-rose-400 font-medium cursor-pointer"
+              >
+                {SPEAKER_RANK_OPTIONS.map(opt => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+
+              {/* 執行專才鑽石包含之後的獎銜，出現「GAR全球獎銜」勾選選項 */}
+              {GAR_ELIGIBLE_RANKS.includes(baseSpeakerRank) && (
+                <label className="flex items-center gap-2 mt-2 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-50 to-rose-50 dark:from-amber-950/30 dark:to-rose-950/30 border border-amber-300/80 dark:border-amber-800/60 cursor-pointer shadow-2xs hover:brightness-95 transition-all">
+                  <input
+                    type="checkbox"
+                    checked={isGarRank}
+                    onChange={e => setIsGarRank(e.target.checked)}
+                    className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 accent-rose-500 cursor-pointer"
+                  />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs sm:text-sm font-black text-amber-900 dark:text-amber-200">
+                      GAR全球獎銜
+                    </span>
+                    <span className="text-[11px] text-amber-700 dark:text-amber-400 font-semibold">
+                      (勾選後儲存與檔案名稱將加上 GAR，顯示為：GAR{baseSpeakerRank})
+                    </span>
+                  </div>
+                </label>
+              )}
             </div>
 
             <div>

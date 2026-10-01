@@ -1040,7 +1040,7 @@ export async function exportPersonalProfileCard(user: UserProfile): Promise<Blob
 
   ctx.font = 'bold 12px sans-serif';
   ctx.fillStyle = '#000000';
-  ctx.fillText('寰宇回聲 • 團隊專屬學習成長平台', padding, totalHeight - 26);
+  ctx.fillText('繁星的回聲 • 團隊專屬學習成長平台', padding, totalHeight - 26);
 
   ctx.font = '11px sans-serif';
   ctx.fillStyle = '#666666';
@@ -1055,15 +1055,15 @@ export async function exportPersonalProfileCard(user: UserProfile): Promise<Blob
  * Requirement 10: 呼叫行動裝置選單匯出個人圖卡 (JPEG 檔案)
  */
 export async function shareOrDownloadProfileCard(blob: Blob, userName: string) {
-  const filename = `寰宇回聲_${userName || '學員'}_個人圖卡.jpg`;
+  const filename = `繁星的回聲_${userName || '學員'}_個人圖卡.jpg`;
   const file = new File([blob], filename, { type: 'image/jpeg' });
 
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({
         files: [file],
-        title: '寰宇回聲 - 個人學員檔案圖卡',
-        text: `${userName} 的個人學員檔案圖卡（寰宇回聲）`
+        title: '繁星的回聲 - 個人學員檔案圖卡',
+        text: `${userName} 的個人學員檔案圖卡（繁星的回聲）`
       });
       return;
     } catch {

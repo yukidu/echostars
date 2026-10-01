@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Search, ChevronDown, Check, X, ShieldAlert, UploadCloud, Mic, ArrowDown, ArrowUp, Hash } from 'lucide-react';
 import {
   Track,
@@ -15,7 +15,8 @@ import {
   SortType,
   RANK_ORDER,
   AmwayRank,
-  PlayerDisplayMode
+  PlayerDisplayMode,
+  SPEAKER_RANK_OPTIONS
 } from './types';
 import {
   LIGHT_PALETTES,
@@ -271,9 +272,47 @@ export default function App() {
   // Filter & Search & Sort states (Requirement 18 & 19)
   const [selectedCategory, setSelectedCategory] = useState<string>('全部');
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [selectedSpeakerRank, setSelectedSpeakerRank] = useState<string>('全部');
+  const [isSpeakerRankDropdownOpen, setIsSpeakerRankDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // 講師獎銜篩選指標清單 (標準清單 + 現有曲目獎銜 + GAR全球獎銜)
+  const speakerRankFilterOptions = useMemo(() => {
+    const presentRanks = new Set<string>();
+    let hasGar = false;
+    tracks.forEach(t => {
+      const r = (t.speakerRank || '').trim();
+      if (r && r !== '無') {
+        presentRanks.add(r);
+        if (r.startsWith('GAR')) hasGar = true;
+      }
+    });
+
+    const list: string[] = ['全部'];
+    if (hasGar) {
+      list.push('GAR全球獎銜');
+    }
+
+    // Include standard options if present or in top list
+    SPEAKER_RANK_OPTIONS.forEach(opt => {
+      if (opt !== '無') {
+        if (presentRanks.has(opt) || !list.includes(opt)) {
+          if (!list.includes(opt)) list.push(opt);
+        }
+        if (presentRanks.has(`GAR${opt}`) && !list.includes(`GAR${opt}`)) {
+          list.push(`GAR${opt}`);
+        }
+      }
+    });
+
+    presentRanks.forEach(r => {
+      if (!list.includes(r)) list.push(r);
+    });
+
+    return list;
+  }, [tracks]);
 
   // Requirement 6 (v2.8): 多組網友關鍵字交叉複合搜尋 (Selected Keywords Chips)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
@@ -430,6 +469,32 @@ export default function App() {
       console.error('Failed to sync categories:', e);
     }
   };
+
+  // 任何情況下，只要按主選單的logo或網站名稱，就會返回到首頁播放清單的「全部分類」，清空搜尋條件
+  const handleReturnToHomePlaylist = useCallback(() => {
+    setCurrentTab('home');
+    setSelectedDetailTrack(null);
+    setSelectedCategory('全部');
+    setSelectedSpeakerRank('全部');
+    setIsSpeakerRankDropdownOpen(false);
+    setSearchQuery('');
+    setSelectedKeywords([]);
+    setIsCategoryDropdownOpen(false);
+    setIsSearchFocused(false);
+    setShowKeywordsDrawer(false);
+    setIsUploadOpen(false);
+    setIsAdminOpen(false);
+    setIsProfileOpen(false);
+    setIsChangelogOpen(false);
+    setIsShareOpen(false);
+    setIsBwExportOpen(false);
+    setCommentPreviewTrack(null);
+    setPreviewMember(null);
+    if (playerMode === 'expanded') {
+      setPlayerMode(savedPreferredMode);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [playerMode, savedPreferredMode, setPlayerMode]);
 
   // 1. Fetch initial data and purge stale offline tracks (> 2 weeks or finished)
   useEffect(() => {
@@ -1282,6 +1347,19 @@ export default function App() {
           if (!matchPrimary && !matchMultiple) return false;
         }
 
+        // 講師獎銜篩選指標
+        if (selectedSpeakerRank !== '全部') {
+          const trackRank = (t.speakerRank || '').trim();
+          if (selectedSpeakerRank === 'GAR全球獎銜') {
+            if (!trackRank.startsWith('GAR')) return false;
+          } else {
+            const cleanRank = trackRank.replace(/^GAR/, '');
+            if (trackRank !== selectedSpeakerRank && cleanRank !== selectedSpeakerRank) {
+              return false;
+            }
+          }
+        }
+
         // Multi-keyword intersection cross-search (Requirement 6)
         if (selectedKeywords.length > 0) {
           const allKeywords = [...(t.keywords || []), ...(t.tags || [])].map(k => k.toLowerCase().trim());
@@ -1346,7 +1424,7 @@ export default function App() {
         }
         return sortDirection === 'desc' ? -diff : diff;
       });
-  }, [tracks, selectedCategory, selectedKeywords, searchQuery, sortField, sortDirection]);
+  }, [tracks, selectedCategory, selectedSpeakerRank, selectedKeywords, searchQuery, sortField, sortDirection]);
 
   // Rated tracks by current user for BW export
   const userRatedTracks = useMemo(() => {
@@ -1408,24 +1486,26 @@ export default function App() {
       <Navbar
         currentTab={currentTab}
         onSelectTab={tab => {
-          setCurrentTab(tab);
           if (tab === 'home') {
-            setSelectedDetailTrack(null); // Requirement 2: 按工具列上的logo圖或網站標題，跳回首頁的播放清單
-            if (playerMode === 'expanded') setPlayerMode(savedPreferredMode);
-          } else if (tab === 'stats') {
-            setSelectedDetailTrack(null);
-            if (playerMode === 'expanded') setPlayerMode(savedPreferredMode);
-          } else if (tab === 'notifications') {
-            setSelectedDetailTrack(null);
-            if (playerMode === 'expanded') setPlayerMode(savedPreferredMode);
-          } else if (tab === 'upload') {
-            setIsUploadOpen(true);
-          } else if (tab === 'admin') {
-            setIsAdminOpen(true);
-          } else if (tab === 'profile') {
-            setIsProfileOpen(true);
+            handleReturnToHomePlaylist();
+          } else {
+            setCurrentTab(tab);
+            if (tab === 'stats') {
+              setSelectedDetailTrack(null);
+              if (playerMode === 'expanded') setPlayerMode(savedPreferredMode);
+            } else if (tab === 'notifications') {
+              setSelectedDetailTrack(null);
+              if (playerMode === 'expanded') setPlayerMode(savedPreferredMode);
+            } else if (tab === 'upload') {
+              setIsUploadOpen(true);
+            } else if (tab === 'admin') {
+              setIsAdminOpen(true);
+            } else if (tab === 'profile') {
+              setIsProfileOpen(true);
+            }
           }
         }}
+        onLogoClick={handleReturnToHomePlaylist}
         isDark={isDark}
         onToggleTheme={handleToggleTheme}
         onRandomPalette={handleRandomPalette}
@@ -1838,58 +1918,118 @@ export default function App() {
                 })}
               </div>
 
-              {/* Right: Category Dropdown (排在與排序同一列最右側，點擊畫面任意處離開選單) */}
-              <div className="relative shrink-0">
-                <button
-                  onClick={e => {
-                    e.stopPropagation();
-                    setIsCategoryDropdownOpen(prev => !prev);
-                  }}
-                  className="px-3 py-1 rounded-xl text-xs font-bold text-white flex items-center gap-1.5 shadow-2xs hover:brightness-105 transition-all"
-                  style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
-                  title="點擊展開分類選單"
-                >
-                  <span className="truncate max-w-[85px] sm:max-w-none">
-                    {selectedCategory === '全部' ? '全部分類' : selectedCategory}
-                  </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-white/90 shrink-0" />
-                </button>
+              {/* Right: Dropdowns (分類選單與講師獎銜指標篩選) */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* 1. 講師獎銜篩選下拉選單 */}
+                <div className="relative shrink-0">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      setIsSpeakerRankDropdownOpen(prev => !prev);
+                      setIsCategoryDropdownOpen(false);
+                    }}
+                    className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold text-white flex items-center gap-1 shadow-2xs hover:brightness-105 transition-all ${
+                      selectedSpeakerRank !== '全部' ? 'ring-2 ring-amber-300' : ''
+                    }`}
+                    style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+                    title="點擊依講師獎銜篩選"
+                  >
+                    <span className="truncate max-w-[70px] sm:max-w-none">
+                      {selectedSpeakerRank === '全部' ? '全部獎銜' : selectedSpeakerRank}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-white/90 shrink-0" />
+                  </button>
 
-                {/* Dropdown Menu with click outside backdrop */}
-                {isCategoryDropdownOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-30"
-                      onClick={() => setIsCategoryDropdownOpen(false)}
-                    />
-                    <div
-                      className="absolute right-0 top-full mt-1.5 z-40 w-36 rounded-2xl shadow-xl py-1 overflow-hidden border border-white/20 animate-in fade-in zoom-in-95 text-white"
-                      style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
-                      onClick={e => e.stopPropagation()}
-                    >
-                      {categoryOptions.map(cat => {
-                        const isSelected = selectedCategory === cat;
-                        return (
-                          <button
-                            key={cat}
-                            onClick={() => {
-                              setSelectedCategory(cat);
-                              setIsCategoryDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
-                              isSelected
-                                ? 'bg-white/25 text-white font-black'
-                                : 'text-white/90 hover:bg-white/15'
-                            }`}
-                          >
-                            <span>{cat}</span>
-                            {isSelected && <Check className="w-3.5 h-3.5 text-white font-bold" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
+                  {isSpeakerRankDropdownOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-30"
+                        onClick={() => setIsSpeakerRankDropdownOpen(false)}
+                      />
+                      <div
+                        className="absolute right-0 top-full mt-1.5 z-40 w-44 max-h-64 overflow-y-auto rounded-2xl shadow-xl py-1 border border-white/20 animate-in fade-in zoom-in-95 text-white scrollbar-thin"
+                        style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {speakerRankFilterOptions.map(rOpt => {
+                          const isSelected = selectedSpeakerRank === rOpt;
+                          return (
+                            <button
+                              key={rOpt}
+                              onClick={() => {
+                                setSelectedSpeakerRank(rOpt);
+                                setIsSpeakerRankDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition-colors ${
+                                isSelected
+                                  ? 'bg-white/25 text-white font-black'
+                                  : 'text-white/90 hover:bg-white/15'
+                              }`}
+                            >
+                              <span className="truncate">{rOpt === '全部' ? '全部獎銜' : rOpt}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-white font-bold shrink-0 ml-1" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* 2. Category Dropdown */}
+                <div className="relative shrink-0">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      setIsCategoryDropdownOpen(prev => !prev);
+                      setIsSpeakerRankDropdownOpen(false);
+                    }}
+                    className="px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold text-white flex items-center gap-1 shadow-2xs hover:brightness-105 transition-all"
+                    style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+                    title="點擊展開分類選單"
+                  >
+                    <span className="truncate max-w-[70px] sm:max-w-none">
+                      {selectedCategory === '全部' ? '全部分類' : selectedCategory}
+                    </span>
+                    <ChevronDown className="w-3.5 h-3.5 text-white/90 shrink-0" />
+                  </button>
+
+                  {/* Dropdown Menu with click outside backdrop */}
+                  {isCategoryDropdownOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-30"
+                        onClick={() => setIsCategoryDropdownOpen(false)}
+                      />
+                      <div
+                        className="absolute right-0 top-full mt-1.5 z-40 w-36 rounded-2xl shadow-xl py-1 overflow-hidden border border-white/20 animate-in fade-in zoom-in-95 text-white"
+                        style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {categoryOptions.map(cat => {
+                          const isSelected = selectedCategory === cat;
+                          return (
+                            <button
+                              key={cat}
+                              onClick={() => {
+                                setSelectedCategory(cat);
+                                setIsCategoryDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
+                                isSelected
+                                  ? 'bg-white/25 text-white font-black'
+                                  : 'text-white/90 hover:bg-white/15'
+                              }`}
+                            >
+                              <span>{cat}</span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-white font-bold" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1964,7 +2104,7 @@ export default function App() {
             >
               !
             </button>
-            <span>寰宇回聲 · 全功能音頻知識管理與互動平台</span>
+            <span>繁星的回聲 · 全功能音頻知識管理與互動平台</span>
           </div>
         </footer>
       </main>

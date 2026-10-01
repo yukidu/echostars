@@ -9,6 +9,7 @@ export type NavTab = 'home' | 'stats' | 'notifications' | 'profile' | 'upload' |
 interface NavbarProps {
   currentTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
+  onLogoClick?: () => void;
   isDark: boolean;
   onToggleTheme: () => void;
   onRandomPalette: () => void;
@@ -24,6 +25,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onSelectTab,
+  onLogoClick,
   isDark,
   onToggleTheme,
   onRandomPalette,
@@ -87,18 +89,27 @@ export const Navbar: React.FC<NavbarProps> = ({
     setIsMobileMenuOpen(false);
   };
 
+  const handleLogoClick = () => {
+    if (onLogoClick) {
+      onLogoClick();
+    } else {
+      handleMobileNav('home');
+    }
+    setIsMobileMenuOpen(false);
+  };
+
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/90 dark:bg-slate-900/90 border-b border-[var(--theme-border-subtle,#f1e7ea)] dark:border-slate-800 transition-colors shadow-xs relative overflow-hidden">
       {/* Requirement 4: 置頂主選單繁星閃爍特效 */}
       <TwinklingStars density="subtle" className="opacity-75 dark:opacity-90" />
 
       <div className="relative z-10 max-w-4xl mx-auto px-3 sm:px-6 h-13 sm:h-16 flex items-center justify-between">
-        {/* Brand Logo - Requirement 4: 點擊左上角麥克風圖或繁星的回聲，跳轉回到首頁的錄音播放清單 */}
+        {/* Brand Logo - 點擊左上角麥克風圖或繁星的回聲，返回首頁播放清單「全部分類」，清空搜尋條件 */}
         <button
           type="button"
-          onClick={() => handleMobileNav('home')}
+          onClick={handleLogoClick}
           className="flex items-center gap-2 sm:gap-2.5 text-left group focus:outline-hidden cursor-pointer"
-          title="返回首頁錄音播放清單"
+          title="返回首頁播放清單（全部分類）"
         >
           <div
             className="relative w-8 h-8 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center text-white shadow-md transition-transform group-hover:scale-105"
@@ -134,8 +145,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="hidden md:flex items-center gap-1 sm:gap-2">
           {/* Home */}
           <button
-            onClick={() => onSelectTab('home')}
-            title="首頁播放清單"
+            onClick={handleLogoClick}
+            title="首頁播放清單（全部分類）"
             className={`p-2 rounded-xl transition-all flex items-center justify-center ${
               currentTab === 'home'
                 ? 'bg-rose-100/90 dark:bg-slate-800 text-rose-700 dark:text-rose-300 shadow-xs font-bold'
@@ -372,7 +383,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       {isMobileMenuOpen && (
         <div className="md:hidden border-t border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg px-4 py-3 shadow-xl animate-in slide-in-from-top-2 space-y-1">
           <button
-            onClick={() => handleMobileNav('home')}
+            onClick={handleLogoClick}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
               currentTab === 'home'
                 ? 'bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold'

@@ -56,6 +56,51 @@ export const JOIN_REASONS = [
 
 export type JoinReason = typeof JOIN_REASONS[number];
 
+// 講師獎銜下拉選單標準選項 (包含統計與篩選指標)
+export const SPEAKER_RANK_OPTIONS = [
+  '無',
+  '銅章',
+  '銀章',
+  '金章',
+  '白金',
+  '紅寶石',
+  '創辦人白金',
+  '創辦人紅寶石',
+  '藍寶石',
+  '創辦人藍寶石',
+  '明珠',
+  '翡翠',
+  '創辦人翡翠',
+  '鑽石',
+  '創辦人鑽石',
+  '執行專才鑽石',
+  '創辦人執行專才鑽石',
+  '雙鑽石',
+  '創辦人雙鑽石',
+  '參鑽石',
+  '創辦人參鑽石',
+  '皇冠',
+  '創辦人皇冠',
+  '皇冠大使',
+  '創辦人皇冠大使'
+] as const;
+
+export type SpeakerRankOption = typeof SPEAKER_RANK_OPTIONS[number];
+
+// 執行專才鑽石包含之後的獎銜，可勾選「GAR全球獎銜」
+export const GAR_ELIGIBLE_RANKS: readonly string[] = [
+  '執行專才鑽石',
+  '創辦人執行專才鑽石',
+  '雙鑽石',
+  '創辦人雙鑽石',
+  '參鑽石',
+  '創辦人參鑽石',
+  '皇冠',
+  '創辦人皇冠',
+  '皇冠大使',
+  '創辦人皇冠大使'
+];
+
 // Requirement 1 (v2.2): 個人資料新欄位「什麼原因留在安麗？」
 export const STAY_REASONS = [
   '商業餐會',

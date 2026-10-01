@@ -241,6 +241,47 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
       .slice(0, 10);
   }, [tracks]);
 
+  // 2.1 講師獎銜分佈統計 (含 GAR全球獎銜指標)
+  const speakerRankStats = useMemo(() => {
+    const map: Record<string, { count: number; totalPlays: number; totalRating: number; ratedCount: number; isGar: boolean }> = {};
+    (tracks || []).forEach(t => {
+      const r = (t.speakerRank || '未設定').trim() || '未設定';
+      if (!map[r]) {
+        map[r] = {
+          count: 0,
+          totalPlays: 0,
+          totalRating: 0,
+          ratedCount: 0,
+          isGar: r.startsWith('GAR')
+        };
+      }
+      map[r].count += 1;
+      map[r].totalPlays += (t.playCount || 0);
+      if (t.rating) {
+        map[r].totalRating += t.rating;
+        map[r].ratedCount += 1;
+      }
+    });
+
+    return Object.entries(map)
+      .map(([rank, data]) => ({
+        rank,
+        count: data.count,
+        totalPlays: data.totalPlays,
+        avgRating: data.ratedCount > 0 ? (data.totalRating / data.ratedCount).toFixed(1) : '5.0',
+        isGar: data.isGar
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [tracks]);
+
+  const maxSpeakerRankCount = useMemo(() => {
+    return Math.max(1, ...speakerRankStats.map(s => s.count));
+  }, [speakerRankStats]);
+
+  const garTracksCount = useMemo(() => {
+    return (tracks || []).filter(t => (t.speakerRank || '').startsWith('GAR')).length;
+  }, [tracks]);
+
   // 3. 會員排行榜數據（個別統計，只顯示有數據的子選項）
   const totalUserCount = users.length;
 
@@ -886,6 +927,82 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+
+          {/* 4. 講師獎銜分佈統計指標 (含 GAR全球獎銜統計) */}
+          <div className="bg-white/90 dark:bg-slate-900/80 rounded-3xl p-5 border border-rose-100/60 dark:border-slate-800 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <Award className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      講師獎銜指標分佈統計
+                    </h3>
+                    {garTracksCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-100 to-rose-100 dark:from-amber-950 dark:to-rose-950 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-2xs">
+                        ★ GAR 全球獎銜：{garTracksCount} 首
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    各階級講師收錄曲目量、累計收聽播放次數與平均滿意星等
+                  </p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-slate-500 self-end sm:self-auto">
+                共 {speakerRankStats.length} 種講師獎銜
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {speakerRankStats.map(stat => (
+                <div
+                  key={stat.rank}
+                  className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2 ${
+                    stat.isGar
+                      ? 'bg-gradient-to-br from-amber-50/70 to-rose-50/50 dark:from-amber-950/30 dark:to-rose-950/20 border-amber-200 dark:border-amber-800/60'
+                      : 'bg-slate-50/90 dark:bg-slate-800/60 border-slate-100 dark:border-slate-700/80 hover:border-rose-200 dark:hover:border-rose-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span className={`text-xs font-black truncate ${stat.isGar ? 'text-amber-800 dark:text-amber-300' : 'text-slate-800 dark:text-slate-100'}`}>
+                      {stat.rank}
+                    </span>
+                    {stat.isGar && (
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-amber-500 text-white shrink-0">
+                        GAR
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                      <span>{stat.count} 首錄音</span>
+                      <span className="font-mono font-bold text-rose-600 dark:text-rose-400">
+                        {stat.totalPlays} 次播
+                      </span>
+                    </div>
+
+                    <div className="w-full bg-slate-200/80 dark:bg-slate-700/80 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${stat.isGar ? 'bg-amber-500' : 'bg-rose-500'}`}
+                        style={{ width: `${Math.max(8, Math.min(100, Math.round((stat.count / maxSpeakerRankCount) * 100)))}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 dark:border-slate-700/50 text-[10px] text-slate-400">
+                    <span className="flex items-center gap-0.5 text-amber-600 dark:text-amber-400 font-bold font-mono">
+                      ★ {stat.avgRating}
+                    </span>
+                    <span>均評</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
