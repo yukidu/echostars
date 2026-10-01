@@ -877,7 +877,7 @@ export async function exportPersonalProfileCard(user: UserProfile): Promise<Blob
   // Row 7: 電子信箱
   py += 24;
   ctx.fillText(`綁定信箱：${user.email || '-'}`, col1, py);
-  ctx.fillText(`系統權限：${user.role || (user.isContributor ? '貢獻者' : '寰宇家人')}`, col2, py);
+  ctx.fillText(`系統權限：${user.role || (user.isContributor ? '貢獻者' : '繁星家人')}`, col2, py);
 
   // Section 2: 生命靈數圖表 (Numerology Chart & 3x3 Grid)
   const numY = 448;

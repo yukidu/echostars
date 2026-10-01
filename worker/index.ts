@@ -216,7 +216,7 @@ const DEFAULT_USERS = [
     id: 'u-1',
     email: 'chen.ming@example.com',
     name: '陳銘耀',
-    role: '寰宇家人',
+    role: '繁星家人',
     amwayId: '20334455',
     phone: '0922-111-222',
     residence: '新北',
@@ -346,7 +346,7 @@ export default {
 
           const seqStr = String(nextSeq).padStart(5, '0');
 
-          const cleanSpeaker = ((formData.get('speaker') as string) || '').replace(/[\\/:*?"<>|#&+=\s]/g, '').trim() || '寰宇講師';
+          const cleanSpeaker = ((formData.get('speaker') as string) || '').replace(/[\\/:*?"<>|#&+=\s]/g, '').trim() || '繁星講師';
           const rawRank = ((formData.get('speakerRank') as string) || '').trim();
           const cleanRank = (rawRank && rawRank !== '無' && rawRank !== '公開')
             ? rawRank.replace(/[\\/:*?"<>|#&+=\s]/g, '').trim()
@@ -806,7 +806,7 @@ export default {
         const isOwner = cleanEmail === 'yukidu@gmail.com';
         const id = body.id || (isOwner ? 'u-admin' : `u-${Date.now()}`);
         const name = body.name || cleanEmail.split('@')[0];
-        const role = isOwner ? '超級管理員' : (body.role || '寰宇家人');
+        const role = isOwner ? '超級管理員' : (body.role || '繁星家人');
         const rank = isOwner ? '鑽石' : (body.rank || '無');
         const approvedRank = isOwner ? '鑽石' : (body.approvedRank || rank);
         const rankApproved = isOwner ? 1 : (body.rankApproved ? 1 : 0);

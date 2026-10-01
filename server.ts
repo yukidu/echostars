@@ -73,7 +73,7 @@ app.post('/api/r2/upload', uploadMiddleware.single('file') as any, async (req, r
     const seq = getNextAudioSequence();
     const seqStr = String(seq).padStart(5, '0');
 
-    const cleanSpeaker = (req.body.speaker || '').replace(/[\\/:*?"<>|#&+=\s]/g, '').trim() || '寰宇講師';
+    const cleanSpeaker = (req.body.speaker || '').replace(/[\\/:*?"<>|#&+=\s]/g, '').trim() || '繁星講師';
     const rawRank = (req.body.speakerRank || '').trim();
     const cleanRank = (rawRank && rawRank !== '無' && rawRank !== '公開')
       ? rawRank.replace(/[\\/:*?"<>|#&+=\s]/g, '').trim()
@@ -1017,7 +1017,7 @@ let users: UserProfile[] = [
     id: 'u-1',
     email: 'chen.ming@example.com',
     name: '陳銘耀',
-    role: '寰宇家人',
+    role: '繁星家人',
     amwayId: '20334455',
     phone: '0922-111-222',
     residence: '新北',
@@ -1048,7 +1048,7 @@ let users: UserProfile[] = [
     id: 'u-2',
     email: 'grace.lin@example.com',
     name: '林雅慧',
-    role: '寰宇家人',
+    role: '繁星家人',
     amwayId: '30445566',
     phone: '0933-444-555',
     residence: '臺中',
@@ -1079,7 +1079,7 @@ let users: UserProfile[] = [
     id: 'u-3',
     email: 'kevin.wu@example.com',
     name: '吳家豪',
-    role: '寰宇家人',
+    role: '繁星家人',
     amwayId: '40556677',
     phone: '0955-666-777',
     residence: '高雄',
@@ -1110,7 +1110,7 @@ let users: UserProfile[] = [
     id: 'u-4',
     email: 'shuting.chang@example.com',
     name: '張舒婷',
-    role: '寰宇家人',
+    role: '繁星家人',
     amwayId: '50667788',
     phone: '0966-777-888',
     residence: '臺北',
@@ -1141,7 +1141,7 @@ let users: UserProfile[] = [
     id: 'u-5',
     email: 'peijun.chang@example.com',
     name: '張佩君',
-    role: '寰宇家人',
+    role: '繁星家人',
     amwayId: '60778899',
     phone: '0977-888-999',
     residence: '臺北',
@@ -1172,7 +1172,7 @@ let users: UserProfile[] = [
     id: 'u-6',
     email: 'junjie.huang@example.com',
     name: '黃俊傑',
-    role: '寰宇家人',
+    role: '繁星家人',
     amwayId: '70889900',
     phone: '0988-123-456',
     residence: '臺中',
@@ -1203,7 +1203,7 @@ let users: UserProfile[] = [
     id: 'u-7',
     email: 'jianguo.hsu@example.com',
     name: '許建國',
-    role: '寰宇家人',
+    role: '繁星家人',
     amwayId: '80990011',
     phone: '0919-888-777',
     residence: '臺北',
@@ -1234,7 +1234,7 @@ let users: UserProfile[] = [
     id: 'u-8',
     email: 'xinyi.chen@example.com',
     name: '陳欣宜',
-    role: '寰宇家人',
+    role: '繁星家人',
     amwayId: '90112233',
     phone: '0932-555-666',
     residence: '高雄',
@@ -1265,7 +1265,7 @@ let users: UserProfile[] = [
     id: 'u-9',
     email: 'guanting.li@example.com',
     name: '李冠廷',
-    role: '寰宇家人',
+    role: '繁星家人',
     amwayId: '99223344',
     phone: '0928-333-222',
     residence: '新北',
@@ -2301,7 +2301,7 @@ app.put('/api/users/:id/admin-role', (req, res) => {
   }
 
   user.isAdminUser = !user.isAdminUser;
-  user.role = user.isAdminUser ? '獎銜審核員' : '寰宇家人';
+  user.role = user.isAdminUser ? '獎銜審核員' : '繁星家人';
   res.json(user);
 });
 
@@ -2366,7 +2366,7 @@ app.post('/api/playback/record', (req, res) => {
   playbackRecords[key] = {
     trackId,
     trackTitle: currentTrack?.title || prev.trackTitle || '演講錄音檔',
-    trackSpeaker: currentTrack?.speaker || prev.trackSpeaker || '寰宇講師',
+    trackSpeaker: currentTrack?.speaker || prev.trackSpeaker || '繁星講師',
     trackSpeakerRank: currentTrack?.speakerRank || prev.trackSpeakerRank || '',
     userIdOrDeviceId,
     currentTime,
@@ -2420,7 +2420,7 @@ app.get('/api/playback/history/:userIdOrDeviceId', (req, res) => {
       userRecords[v.trackId] = {
         ...v,
         trackTitle: track?.title || v.trackTitle || '演講錄音檔',
-        trackSpeaker: track?.speaker || v.trackSpeaker || '寰宇講師',
+        trackSpeaker: track?.speaker || v.trackSpeaker || '繁星講師',
         trackSpeakerRank: track?.speakerRank || v.trackSpeakerRank || '',
         isDeleted,
         comment: userComment?.content,

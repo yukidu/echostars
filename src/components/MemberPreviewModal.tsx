@@ -110,7 +110,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
     const track: Track = foundTrack || {
       id: rec.trackId,
       title: rec.trackTitle || '演講錄音檔',
-      speaker: rec.trackSpeaker || '寰宇講師',
+      speaker: rec.trackSpeaker || '繁星講師',
       speakerRank: rec.trackSpeakerRank || '鑽石',
       speakerAvatar: '',
       categories: ['未分類'],
