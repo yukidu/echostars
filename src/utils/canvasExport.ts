@@ -246,7 +246,7 @@ export async function exportRatedTracksImage(
   // Header Title
   ctx.font = 'bold 36px "PingFang TC", "Microsoft JhengHei", sans-serif';
   ctx.fillStyle = '#000000';
-  ctx.fillText('聲 藏 講 堂', padding, 95);
+  ctx.fillText('繁星回聲', padding, 95);
 
   ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#666666';
@@ -321,7 +321,7 @@ export async function exportRatedTracksImage(
 
   ctx.font = '12px sans-serif';
   ctx.fillStyle = '#888888';
-  ctx.fillText('聲藏講堂 • 專屬音訊知識庫互動平台', padding, totalHeight - 45);
+  ctx.fillText('繁星回聲 • 專屬音訊知識庫互動平台', padding, totalHeight - 45);
 
   return new Promise(resolve => {
     canvas.toBlob(blob => resolve(blob!), 'image/jpeg', 0.95);
@@ -361,7 +361,7 @@ export async function exportTrackCommentsImage(
   // Title
   ctx.font = 'bold 36px "PingFang TC", "Microsoft JhengHei", sans-serif';
   ctx.fillStyle = '#000000';
-  ctx.fillText('聲 藏 講 堂', padding, 95);
+  ctx.fillText('繁星回聲', padding, 95);
 
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#666666';
