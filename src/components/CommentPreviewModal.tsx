@@ -10,7 +10,8 @@ import {
   ShieldAlert,
   AtSign,
   Radio,
-  Mic
+  Mic,
+  Trash2
 } from 'lucide-react';
 import { Track, Comment, UserProfile } from '../types';
 import { VisitorIdentity } from '../utils/visitor';
@@ -27,6 +28,7 @@ interface CommentPreviewModalProps {
   tracks?: Track[];
   onViewMember?: (user: UserProfile) => void;
   onCommentAdded?: () => void;
+  onDeleteComment?: (commentId: string) => Promise<void>;
 }
 
 export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
@@ -40,8 +42,15 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
   initialComments = [],
   tracks = [],
   onViewMember,
-  onCommentAdded
+  onCommentAdded,
+  onDeleteComment
 }) => {
+  const canModerateComments =
+    isAdmin ||
+    currentUser?.isAdminUser === true ||
+    currentUser?.role === '管理員' ||
+    currentUser?.role === '超級管理員';
+
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [inputText, setInputText] = useState('');
@@ -427,6 +436,9 @@ const threads = commentThreads(comments);
               const renderSingleComment = (c: Comment, isReply = false) => {
                 const registeredAuthor = getRegisteredAuthor(c);
                 const isVisitor = !registeredAuthor;
+                const isAuthor = Boolean(c.authorEmail
+                  ? currentUser?.email && c.authorEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+                  : c.deviceId && visitor?.deviceId && c.deviceId === visitor.deviceId);
                 // Requirement 1 & 8: 未登入訪客名字刪除連結，不可點擊，不要出現資訊卡
                 const isClickable = Boolean(registeredAuthor);
                 const displayAuthorName = registeredAuthor?.name || c.authorName;
@@ -530,6 +542,25 @@ const threads = commentThreads(comments);
                           <Reply className="w-3 h-3" />
                           <span>回覆</span>
                         </button>
+
+                        {(canModerateComments || isAuthor) && onDeleteComment && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await onDeleteComment(c.id);
+                                setComments(prev => prev.filter(item => item.id !== c.id));
+                              } catch (error) {
+                                setErrorMsg(error instanceof Error ? error.message : '刪除心得失敗');
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                            title="刪除心得"
+                            aria-label="刪除心得"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
 

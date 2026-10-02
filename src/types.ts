@@ -4,7 +4,7 @@ export const RESIDENCE_OPTIONS = [
 ] as const;
 
 export const CENTER_OPTIONS = [
-  '無', '非繁星體系', '飛登', '南京', '自強', '明星', '民權', '中山', '桃園', '新竹', '台中',
+  '無', '非寰宇體系', '飛登', '南京', '自強', '明星', '民權', '中山', '桃園', '新竹', '台中',
   '彰化', '員林', '嘉義', '台南', '高雄', '屏東', '香港', '澳門', '中國', '美國',
   '澳洲', '加拿大', '英國', '義大利', '日本', '韓國', '馬來西亞', '泰國', '越南', '印尼'
 ] as const;
@@ -221,7 +221,7 @@ export interface UserProfile {
   amwayId?: string; // 安麗編號
   phone?: string; // 手機
   residence?: string; // 居住地
-  center?: string; // 繁星中心
+  center?: string; // 直銷商中心
   rank: AmwayRank; // 最高獎銜 (also reading permission level)
   role?: UserRole; // 系統權限角色
   systemGroup?: string; // 體系

@@ -18,6 +18,25 @@ export function getStoredPlayback(trackId: string): AudioMemory | null {
   return null;
 }
 
+export function clearStoredPlayback(trackIds?: string[]) {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (Array.isArray(trackIds) && trackIds.length > 0) {
+      trackIds.forEach(trackId => localStorage.removeItem(`${STORAGE_PLAYBACK_KEY}_${trackId}`));
+      return;
+    }
+    const prefix = `${STORAGE_PLAYBACK_KEY}_`;
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(prefix)) keys.push(key);
+    }
+    keys.forEach(key => localStorage.removeItem(key));
+  } catch {
+    // localStorage cleanup is best-effort.
+  }
+}
+
 export function saveStoredPlayback(trackId: string, currentTime: number, duration: number) {
   if (!duration || duration <= 0) return;
   const completed = currentTime >= duration - 3;

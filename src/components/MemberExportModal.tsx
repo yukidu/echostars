@@ -13,7 +13,7 @@ export const EXPORT_FIELD_OPTIONS = [
   { key: 'amwayId', label: '安麗編號', defaultSelected: true },
   { key: 'phone', label: '手機號碼', defaultSelected: true },
   { key: 'residence', label: '居住地', defaultSelected: true },
-  { key: 'center', label: '繁星中心', defaultSelected: true },
+  { key: 'center', label: '直銷商中心', defaultSelected: true },
   { key: 'rank', label: '最高獎銜', defaultSelected: true },
   { key: 'joinReason', label: '初次如何認識安麗？', defaultSelected: true },
   { key: 'stayReason', label: '什麼原因留在安麗？', defaultSelected: true },

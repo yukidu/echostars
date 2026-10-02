@@ -69,7 +69,7 @@ interface AdminModalProps {
     options?: { persist?: boolean }
   ) => Promise<void> | void;
   onSwitchToAdmin: () => void;
-  onCategoriesUpdated?: () => void;
+  onCategoriesUpdated?: (categories?: string[]) => void;
 }
 
 export const AdminModal: React.FC<AdminModalProps> = ({
@@ -194,9 +194,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         body: JSON.stringify({ name: newCatName.trim() })
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (Array.isArray(data?.categories)) setCategoryList(data.categories);
         setNewCatName('');
-        await loadCategories();
-        if (onCategoriesUpdated) onCategoriesUpdated();
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
       }
     } finally {
       setIsCatSubmitting(false);
@@ -215,9 +216,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         body: JSON.stringify({ newName: editingCatNew.trim() })
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (Array.isArray(data?.categories)) setCategoryList(data.categories);
         setEditingCatOld(null);
-        await loadCategories();
-        if (onCategoriesUpdated) onCategoriesUpdated();
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
       }
     } catch (e) {
       console.error(e);
@@ -230,8 +232,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         method: 'DELETE'
       });
       if (res.ok) {
-        await loadCategories();
-        if (onCategoriesUpdated) onCategoriesUpdated();
+        const data = await res.json().catch(() => ({}));
+        if (Array.isArray(data?.categories)) setCategoryList(data.categories);
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
       }
     } catch (e) {
       console.error(e);
@@ -580,7 +583,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   </button>
                 )}
               </div>
-              {/* Requirement 3: 5 Member Filter Dropdowns (所屬繁星中心、獎銜、上手鑽石、貢獻者、生命命數) */}
+              {/* Requirement 3: 5 Member Filter Dropdowns (所屬直銷商中心、獎銜、上手鑽石、貢獻者、生命命數) */}
               <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
@@ -603,10 +606,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                  {/* 1. 所屬繁星中心 */}
+                  {/* 1. 所屬直銷商中心 */}
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 mb-0.5">
-                      所屬繁星中心
+                      所屬直銷商中心
                     </label>
                     <ThemedSelect
                       value={filterCenter}
@@ -756,7 +759,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
                         <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-0.5">
-                          批次修改：所屬繁星中心
+                          批次修改：所屬直銷商中心
                         </label>
                         <ThemedSelect
                           value={batchCenter}
@@ -892,7 +895,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       </ThemedSelect>
                     </div>
                     <div>
-                      <label className="block text-slate-500 mb-0.5">所屬繁星中心</label>
+                      <label className="block text-slate-500 mb-0.5">所屬直銷商中心</label>
                       <ThemedSelect
                         value={userForm.center || '無'}
                         onChange={e => setUserForm({ ...userForm, center: e.target.value })}
@@ -1247,9 +1250,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                       <h4 className="font-bold text-xs text-slate-800 dark:text-slate-100">
                         新增與管理音檔分類標籤
                       </h4>
-                      <p className="text-[10px] text-slate-400">
-                        標籤將顯示於首頁分類篩選列，修改或刪除會同步所有關聯資料
-                      </p>
+
                     </div>
                   </div>
                   <span className="text-xs font-mono font-bold text-slate-500">
@@ -1514,9 +1515,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         各角色系統功能權限表
                       </h3>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      完整對比訪客、各級獎銜學員、獎銜審核員、貢獻者與超級管理員之操作權限，當前登入者權限以主色高亮顯示。
-                    </p>
+
                   </div>
 
                   {/* Legend - Requirement 3: 登入者有權限的豆豆改為主色系同色，其餘改為灰色 */}

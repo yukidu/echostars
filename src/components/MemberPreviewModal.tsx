@@ -154,7 +154,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
     setIsExporting(true);
     try {
       const blob = await exportMemberProfileAndListeningImage(liveUser, userListenedItems);
-      const filename = `聲藏講堂_${liveUser.name}_學習檔案.jpg`;
+      const filename = `繁星回聲_${liveUser.name}_學習檔案.jpg`;
       await shareOrDownloadImage(blob, filename, `${liveUser.name} 的學習與聆聽檔案`);
     } catch (err) {
       console.error('Export failed:', err);

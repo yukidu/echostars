@@ -324,7 +324,7 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
       .sort((a, b) => b.count - a.count);
   }, [users]);
 
-  // (3) 繁星中心 (僅顯示已有數據的選項)
+  // (3) 直銷商中心 (僅顯示已有數據的選項)
   const memberCenterStats = useMemo(() => {
     const map: Record<string, number> = {};
     users.forEach(u => {
@@ -1037,9 +1037,9 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
               'text-blue-500'
             )}
 
-            {/* 3. 繁星中心 */}
+            {/* 3. 直銷商中心 */}
             {renderStatBreakdownList(
-              '繁星中心歸屬',
+              '直銷商中心歸屬',
               <Building className="w-4 h-4" />,
               memberCenterStats.map(s => ({ label: s.name, count: s.count })),
               'text-emerald-500'

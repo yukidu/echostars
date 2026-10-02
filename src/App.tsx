@@ -29,6 +29,7 @@ import { getOrCreateVisitor, VisitorIdentity } from './utils/visitor';
 import {
   getStoredPlayback,
   saveStoredPlayback,
+  clearStoredPlayback,
   AudioMemory
 } from './utils/audio';
 import {
@@ -412,19 +413,38 @@ export default function App() {
   const [bwExportMode, setBwExportMode] = useState<'comments' | 'rated'>('comments');
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const [permissionAlert, setPermissionAlert] = useState<string | null>(null);
+  const [permissionAlertPosition, setPermissionAlertPosition] = useState<{ left: number; top: number } | null>(null);
+
+  const showPermissionAlert = useCallback((message: string, anchor?: HTMLElement | null) => {
+    setPermissionAlert(message);
+    if (!anchor || typeof window === 'undefined') {
+      setPermissionAlertPosition(null);
+      return;
+    }
+    const rect = anchor.getBoundingClientRect();
+    const maxWidth = Math.min(384, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(window.innerWidth - maxWidth - 8, rect.left + rect.width / 2 - maxWidth / 2));
+    const estimatedHeight = 150;
+    const top = rect.bottom + estimatedHeight + 12 <= window.innerHeight
+      ? rect.bottom + 8
+      : Math.max(8, rect.top - estimatedHeight - 8);
+    setPermissionAlertPosition({ left, top });
+  }, []);
 
   // Requirement 5: 分類標籤同步函數 (後台增刪改後首頁下拉選單同步更新)
-  const fetchCategories = async () => {
+  const fetchCategories = async (providedCategories?: string[]) => {
     try {
-      const cRes = await fetch('/api/categories');
-      if (cRes.ok) {
-        const cData = await cRes.json();
-        if (Array.isArray(cData)) {
-          const list = Array.from(new Set(['全部', ...cData]));
-          setCategoryOptions(list);
-          setSelectedCategory(prev => (list.includes(prev) ? prev : '全部'));
-          writeHomeCache(tracks, list, homeCacheValidatedAtRef.current || Date.now());
-        }
+      const cData = Array.isArray(providedCategories)
+        ? providedCategories
+        : await (async () => {
+            const cRes = await fetch('/api/categories');
+            return cRes.ok ? await cRes.json() : null;
+          })();
+      if (Array.isArray(cData)) {
+        const list = Array.from(new Set(['全部', ...cData]));
+        setCategoryOptions(list);
+        setSelectedCategory(prev => (list.includes(prev) ? prev : '全部'));
+        writeHomeCache(tracks, list, homeCacheValidatedAtRef.current || Date.now());
       }
     } catch (e) {
       console.error('Failed to sync categories:', e);
@@ -659,16 +679,17 @@ export default function App() {
   };
 
   // 2. Play / Select Track with Memory Resume & Fullscreen Loading
-  const handlePlayTrack = async (track: Track, targetMode?: PlayerDisplayMode) => {
+  const handlePlayTrack = async (track: Track, targetMode?: PlayerDisplayMode, permissionAnchor?: HTMLElement | null) => {
     // Requirement 11 (v2.7): 私秘VIP音檔播放守護
     if (track.isPrivateVip && !isTrackVipUnlocked(track)) {
-      setPermissionAlert('此錄音檔為【私密VIP】專屬內容，請向上傳者取得專屬授權連結後再播放。');
+      showPermissionAlert('此錄音檔為【私密VIP】專屬內容，請向上傳者取得專屬授權連結後再播放。', permissionAnchor);
       return;
     }
 
     if (!checkCanAccess(track)) {
-      setPermissionAlert(
-        `此錄音檔權限為【${track.requiredRank === '無' ? '公開' : track.requiredRank} 級別以上】。請先登入綁定 Google 帳號或向管理員提升職級！`
+      showPermissionAlert(
+        `此錄音檔權限為【${track.requiredRank === '無' ? '公開' : track.requiredRank} 級別以上】。請先登入綁定 Google 帳號或向管理員提升職級！`,
+        permissionAnchor
       );
       return;
     }
@@ -1052,10 +1073,21 @@ export default function App() {
   };
 
   // Delete Comment
-  const handleDeleteComment = async (commentId: string) => {
-    const targetTrack = selectedDetailTrack || currentTrack;
-    const res = await fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('只能修改自己的心得，或連線暫時失敗。');
+  const handleDeleteComment = async (commentId: string, explicitTrackId?: string) => {
+    const targetTrack =
+      (explicitTrackId ? tracks.find(track => track.id === explicitTrackId) : null) ||
+      selectedDetailTrack ||
+      currentTrack;
+    const res = await fetch(`/api/comments/${commentId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: currentUser?.id,
+        userEmail: currentUser?.email,
+        deviceId: visitor.deviceId
+      })
+    });
+    if (!res.ok) throw new Error('您沒有刪除此心得的權限，或連線暫時失敗。');
     if (res.ok) {
       setComments(prev => prev.filter(c => c.id !== commentId));
       setAllComments(prev => prev.filter(c => c.id !== commentId));
@@ -1281,6 +1313,31 @@ export default function App() {
 
   };
 
+  const handleClearListeningHistory = async () => {
+    if (!currentUser) return;
+    const identifier = currentUser.email || currentUser.id;
+    const res = await fetch(`/api/playback/history/${encodeURIComponent(identifier)}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || '清除學習紀錄失敗');
+    }
+    clearStoredPlayback(tracks.map(t => t.id));
+    setPlaybackMemories({});
+    setAllUsers(prev => prev.map(user =>
+      user.id === currentUser.id || user.email === currentUser.email
+        ? { ...user, playCount: 0 }
+        : user
+    ));
+    setCurrentUser(prev => prev ? { ...prev, playCount: 0 } : prev);
+    lastPlaybackSyncRef.current = { trackId: '', second: -1 };
+    if (audioRef.current && currentTrack) {
+      audioRef.current.currentTime = 0;
+      setCurrentTime(0);
+    }
+  };
+
   // Admin Actions
   const handleToggleBlockUser = (id: string) => updateMemberPermission(id,'block');
   const handleToggleContributor = (id: string) => updateMemberPermission(id,'contributor');
@@ -1330,7 +1387,26 @@ export default function App() {
     }
   };
 
-  // Requirement 19: 排序切換處理 (時間、評價、留言、按讚、演講人)，重複點選時遞增與遞減交替排序
+  const getUploadTimestamp = (value?: string | null) => {
+    const raw = String(value || '').trim();
+    if (!raw) return 0;
+    const normalized = raw.replace(/[.]/g, '/').replace(/-/g, '/');
+    const parts = normalized.match(/\d+/g)?.map(Number) || [];
+    if (parts.length >= 3) {
+      const [year, month, day, hour = 0, minute = 0, second = 0] = parts;
+      const ts = new Date(year, Math.max(0, month - 1), day, hour, minute, second).getTime();
+      if (Number.isFinite(ts)) return ts;
+    }
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const getUploadSequence = (track: Track) => {
+    const match = String(track.audioUrl || '').match(/ES(\d{4,})/i);
+    return match ? Number(match[1]) || 0 : 0;
+  };
+
+  // Requirement 19: 時間排序固定以「音檔上傳時間」為準。
   const handleSortClick = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(prev => (prev === 'desc' ? 'asc' : 'desc'));
@@ -1394,7 +1470,10 @@ export default function App() {
         let diff = 0;
         switch (sortField) {
           case '時間': {
-            diff = (a.uploadDate || '').localeCompare(b.uploadDate || '');
+            diff = getUploadTimestamp(a.uploadDate) - getUploadTimestamp(b.uploadDate);
+            // Legacy rows only stored YYYY/MM/DD. For same-day uploads, the
+            // durable ES sequence in the R2 audio filename preserves upload order.
+            if (diff === 0) diff = getUploadSequence(a) - getUploadSequence(b);
             break;
           }
           case '評價': {
@@ -1517,7 +1596,12 @@ export default function App() {
 
       {/* Permission Alert Toast */}
       {permissionAlert && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-md w-full px-4 animate-in fade-in slide-in-from-top-4">
+        <div
+          className="fixed z-[120] max-w-sm w-[calc(100vw-16px)] animate-in fade-in zoom-in-95"
+          style={permissionAlertPosition
+            ? { left: permissionAlertPosition.left, top: permissionAlertPosition.top }
+            : { left: '50%', top: 80, transform: 'translateX(-50%)' }}
+        >
           <div className="bg-amber-50 dark:bg-amber-950 border border-amber-300 dark:border-amber-800 rounded-2xl p-4 shadow-xl flex items-start gap-3">
             <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
@@ -1526,7 +1610,7 @@ export default function App() {
               <div className="mt-2.5 flex items-center gap-2">
                 <button
                   onClick={() => {
-                    setPermissionAlert(null);
+                    setPermissionAlert(null); setPermissionAlertPosition(null);
                     setIsProfileOpen(true);
                   }}
                   className="px-3 py-1 rounded-lg bg-amber-600 text-white font-bold text-xs"
@@ -1534,7 +1618,7 @@ export default function App() {
                   前往登入
                 </button>
                 <button
-                  onClick={() => setPermissionAlert(null)}
+                  onClick={() => { setPermissionAlert(null); setPermissionAlertPosition(null); }}
                   className="px-2.5 py-1 text-slate-500 hover:text-slate-800 text-xs"
                 >
                   關閉
@@ -1542,7 +1626,7 @@ export default function App() {
               </div>
             </div>
             <button
-              onClick={() => setPermissionAlert(null)}
+              onClick={() => { setPermissionAlert(null); setPermissionAlertPosition(null); }}
               className="p-1 text-amber-700 hover:text-amber-900"
             >
               <X className="w-4 h-4" />
@@ -1625,11 +1709,11 @@ export default function App() {
                   }
                   setPlayerMode(m);
                 }}
-                onTogglePlay={() => {
+                onTogglePlay={(anchor) => {
                   if (currentTrack?.id === activeTrack.id) {
                     handleTogglePlay();
                   } else {
-                    handlePlayTrack(activeTrack, savedPreferredMode);
+                    handlePlayTrack(activeTrack, savedPreferredMode, anchor);
                   }
                 }}
                 onSeek={(sec) => {
@@ -1654,7 +1738,7 @@ export default function App() {
                 onViewMember={user => setPreviewMember(user)}
                 onUpdateTrack={handleUpdateTrack}
                 isVipUnlocked={isTrackVipUnlocked(activeTrack)}
-                onVipBlocked={() => setPermissionAlert('此錄音檔為【私密VIP】專屬內容，請向上傳者取得專屬授權連結後再播放。')}
+                onVipBlocked={(anchor) => showPermissionAlert('此錄音檔為【私密VIP】專屬內容，請向上傳者取得專屬授權連結後再播放。', anchor)}
                 onEditTrack={t => {
                   setTrackToEdit(t);
                   setIsUploadOpen(true);
@@ -1885,7 +1969,7 @@ export default function App() {
             </div>
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
-            <div className="sort-toolbar relative left-1/2 -translate-x-1/2 grid grid-cols-6 gap-1 w-screen max-w-[100vw] px-1 sm:px-2 pt-0.5">
+            <div className={`sort-toolbar relative grid grid-cols-6 gap-1 w-[100dvw] max-w-[100dvw] left-1/2 -translate-x-1/2 px-2 pt-0.5 sm:w-full sm:max-w-none sm:left-auto sm:translate-x-0 sm:px-0 ${(isSpeakerRankDropdownOpen || isCategoryDropdownOpen) ? 'z-[100]' : 'z-20'}`}>
               {/* Four sort buttons + two filters share the full row at equal width. */}
               <div className="sort-options contents">
                 {(['時間', '評價', '留言', '演講人'] as SortField[]).map(field => {
@@ -1943,11 +2027,11 @@ export default function App() {
                   {isSpeakerRankDropdownOpen && (
                     <>
                       <div
-                        className="fixed inset-0 z-30"
+                        className="fixed inset-0 z-[90]"
                         onClick={() => setIsSpeakerRankDropdownOpen(false)}
                       />
                       <div
-                        className="absolute right-0 top-full mt-1.5 z-40 w-44 max-h-64 overflow-y-auto rounded-2xl shadow-xl py-1 border border-white/20 animate-in fade-in zoom-in-95 text-white scrollbar-thin"
+                        className="absolute right-0 top-full mt-1.5 z-[110] w-44 max-h-64 overflow-y-auto rounded-2xl shadow-xl py-1 border border-white/20 animate-in fade-in zoom-in-95 text-white scrollbar-thin"
                         style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                         onClick={e => e.stopPropagation()}
                       >
@@ -1998,11 +2082,11 @@ export default function App() {
                   {isCategoryDropdownOpen && (
                     <>
                       <div
-                        className="fixed inset-0 z-30"
+                        className="fixed inset-0 z-[90]"
                         onClick={() => setIsCategoryDropdownOpen(false)}
                       />
                       <div
-                        className="absolute right-0 top-full mt-1.5 z-40 w-36 rounded-2xl shadow-xl py-1 overflow-hidden border border-white/20 animate-in fade-in zoom-in-95 text-white"
+                        className="absolute right-0 top-full mt-1.5 z-[110] w-36 rounded-2xl shadow-xl py-1 overflow-hidden border border-white/20 animate-in fade-in zoom-in-95 text-white"
                         style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                         onClick={e => e.stopPropagation()}
                       >
@@ -2070,15 +2154,15 @@ export default function App() {
                         setSelectedDetailTrack(track);
                         setPlayerMode('expanded');
                       }}
-                      onTogglePlay={() => {
+                      onTogglePlay={(anchor) => {
                         if (track.isPrivateVip && !isVipUnlocked) {
-                          setPermissionAlert('此錄音檔為【私密VIP】專屬內容，請向上傳者取得專屬授權連結後再播放。');
+                          showPermissionAlert('此錄音檔為【私密VIP】專屬內容，請向上傳者取得專屬授權連結後再播放。', anchor);
                           return;
                         }
                         if (isCurrent) {
                           handleTogglePlay();
                         } else {
-                          handlePlayTrack(track, savedPreferredMode);
+                          handlePlayTrack(track, savedPreferredMode, anchor);
                         }
                       }}
                       onRate={score => handleRateTrack(track.id, score)}
@@ -2131,6 +2215,7 @@ export default function App() {
             setPlayerMode(m);
           }}
           onScrollToTop={() => { window.scrollTo({top:0,behavior:'smooth'}); document.getElementById('detail-view-container')?.scrollTo({top:0,behavior:'smooth'}); }}
+          onReturnHome={handleReturnToHomePlaylist}
           onTogglePlay={handleTogglePlay}
           onSeek={handleSeek}
           onSkip={handleSkip}
@@ -2149,6 +2234,7 @@ export default function App() {
         allUsers={allUsers}
         tracks={tracks}
         onViewMember={user => setPreviewMember(user)}
+        onDeleteComment={(commentId) => handleDeleteComment(commentId, commentPreviewTrack?.id)}
         onCommentAdded={async () => {
           hasFetchedAllCommentsRef.current = false;
           if (commentPreviewTrack) {
@@ -2271,6 +2357,7 @@ export default function App() {
           setCurrentTab('home');
         }}
         onRateTrack={(trackId, score) => handleRateTrack(trackId, score)}
+        onClearListeningHistory={handleClearListeningHistory}
       />
       </Suspense>}
 
