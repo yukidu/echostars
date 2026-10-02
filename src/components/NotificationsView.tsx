@@ -437,7 +437,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                         />
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] text-slate-400">
-                            發送後將自動寫入該音檔心得收穫並從通知移除
+                            發送後將自動寫入該音檔的心得收穫區並從通知移除
                           </span>
                           <div className="flex items-center gap-1.5">
                             <button
@@ -475,7 +475,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
 
                     {quickReplySuccessId === m.comment.id && (
                       <div className="mt-2 text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 animate-in fade-in">
-                        <Check className="w-3.5 h-3.5" /> 已成功送出回覆！已同步至該音檔心得收穫。
+                        <Check className="w-3.5 h-3.5" /> 已成功送出回覆！已同步至該音檔的心得收穫區。
                       </div>
                     )}
               </div>
