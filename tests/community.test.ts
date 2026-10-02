@@ -112,11 +112,44 @@ test('comments are bound to URL track, return raw content, preserve replies and 
   assert.equal(like.data.hasLiked, true);
   const edit = await call(db, '/api/comments/' + reply.data.id, 'PUT', { content: '修正回覆', deviceId: 'd-1' });
   assert.equal(edit.data.content, '修正回覆');
-  await call(db, '/api/comments/' + comment.data.id, 'DELETE');
+  await call(db, '/api/comments/' + comment.data.id, 'DELETE', { deviceId: 'd-1' });
   const remaining = (await call(db, '/api/tracks/t-test/comments')).data;
   assert.equal(remaining.length, 1);
   assert.equal(remaining[0].replyToId, null);
   assert.equal((await call(db, '/api/tracks')).data[0].commentsCount, 1);
+  db.sqlite.close();
+});
+
+test('regular admins can delete visitor comments but not registered-member comments', async () => {
+  const db = database();
+  await call(db, '/api/tracks');
+  await call(db, '/api/users/google-sync', 'POST', { email: 'admin@example.com', name: '管理員' });
+  db.sqlite.exec("UPDATE users SET isAdminUser = 1, role = '管理員' WHERE email = 'admin@example.com'");
+
+  const visitorComment = await call(db, '/api/tracks/t-test/comments', 'POST', {
+    authorName: '訪客',
+    deviceId: 'guest-device',
+    content: '訪客心得'
+  });
+  const memberComment = await call(db, '/api/tracks/t-test/comments', 'POST', {
+    authorName: '會員',
+    authorEmail: 'member@example.com',
+    deviceId: 'member-device',
+    content: '會員心得'
+  });
+
+  assert.equal(
+    (await call(db, '/api/comments/' + visitorComment.data.id, 'DELETE', { userEmail: 'admin@example.com' })).status,
+    200
+  );
+  assert.equal(
+    (await call(db, '/api/comments/' + memberComment.data.id, 'DELETE', { userEmail: 'admin@example.com' })).status,
+    403
+  );
+  assert.equal(
+    (await call(db, '/api/comments/' + memberComment.data.id, 'DELETE', { userEmail: 'member@example.com' })).status,
+    200
+  );
   db.sqlite.close();
 });
 
