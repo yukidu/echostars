@@ -877,6 +877,78 @@ export default function App() {
     setSelectedDetailTrack(prev => prev?.id === trackId ? change(prev) : prev);
   };
 
+  // One-time v3.3 repair for legacy tracks that were all stored as 10 minutes.
+  // Runs only for the super admin, sequentially and after home data exists.
+  useEffect(() => {
+    if (!isSuperAdmin || durationRepairStartedRef.current || tracks.length === 0) return;
+
+    const candidates = tracks.filter(t =>
+      Boolean(t.audioUrl) &&
+      ((Number(t.durationSeconds) === 600) || t.duration === '約 10 分鐘')
+    );
+    if (candidates.length === 0) return;
+
+    durationRepairStartedRef.current = true;
+    let cancelled = false;
+
+    const readRemoteDuration = (url: string): Promise<number> =>
+      new Promise((resolve, reject) => {
+        const probe = document.createElement('audio');
+        const timer = window.setTimeout(() => {
+          probe.removeAttribute('src');
+          reject(new Error('duration metadata timeout'));
+        }, 12000);
+        probe.preload = 'metadata';
+        probe.onloadedmetadata = () => {
+          window.clearTimeout(timer);
+          const seconds = Number.isFinite(probe.duration) ? Math.round(probe.duration) : 0;
+          probe.removeAttribute('src');
+          seconds > 0 ? resolve(seconds) : reject(new Error('invalid duration'));
+        };
+        probe.onerror = () => {
+          window.clearTimeout(timer);
+          probe.removeAttribute('src');
+          reject(new Error('duration metadata failed'));
+        };
+        probe.src = url;
+      });
+
+    void (async () => {
+      for (const track of candidates) {
+        if (cancelled) break;
+        try {
+          const seconds = await readRemoteDuration(track.audioUrl);
+          if (cancelled) break;
+          const label = `約 ${Math.max(1, Math.round(seconds / 60))} 分鐘`;
+
+          const res = await fetch(`/api/tracks/${encodeURIComponent(track.id)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              durationSeconds: seconds,
+              duration: label,
+              userEmail: currentUser?.email
+            })
+          });
+          if (res.ok) {
+            updateTrackCopies(track.id, t => ({
+              ...t,
+              durationSeconds: seconds,
+              duration: label
+            }));
+          }
+        } catch {
+          // A single unsupported/corrupt audio file must not stop the repair queue.
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 150));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdmin, tracks.length]);
+
   const handleTrackInteraction = async (trackId: string, action: 'like' | 'rate', score?: number) => {
     const pendingKey = trackId;
     if (pendingInteractions.current.has(pendingKey)) return;
