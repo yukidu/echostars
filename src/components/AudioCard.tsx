@@ -73,10 +73,6 @@ export const AudioCard: React.FC<AudioCardProps> = ({
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (track.isPrivateVip && !isVipUnlocked) {
-      alert('此音檔為私秘VIP專屬，請聯絡上傳者給您專屬連結');
-      return;
-    }
     if (onTogglePlay) onTogglePlay();
   };
 
@@ -156,11 +152,11 @@ export const AudioCard: React.FC<AudioCardProps> = ({
               {speakerDisplay}
             </p>
 
-            <div className="grid grid-cols-3 gap-1 mt-1.5 w-full overflow-hidden">
+            <div className="flex flex-nowrap items-center gap-1 mt-1.5 w-full overflow-hidden">
               {categories.slice(0, 3).map((cat, idx) => (
                 <span
                   key={idx}
-                  className="min-w-0 text-[9px] sm:text-[10px] font-semibold px-1 py-0.5 rounded-md border text-center truncate whitespace-nowrap"
+                  className="inline-flex w-fit max-w-[33%] shrink-0 text-[9px] sm:text-[10px] font-semibold px-1.5 py-0.5 rounded-md border text-center truncate whitespace-nowrap"
                   style={{
                     backgroundColor: 'var(--color-light-pill, #fae8ed)',
                     color: 'var(--color-primary, #c06c84)',
@@ -174,7 +170,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
             </div>
           </div>
 
-          <div className="mt-auto pt-2.5 space-y-2 border-t border-slate-100 dark:border-slate-800 pr-0">
+          <div className="mt-auto pt-2.5 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:gap-4 border-t border-slate-100 dark:border-slate-800 pr-0">
             {/* Enlarged rating row */}
             <div
               className="flex items-center flex-nowrap gap-[2px] min-w-0"
@@ -210,7 +206,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
             </div>
 
             {/* Enlarged feedback + likes row */}
-            <div className="flex items-center gap-3 sm:gap-4 text-sm text-slate-600 dark:text-slate-400">
+            <div className="flex items-center gap-3 sm:gap-4 text-sm text-slate-600 dark:text-slate-400 sm:ml-auto">
               <button
                 type="button"
                 onClick={e => {
