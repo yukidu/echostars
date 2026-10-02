@@ -1062,7 +1062,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <div className="space-y-2">
                   {userComments.length === 0 ? (
                     <div className="text-center py-8 text-slate-400">
-                      您尚未在任何演講下心得
+                      您尚未在任何演講下留下心得
                     </div>
                   ) : (
                     userComments.map(c => {
