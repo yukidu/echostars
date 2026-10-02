@@ -328,6 +328,12 @@ export default function App() {
 
   // Audio Playback Engine
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Prevent HTMLAudioElement "timeupdate" from sending duplicate progress requests
+  // multiple times during the same 15-second checkpoint.
+  const lastPlaybackSyncRef = useRef<{ trackId: string; second: number }>({
+    trackId: '',
+    second: -1
+  });
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [selectedDetailTrack, setSelectedDetailTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -693,8 +699,17 @@ export default function App() {
     // Offline space management: auto purge if >95% completed
     handleTrackProgressOffline(currentTrack.id, cur, dur);
 
-    // Sync to backend periodically
-    if (Math.floor(cur) % 15 === 0) {
+    // Sync to backend at most once for each 15-second checkpoint.
+    // "timeupdate" fires several times per second, so checking only second % 15
+    // would otherwise send duplicate requests throughout the same second.
+    const wholeSecond = Math.floor(cur);
+    const isSyncCheckpoint = wholeSecond > 0 && wholeSecond % 15 === 0;
+    const lastSync = lastPlaybackSyncRef.current;
+    if (
+      isSyncCheckpoint &&
+      (lastSync.trackId !== currentTrack.id || lastSync.second !== wholeSecond)
+    ) {
+      lastPlaybackSyncRef.current = { trackId: currentTrack.id, second: wholeSecond };
       const idKey = currentUser ? currentUser.email : visitor.deviceId;
       fetch('/api/playback/record', {
         method: 'POST',
