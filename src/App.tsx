@@ -1073,8 +1073,11 @@ export default function App() {
   };
 
   // Delete Comment
-  const handleDeleteComment = async (commentId: string) => {
-    const targetTrack = selectedDetailTrack || currentTrack;
+  const handleDeleteComment = async (commentId: string, explicitTrackId?: string) => {
+    const targetTrack =
+      (explicitTrackId ? tracks.find(track => track.id === explicitTrackId) : null) ||
+      selectedDetailTrack ||
+      currentTrack;
     const res = await fetch(`/api/comments/${commentId}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -2223,6 +2226,7 @@ export default function App() {
         allUsers={allUsers}
         tracks={tracks}
         onViewMember={user => setPreviewMember(user)}
+        onDeleteComment={(commentId) => handleDeleteComment(commentId, commentPreviewTrack?.id)}
         onCommentAdded={async () => {
           hasFetchedAllCommentsRef.current = false;
           if (commentPreviewTrack) {
