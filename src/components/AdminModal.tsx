@@ -63,7 +63,11 @@ interface AdminModalProps {
   onToggleBlockUser: (userId: string) => Promise<void>;
   onDeleteTrack: (trackId: string) => Promise<void>;
   onEditTrack: (track: Track) => void;
-  onUpdateTrack?: (trackId: string, updates: Partial<Track>) => Promise<void> | void;
+  onUpdateTrack?: (
+    trackId: string,
+    updates: Partial<Track>,
+    options?: { persist?: boolean }
+  ) => Promise<void> | void;
   onSwitchToAdmin: () => void;
   onCategoriesUpdated?: () => void;
 }
