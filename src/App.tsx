@@ -1023,7 +1023,21 @@ export default function App() {
       pendingInteractions.current.delete(pendingKey);
     }
   };
-  const handleRateTrack = (trackId: string, score: number) => handleTrackInteraction(trackId, 'rate', score);
+  const handleRateTrack = async (trackId: string, score: number) => {
+    const track = tracks.find(t => t.id === trackId);
+    if (!track) return;
+    if (track.isPrivateVip && !isTrackVipUnlocked(track)) {
+      showPermissionAlert('此錄音檔為【私密VIP】專屬內容，未解鎖前無法評價。');
+      return;
+    }
+    if (!checkCanAccess(track)) {
+      showPermissionAlert(
+        `此錄音檔權限為【${track.requiredRank === '無' ? '公開' : track.requiredRank} 級別以上】。沒有閱讀權限時無法評價。`
+      );
+      return;
+    }
+    await handleTrackInteraction(trackId, 'rate', score);
+  };
   const handleToggleLike = (trackId: string) => handleTrackInteraction(trackId, 'like');
 
   // Add Comment (Requirement 3 & 6: 支持最大化視窗與通知頁直接快速回覆留言)
@@ -1705,6 +1719,7 @@ export default function App() {
                 currentUser={currentUser}
                 isAdmin={isAdmin}
                 userRating={activeRating}
+                canRate={checkCanAccess(activeTrack) && isTrackVipUnlocked(activeTrack)}
                 hasLiked={hasLikedActive}
                 progressMemory={playbackMemories[activeTrack.id]}
                 playerMode={playerMode}
