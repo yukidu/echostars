@@ -1,7 +1,7 @@
 import { uploadedAudioKey } from '../shared/r2Files';
 import { shareMetadata } from '../shared/shareMetadata';
 /**
- * Cloudflare Workers Entry Point for 繁星的回聲 (Echoes of Stars)
+ * Cloudflare Workers Entry Point for 繁星回聲 (Echoes of Stars)
  * 架構: Cloudflare Workers + D1 資料庫 + R2 物件儲存 + KV 快取
  */
 
