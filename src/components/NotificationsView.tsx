@@ -50,13 +50,13 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   // Requirement 1: 不要讓訪客看見「通知頁」的審核人員的名字
   const isVisitor = !currentUser || (currentUser as any).isVisitor || !currentUser.email;
 
-  // Quick reply state (Requirement 6: 可以快速回覆或點選跳轉到該留言)
+  // Quick reply state (Requirement 6: 可以快速回覆或點選跳轉到該心得)
   const [replyingCommentId, setReplyingCommentId] = useState<string | null>(null);
   const [quickReplyText, setQuickReplyText] = useState('');
   const [isQuickReplying, setIsQuickReplying] = useState(false);
   const [quickReplySuccessId, setQuickReplySuccessId] = useState<string | null>(null);
 
-  // Requirement 6 (v2.6): 用戶已按「快速回覆」或已按「跳轉留言」的按鈕之後，則該通知會從通知頁自動消失
+  // Requirement 6 (v2.6): 用戶已按「快速回覆」或已按「跳轉心得」的按鈕之後，則該通知會從通知頁自動消失
   const [dismissedMentionIds, setDismissedMentionIds] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -82,7 +82,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     setInternalComments(prev => prev.filter(c => c.id !== commentId));
   };
 
-  // Requirement 6 (v2.4): 本地即時 comments 狀態，確保首頁快速留言與全站留言即時出現在通知中
+  // Requirement 6 (v2.4): 本地即時 comments 狀態，確保首頁快速心得與全站心得即時出現在通知中
   const [internalComments, setInternalComments] = useState<Comment[]>(comments);
 
   const fetchLatestComments = async () => {
@@ -107,8 +107,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     }
   }, [comments]);
 
-  // Requirement 3 & 4 (v2.2) & Requirement 5 & 6 (v2.4): 置頂主選單「通知」頁面，「被標記的留言」置頂排第一位
-  // 修復首頁快速留言被 @ 或 ＠ 標記時未出現在通知的問題
+  // Requirement 3 & 4 (v2.2) & Requirement 5 & 6 (v2.4): 置頂主選單「通知」頁面，「被標記的心得」置頂排第一位
+  // 修復首頁快速心得被 @ 或 ＠ 標記時未出現在通知的問題
   const mentionNotifications = useMemo(() => {
     const list = internalComments && internalComments.length > 0 ? internalComments : comments;
     if (!list || list.length === 0) return [];
@@ -117,7 +117,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     return list
       .filter(c => {
         if (!c.content) return false;
-        // Requirement 6 (v2.6 & v2.7): 已按快速回覆或跳轉留言則自動消失
+        // Requirement 6 (v2.6 & v2.7): 已按快速回覆或跳轉心得則自動消失
         if (dismissedMentionIds.includes(c.id)) return false;
 
         // Exclude own comments so user's quick reply doesn't appear as a notification for themselves!
@@ -126,7 +126,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
           (c.authorName && currentUser?.name && c.authorName.toLowerCase().trim() === currentUser.name.toLowerCase().trim());
         if (isSelf) return false;
 
-        // 包含半形 @ 或全形 ＠ 標記之留言
+        // 包含半形 @ 或全形 ＠ 標記之心得
         return c.content.includes('@') || c.content.includes('＠');
       })
       .map(c => {
@@ -157,10 +157,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
         }
         return (b.createdAt || 0) - (a.createdAt || 0);
       })
-      .slice(0, 100); // Requirement 3: 保留前100則留言
+      .slice(0, 100); // Requirement 3: 保留前100則心得
   }, [internalComments, comments, currentUser, tracks, users, dismissedMentionIds]);
 
-  // Requirement 5 (v2.4): 刪除「所有通知」，預設為「被標記的留言」('mentions')
+  // Requirement 5 (v2.4): 刪除「所有通知」，預設為「被標記的心得」('mentions')
   const [filterType, setFilterType] = useState<'mentions' | 'pending' | 'approved'>('mentions');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [modifiedRank, setModifiedRank] = useState<AmwayRank>('3%');
@@ -237,7 +237,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
           </div>
         </div>
 
-        {/* Filter Tabs - Requirement 5 (v2.4): 把「@被標記的留言」分頁移到第一位，刪除「所有通知」分頁，整排選項左右更緊密排列，窄螢幕自動縮小字體 */}
+        {/* Filter Tabs - Requirement 5 (v2.4): 把「@被標記的心得」分頁移到第一位，刪除「所有通知」分頁，整排選項左右更緊密排列，窄螢幕自動縮小字體 */}
         <div className="grid grid-cols-3 gap-1 sm:gap-1.5 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 w-full text-[10px] sm:text-xs">
           <button
             type="button"
@@ -249,7 +249,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
             }`}
           >
             <AtSign className="w-3 h-3 shrink-0 stroke-[2.5]" />
-            <span className="truncate">@被標記留言</span>
+            <span className="truncate">@被標記心得</span>
             <span className={`px-1.5 py-0.2 rounded-full text-[9px] sm:text-[10px] shrink-0 font-bold ${
               filterType === 'mentions' ? 'bg-white text-rose-600' : 'bg-rose-500 text-white'
             }`}>
@@ -303,7 +303,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
 
       {/* Notification List */}
       <div className="space-y-2">
-        {/* TAB 1: 被標記的留言 - Requirement 6 (v2.5): 緊密排版，刪除左上角重複出現的「＠標記了你」標題 */}
+        {/* TAB 1: 被標記的心得 - Requirement 6 (v2.5): 緊密排版，刪除左上角重複出現的「＠標記了你」標題 */}
         {filterType === 'mentions' &&
           mentionNotifications.map(m => {
             const displayAuthorName = m.authorUser?.name || m.comment.authorName;
@@ -391,10 +391,10 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                         onSelectTrack(m.track!, m.comment.id);
                       }}
                       className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-rose-500 to-amber-500 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs hover:brightness-105 active:scale-95 transition-all cursor-pointer"
-                      title="跳轉到該錄音檔與留言位置，並從通知頁移除"
+                      title="跳轉到該錄音檔與心得位置，並從通知頁移除"
                     >
                       <Play className="w-2.5 h-2.5 fill-white" />
-                      <span>跳轉留言</span>
+                      <span>跳轉心得</span>
                     </button>
                   )}
 
@@ -409,7 +409,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                       }
                     }}
                     className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/70 dark:hover:bg-rose-900/80 text-rose-700 dark:text-rose-300 font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer border border-rose-200/60 dark:border-rose-900/60"
-                    title="在通知頁面直接快速回覆該留言"
+                    title="在通知頁面直接快速回覆該心得"
                   >
                     <Reply className="w-2.5 h-2.5" />
                     <span>快速回覆</span>
@@ -437,7 +437,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
                         />
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[10px] text-slate-400">
-                            發送後將自動寫入該音檔留言板並從通知移除
+                            發送後將自動寫入該音檔心得收穫並從通知移除
                           </span>
                           <div className="flex items-center gap-1.5">
                             <button
@@ -475,7 +475,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
 
                     {quickReplySuccessId === m.comment.id && (
                       <div className="mt-2 text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1 animate-in fade-in">
-                        <Check className="w-3.5 h-3.5" /> 已成功送出回覆！已同步至該音檔留言板。
+                        <Check className="w-3.5 h-3.5" /> 已成功送出回覆！已同步至該音檔心得收穫。
                       </div>
                     )}
               </div>
@@ -486,7 +486,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
           mentionNotifications.length === 0 && (
             <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 text-slate-400 text-xs space-y-1">
               <MessageSquare className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-              <p>目前尚無被 @ 或 ＠ 標記的留言紀錄</p>
+              <p>目前尚無被 @ 或 ＠ 標記的心得紀錄</p>
             </div>
           )
         ) : displayUserList.length === 0 ? (
