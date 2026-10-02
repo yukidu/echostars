@@ -28,6 +28,22 @@ export interface VersionLog {
   removed: string[];
 }
 
+const sanitizeChangelogText = (value: unknown) =>
+  String(value ?? '')
+    .replaceAll('聲藏講堂', '繁星回聲')
+    .replaceAll('聲 藏 講 堂', '繁星回聲')
+    .replaceAll('繁星的回聲', '繁星回聲')
+    .replaceAll('繁星中心', '直銷商中心')
+    .replaceAll('非繁星體系', '非寰宇體系');
+
+const sanitizeVersionLog = (log: VersionLog): VersionLog => ({
+  ...log,
+  summary: sanitizeChangelogText(log.summary),
+  added: (log.added || []).map(sanitizeChangelogText),
+  modified: (log.modified || []).map(sanitizeChangelogText),
+  removed: (log.removed || []).map(sanitizeChangelogText)
+});
+
 export const DEFAULT_CHANGELOG_DATA: VersionLog[] = [
   {
     version: 'v3.5',
@@ -46,14 +62,14 @@ export const DEFAULT_CHANGELOG_DATA: VersionLog[] = [
       '首頁排序與篩選列：手機直向使用螢幕最大寬度置中，橫向與桌機維持與音檔資訊卡同寬。',
       '管理員與超級管理員可刪除訪客心得，後端同時驗證刪除權限。',
       '我的個人學習卡改用與其他會員學習檔案卡完全相同的匯出版型。',
-      '全站「繁星中心」統一改為「直銷商中心」，「非繁星體系」改為「非寰宇體系」。',
+      '全站中心稱呼統一為「直銷商中心」，體系外身分統一為「非寰宇體系」。',
       '後台數據中心、權限表、分類標籤標題保留但移除冗長說明；網友關鍵字管理區移除標題與備註，只保留搜尋框。',
       '音檔上傳分類標籤修改／刪除補齊後端 API，並直接使用回傳結果更新畫面，避免修改後再多做一次 D1 讀取。',
       '音檔瀏覽權限精簡為公開、3%、9%、15%、銀章、白金級、翡翠級、鑽石級，仍依個人基本資料獎銜順序判斷以上權限。',
       '演講者照片庫縮小顯示，編輯音檔時可直接改選 R2 中其他演講者照片。'
     ],
     removed: [
-      '移除全站殘留的舊品牌「聲藏講堂」文字。',
+      '移除全站殘留的舊品牌文字，網站名稱全面統一為「繁星回聲」。',
       '移除後台指定區塊的長篇功能說明文字與網友關鍵字管理標題。'
     ]
   },
@@ -429,12 +445,13 @@ export const ChangelogModal: React.FC<ChangelogModalProps> = ({
 
             // Start from shipped history so newly released versions are always visible.
             for (const log of DEFAULT_CHANGELOG_DATA) {
-              byVersion.set(log.version, { ...log, isLatest: false });
+              byVersion.set(log.version, { ...sanitizeVersionLog(log), isLatest: false });
             }
 
             // Merge server-edited history without losing shipped additions.
-            for (const persisted of data as VersionLog[]) {
-              if (!persisted?.version) continue;
+            for (const persistedRaw of data as VersionLog[]) {
+              if (!persistedRaw?.version) continue;
+              const persisted = sanitizeVersionLog(persistedRaw);
               const shipped = byVersion.get(persisted.version);
               if (shipped) {
                 byVersion.set(persisted.version, {
@@ -468,8 +485,9 @@ export const ChangelogModal: React.FC<ChangelogModalProps> = ({
       } catch (e) {
         console.error('Failed to load changelog from server:', e);
       }
-      setChangelogList(DEFAULT_CHANGELOG_DATA);
-      setSelectedVersion(DEFAULT_CHANGELOG_DATA[0].version);
+      const sanitizedDefaults = DEFAULT_CHANGELOG_DATA.map(sanitizeVersionLog);
+      setChangelogList(sanitizedDefaults);
+      setSelectedVersion(sanitizedDefaults[0].version);
     }
 
     if (isOpen) {
@@ -541,7 +559,7 @@ export const ChangelogModal: React.FC<ChangelogModalProps> = ({
   // Reset to default
   const handleResetToDefault = () => {
     if (confirm('確定要還原為系統預設的改版歷程文字嗎？')) {
-      setChangelogList(DEFAULT_CHANGELOG_DATA);
+      setChangelogList(DEFAULT_CHANGELOG_DATA.map(sanitizeVersionLog));
     }
   };
 
