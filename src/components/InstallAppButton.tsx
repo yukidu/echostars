@@ -359,7 +359,11 @@ export function InstallAppButton({
 
       {showIOSInstallGuide && !installed && (
         <div
-          className="fixed inset-0 z-[230] flex items-center justify-center p-4 bg-black/55 backdrop-blur-[1px]"
+          className="fixed inset-0 z-[230] flex items-start justify-center overflow-y-auto bg-black/60 px-3 backdrop-blur-[1px]"
+          style={{
+            paddingTop: 'max(12px, env(safe-area-inset-top))',
+            paddingBottom: 'max(12px, env(safe-area-inset-bottom))'
+          }}
           onClick={() => setShowIOSInstallGuide(false)}
         >
           <section
@@ -367,49 +371,97 @@ export function InstallAppButton({
             aria-modal="true"
             aria-label="在 iPhone 或 iPad 安裝繁星回聲"
             onClick={event => event.stopPropagation()}
-            className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-5"
+            className="my-auto flex w-full max-w-md min-h-0 max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="font-black text-base text-slate-900 dark:text-slate-100">
-                加入主畫面
-              </h3>
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 dark:border-slate-800 sm:px-5">
+              <div>
+                <h3 className="font-black text-base text-slate-900 dark:text-slate-100 sm:text-lg">
+                  iPhone／iPad 安裝繁星回聲
+                </h3>
+                <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:text-xs">
+                  依照下面步驟加入主畫面，之後就能像 App 一樣直接開啟。
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowIOSInstallGuide(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                 aria-label="關閉"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="mt-4 space-y-2.5">
-              <div className="flex items-center gap-3 rounded-2xl bg-slate-100 dark:bg-slate-800 px-3.5 py-3">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary,#c06c84)] text-sm font-black text-white">
-                  1
-                </span>
-                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                  點瀏覽器的「分享」按鈕（□↑）
-                </span>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5">
+              <div className="space-y-2.5">
+                {[
+                  {
+                    n: '1',
+                    title: '開啟分享選單',
+                    detail: '在 Safari 點工具列的「分享」圖示（方框上方有向上箭頭：□↑）。iPad 通常在畫面上方，iPhone 依 Safari 版本可能在上方或下方。'
+                  },
+                  {
+                    n: '2',
+                    title: '找到「加入主畫面」',
+                    detail: '分享選單打開後往下捲，找到「加入主畫面」。'
+                  },
+                  {
+                    n: '3',
+                    title: '如果沒有看到這個選項',
+                    detail: '繼續向下滑分享選單；部分版本可點「編輯動作」，把「加入主畫面」加入常用動作後再選它。'
+                  },
+                  {
+                    n: '4',
+                    title: '確認 App 名稱',
+                    detail: '進入預覽後，名稱請保留「繁星回聲」。圖示與網址會由網站自動帶入。'
+                  },
+                  {
+                    n: '5',
+                    title: '完成加入',
+                    detail: '點右上角的「加入」。系統會把「繁星回聲」圖示放到主畫面。'
+                  },
+                  {
+                    n: '6',
+                    title: '從主畫面開啟',
+                    detail: '之後直接點主畫面的「繁星回聲」圖示開啟，會以獨立 App 畫面顯示，不需要再從瀏覽器網址進入。'
+                  }
+                ].map(step => (
+                  <div
+                    key={step.n}
+                    className="rounded-2xl bg-slate-100 px-3.5 py-3 dark:bg-slate-800"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary,#c06c84)] text-sm font-black text-white">
+                        {step.n}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-slate-800 dark:text-slate-100">
+                          {step.title}
+                        </p>
+                        <p className="mt-1 text-xs font-medium leading-relaxed text-slate-600 dark:text-slate-300 sm:text-[13px]">
+                          {step.detail}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center gap-3 rounded-2xl bg-slate-100 dark:bg-slate-800 px-3.5 py-3">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary,#c06c84)] text-sm font-black text-white">
-                  2
-                </span>
-                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                  選擇「加入主畫面」，再按「加入」
-                </span>
+
+              <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3.5 py-3 text-xs font-bold leading-relaxed text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
+                提醒：iOS／iPadOS 的 Chrome、Edge 等瀏覽器同樣使用 Apple 的系統分享選單；如果畫面上沒有「加入主畫面」，可改用 Safari 開啟本網站後再依上面步驟操作。
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowIOSInstallGuide(false)}
-              className="mt-4 w-full rounded-2xl px-4 py-3 text-sm font-black text-white"
-              style={{ backgroundColor: 'var(--color-primary,#c06c84)' }}
-            >
-              知道了
-            </button>
+            <div className="shrink-0 border-t border-slate-100 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 sm:px-5">
+              <button
+                type="button"
+                onClick={() => setShowIOSInstallGuide(false)}
+                className="w-full rounded-2xl px-4 py-3 text-sm font-black text-white"
+                style={{ backgroundColor: 'var(--color-primary,#c06c84)' }}
+              >
+                知道了
+              </button>
+            </div>
           </section>
         </div>
       )}
