@@ -983,6 +983,9 @@ export default function App() {
   }, [isSuperAdmin, tracks.length]);
 
   const handleTrackInteraction = async (trackId: string, action: 'like' | 'rate', score?: number) => {
+    // Rating is intentionally 1~5 only. Zero used to mean "cancel", which could
+    // drop a single-rating track to 0.0; ignore invalid/legacy zero submissions.
+    if (action === 'rate' && (!Number.isInteger(score) || (score as number) < 1 || (score as number) > 5)) return;
     const pendingKey = trackId;
     if (pendingInteractions.current.has(pendingKey)) return;
     const track = tracks.find(t => t.id === trackId);
@@ -996,10 +999,12 @@ export default function App() {
     if (hasLiked) likedBy.push(identifier);
     keys.forEach(k => delete ratings[k]);
     if (score) ratings[identifier] = score;
-    const scores = Object.values(ratings);
+    const scores = Object.values(ratings)
+      .map(value => Number(value))
+      .filter(value => Number.isFinite(value) && value >= 1 && value <= 5);
     const optimistic = action === 'like'
       ? { likedBy, likes: Math.max(0, (track.likes || 0) + (hasLiked ? 1 : -1)) }
-      : { ratings, ratingCount: scores.length, rating: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10 : 0 };
+      : { ratings, ratingCount: scores.length, rating: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10 : track.rating };
     pendingInteractions.current.add(pendingKey);
     updateTrackCopies(trackId, t => ({ ...t, ...optimistic }));
     try {
