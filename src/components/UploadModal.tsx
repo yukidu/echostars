@@ -508,6 +508,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     setIsUploading(true);
     setErrorMessage(null);
     setUploadStatusText('準備上傳中...');
+    const resolvedSpeaker = speaker.trim() || '特邀講師';
 
     try {
       let finalAudioUrl = trackToEdit?.audioUrl || '';
@@ -518,7 +519,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         const audioFormData = new FormData();
         audioFormData.append('file', audioFile);
         audioFormData.append('title', title.trim());
-        audioFormData.append('speaker', speaker.trim());
+        audioFormData.append('speaker', resolvedSpeaker);
         audioFormData.append('speakerRank', speakerRank.trim());
         audioFormData.append('fileType', 'audio');
         const uploadAudioRes = await fetch('/api/r2/upload', {
@@ -548,7 +549,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         const coverFormData = new FormData();
         coverFormData.append('file', coverFile);
         coverFormData.append('title', title.trim());
-        coverFormData.append('speaker', speaker.trim());
+        coverFormData.append('speaker', resolvedSpeaker);
         coverFormData.append('speakerRank', speakerRank.trim());
         coverFormData.append('fileType', 'cover');
         const uploadCoverRes = await fetch('/api/r2/upload', {
@@ -561,7 +562,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             finalCoverUrl = uploadCoverData.url;
             const nextItem: CoverLibraryItem = {
               key: uploadCoverData.key || '',
-              name: speaker.trim() || '未命名講者',
+              name: resolvedSpeaker,
               url: uploadCoverData.url
             };
             setCoverLibrary(prev => [nextItem, ...prev.filter(item => item.url !== nextItem.url)]);
@@ -588,7 +589,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
       const payload = {
         title: title.trim(),
-        speaker: speaker.trim() || '特邀講師',
+        speaker: resolvedSpeaker,
         speakerRank: speakerRank.trim() || '無',
         speakerAvatar: finalCoverUrl,
         categories: selectedCategories.slice(0, 3),
