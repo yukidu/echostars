@@ -651,7 +651,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   };
 
   return (
-    <div className="app-modal-overlay fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+    <div className="app-modal-overlay upload-modal-overlay fixed inset-0 z-[160] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl border border-rose-100/60 dark:border-slate-800 my-6">
         {/* Header - Requirement 20: 統一底色與麥克風相同色 */}
         <div
