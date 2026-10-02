@@ -79,6 +79,7 @@ export const DEFAULT_CHANGELOG_DATA: VersionLog[] = [
       'PWA 版本更新改為完全靜默：移除「繁星回聲有新版本，是否現在重新開啟套用更新？」確認視窗；新 Service Worker 仍會在背景下載與啟用，但不彈窗、不強制重新整理、不打斷播放，於下次自然重新整理或重新開啟時套用新版。',
       '修復 iPad／iPhone 點「安裝到桌面」永久停在「正在準備系統安裝…」：iOS/iPadOS 不再等待不會出現的 beforeinstallprompt，改為立即顯示兩步「分享 → 加入主畫面」精簡提示；standalone 開啟時仍自動顯示已安裝。Android／桌面 Chromium 的原生一鍵安裝流程維持不變。',
       'iOS／iPadOS 安裝教學重新排版：教學視窗限制在 100dvh 可視範圍、上下保留 safe-area，標題與「知道了」固定可見，中間步驟可獨立捲動，避免 iPad Safari 工具列造成上緣截斷。教學擴充為 6 步，包含分享、加入主畫面、找不到選項時的處理、確認名稱、加入與從主畫面開啟。',
+      '修復詳細音檔「分享錄音」在只開啟詳細頁、尚未開始播放時無反應：分享視窗改用目前詳細音檔優先，不再依賴 currentTrack。新增瀏覽器 History API 站內導覽：桌機上一頁可由詳細頁／排行榜／通知回到前一個站內畫面；手機與 standalone App 在首頁加入安全歷史層，上一頁不再直接退出 App 或離開／關閉分頁。',
       'PWA 安裝與說明流程完全在瀏覽器端完成，不呼叫網站 API，不增加 Workers、D1、KV 或 R2 寫入。'
     ],
     removed: [
