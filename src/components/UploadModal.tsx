@@ -488,14 +488,18 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       if (id3.year && !speechDate) setSpeechDate(id3.year);
       if (id3.track && !seriesOrder) setSeriesOrder(`第 ${id3.track} 集`);
       if (id3.pictureBlob && !coverPreview) {
-        const extension = id3.pictureExtension || 'jpg';
-        const embeddedCoverFile = new File(
-          [id3.pictureBlob],
-          `embedded-cover.${extension}`,
-          { type: id3.pictureMimeType || id3.pictureBlob.type || 'image/jpeg' }
-        );
-        setCoverFile(embeddedCoverFile);
-        setCoverPreview(id3.pictureUrl || URL.createObjectURL(embeddedCoverFile));
+        if (id3.pictureBlob.size <= 10 * 1024 * 1024) {
+          const extension = id3.pictureExtension || 'jpg';
+          const embeddedCoverFile = new File(
+            [id3.pictureBlob],
+            `embedded-cover.${extension}`,
+            { type: id3.pictureMimeType || id3.pictureBlob.type || 'image/jpeg' }
+          );
+          setCoverFile(embeddedCoverFile);
+          setCoverPreview(id3.pictureUrl || URL.createObjectURL(embeddedCoverFile));
+        } else {
+          setErrorMessage('音檔內嵌封面超過 10MB，請另外選擇較小的封面圖。');
+        }
       } else if (id3.pictureUrl && !coverPreview) {
         // Backward-compatible preview path if an older parser only returns a URL.
         setCoverPreview(id3.pictureUrl);
