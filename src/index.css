@@ -56,9 +56,10 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .sort-toolbar { flex-wrap: wrap; gap: .5rem; }
   .sort-toolbar .sort-options { flex-basis: 100%; flex-wrap: wrap; overflow: visible; }
   .sort-toolbar button { min-height: 44px; }
-  .audio-card .track-actions { flex-wrap: wrap; overflow: visible; gap: .375rem; }
+  .audio-card .track-actions { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; gap: .125rem; }
+  .audio-card .track-actions > span { display: none; }
   .track-actions button { min-height: 44px; }
-  .track-actions .rating-star { width: 28px; min-height: 44px; display: grid; place-items: center; }
+  .track-actions .rating-star { width: clamp(18px, 5vw, 24px); min-height: 44px; display: grid; place-items: center; }
   .track-actions svg { width: 18px; height: 18px; }
   .track-actions .reaction-button { min-width: 44px; gap: .25rem; }
 }

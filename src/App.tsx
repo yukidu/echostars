@@ -1,3 +1,4 @@
+import { baseSpeakerRank } from './utils/ranks';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -253,40 +254,12 @@ export default function App() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // 講師獎銜篩選指標清單 (標準清單 + 現有曲目獎銜 + GAR全球獎銜)
+  // Display base ranks only; founder and GAR variants belong to the same base rank.
   const speakerRankFilterOptions = useMemo(() => {
-    const presentRanks = new Set<string>();
-    let hasGar = false;
-    tracks.forEach(t => {
-      const r = (t.speakerRank || '').trim();
-      if (r && r !== '無') {
-        presentRanks.add(r);
-        if (r.startsWith('GAR')) hasGar = true;
-      }
-    });
-
-    const list: string[] = ['全部'];
-    if (hasGar) {
-      list.push('GAR全球獎銜');
-    }
-
-    // Include standard options if present or in top list
-    SPEAKER_RANK_OPTIONS.forEach(opt => {
-      if (opt !== '無') {
-        if (presentRanks.has(opt) || !list.includes(opt)) {
-          if (!list.includes(opt)) list.push(opt);
-        }
-        if (presentRanks.has(`GAR${opt}`) && !list.includes(`GAR${opt}`)) {
-          list.push(`GAR${opt}`);
-        }
-      }
-    });
-
-    presentRanks.forEach(r => {
-      if (!list.includes(r)) list.push(r);
-    });
-
-    return list;
+    const ranks = [...SPEAKER_RANK_OPTIONS, ...tracks.map(t => t.speakerRank || '')]
+      .map(baseSpeakerRank)
+      .filter(rank => rank && rank !== '無' && rank !== '全球獎銜');
+    return ['全部', ...new Set(ranks)];
   }, [tracks]);
 
   // Requirement 6 (v2.8): 多組網友關鍵字交叉複合搜尋 (Selected Keywords Chips)
@@ -1114,18 +1087,7 @@ export default function App() {
           if (!matchPrimary && !matchMultiple) return false;
         }
 
-        // 講師獎銜篩選指標
-        if (selectedSpeakerRank !== '全部') {
-          const trackRank = (t.speakerRank || '').trim();
-          if (selectedSpeakerRank === 'GAR全球獎銜') {
-            if (!trackRank.startsWith('GAR')) return false;
-          } else {
-            const cleanRank = trackRank.replace(/^GAR/, '');
-            if (trackRank !== selectedSpeakerRank && cleanRank !== selectedSpeakerRank) {
-              return false;
-            }
-          }
-        }
+        if (selectedSpeakerRank !== '全部' && baseSpeakerRank(t.speakerRank || '') !== selectedSpeakerRank) return false;
 
         // Multi-keyword intersection cross-search (Requirement 6)
         if (selectedKeywords.length > 0) {
