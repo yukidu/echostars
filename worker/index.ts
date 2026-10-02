@@ -108,10 +108,28 @@ export default {
           // 00001 = 系統自動編號序號，+ 符號不顯示，- 符號保留顯示
           let nextSeq = 1;
           if (env.KV) {
-            const currentSeqStr = await env.KV.get('AUDIO_SEQUENCE_COUNTER');
-            const currentSeq = currentSeqStr ? parseInt(currentSeqStr, 10) : 0;
-            nextSeq = (isNaN(currentSeq) ? 0 : currentSeq) + 1;
-            await env.KV.put('AUDIO_SEQUENCE_COUNTER', String(nextSeq));
+            try {
+              const currentSeqStr = await env.KV.get('AUDIO_SEQUENCE_COUNTER');
+              const currentSeq = currentSeqStr ? parseInt(currentSeqStr, 10) : 0;
+              nextSeq = (isNaN(currentSeq) ? 0 : currentSeq) + 1;
+              try {
+                await env.KV.put('AUDIO_SEQUENCE_COUNTER', String(nextSeq));
+              } catch (kvWriteError) {
+                // KV write quota exhaustion must not block an otherwise valid R2 upload.
+                // Keep the sequence calculated from the last persisted counter and continue.
+                console.warn('KV audio sequence write skipped; continuing upload:', kvWriteError);
+              }
+            } catch (kvReadError) {
+              console.warn('KV audio sequence read failed; falling back to D1:', kvReadError);
+              if (env.DB) {
+                try {
+                  const res = await env.DB.prepare('SELECT COUNT(*) as count FROM tracks').first();
+                  nextSeq = ((res?.count as number) || 0) + 1;
+                } catch {
+                  nextSeq = 1;
+                }
+              }
+            }
           } else if (env.DB) {
             try {
               const res = await env.DB.prepare('SELECT COUNT(*) as count FROM tracks').first();
@@ -549,11 +567,9 @@ export default {
           }
         }
 
-        if (env.KV) {
-          try {
-            await env.KV.put(`playback_rec:${key}`, JSON.stringify(record));
-          } catch {}
-        }
+        // Playback progress is already persisted in D1 above.
+        // Do not duplicate the same high-frequency progress write into Workers KV:
+        // KV writes are quota-limited and this endpoint is called repeatedly during playback.
 
         return jsonResponse({ success: true, record });
       }
