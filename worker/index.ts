@@ -479,7 +479,7 @@ export default {
             id,
             duration: normalizedDuration,
             durationSeconds: normalizedDurationSeconds,
-            uploadDate: body.uploadDate || new Date().toISOString().split('T')[0],
+            uploadDate: body.uploadDate || new Date().toISOString(),
             categories: cleanCategories,
             keywords: cleanKeywords,
             rating: typeof body.rating === 'number' ? body.rating : 5.0,
