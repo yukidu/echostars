@@ -29,6 +29,16 @@ const isIOSFamily = () => {
   );
 };
 
+const getIOSBrowserKind = () => {
+  if (!isIOSFamily() || typeof navigator === 'undefined') return 'other';
+
+  const ua = navigator.userAgent || '';
+  if (/CriOS/i.test(ua)) return 'chrome';
+  if (/EdgiOS/i.test(ua)) return 'edge';
+  if (/FxiOS/i.test(ua)) return 'firefox';
+  return 'safari';
+};
+
 declare global {
   interface Window {
     __ECHOSTARS_INSTALL_PROMPT__?: InstallEvent | null;
@@ -416,10 +426,14 @@ export function InstallAppButton({
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 dark:border-slate-800 sm:px-5">
               <div>
                 <h3 className="font-black text-base text-slate-900 dark:text-slate-100 sm:text-lg">
-                  iPhone／iPad 安裝繁星回聲
+                  {getIOSBrowserKind() === 'safari'
+                    ? 'iPhone／iPad 安裝繁星回聲'
+                    : '請使用 Safari 安裝繁星回聲'}
                 </h3>
                 <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:text-xs">
-                  依照下面步驟加入主畫面，之後就能像 App 一樣直接開啟。
+                  {getIOSBrowserKind() === 'safari'
+                    ? '只要 2 步驟即可加入主畫面。'
+                    : 'iOS 上的 Chrome／Edge 無法一鍵安裝，請改用 Safari。'}
                 </p>
               </div>
               <button
@@ -434,38 +448,32 @@ export function InstallAppButton({
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5">
               <div className="space-y-2.5">
-                {[
-                  {
-                    n: '1',
-                    title: '開啟分享選單',
-                    detail: '在 Safari 點工具列的「分享」圖示（方框上方有向上箭頭：□↑）。iPad 通常在畫面上方，iPhone 依 Safari 版本可能在上方或下方。'
-                  },
-                  {
-                    n: '2',
-                    title: '找到「加入主畫面」',
-                    detail: '分享選單打開後往下捲，找到「加入主畫面」。'
-                  },
-                  {
-                    n: '3',
-                    title: '如果沒有看到這個選項',
-                    detail: '繼續向下滑分享選單；部分版本可點「編輯動作」，把「加入主畫面」加入常用動作後再選它。'
-                  },
-                  {
-                    n: '4',
-                    title: '確認 App 名稱',
-                    detail: '進入預覽後，名稱請保留「繁星回聲」。圖示與網址會由網站自動帶入。'
-                  },
-                  {
-                    n: '5',
-                    title: '完成加入',
-                    detail: '點右上角的「加入」。系統會把「繁星回聲」圖示放到主畫面。'
-                  },
-                  {
-                    n: '6',
-                    title: '從主畫面開啟',
-                    detail: '之後直接點主畫面的「繁星回聲」圖示開啟，會以獨立 App 畫面顯示，不需要再從瀏覽器網址進入。'
-                  }
-                ].map(step => (
+                {(getIOSBrowserKind() === 'safari'
+                  ? [
+                      {
+                        n: '1',
+                        title: '點「分享」',
+                        detail: '點 Safari 工具列的分享圖示（方框上方有向上箭頭：□↑）。'
+                      },
+                      {
+                        n: '2',
+                        title: '加入主畫面',
+                        detail: '選「加入主畫面」，再按右上角「加入」即可完成。'
+                      }
+                    ]
+                  : [
+                      {
+                        n: '1',
+                        title: '改用 Safari 開啟',
+                        detail: '複製目前網址，改用 Safari 開啟「繁星回聲」。'
+                      },
+                      {
+                        n: '2',
+                        title: '加入主畫面',
+                        detail: '在 Safari 點「分享」→「加入主畫面」→右上角「加入」。'
+                      }
+                    ]
+                ).map(step => (
                   <div
                     key={step.n}
                     className="rounded-2xl bg-slate-100 px-3.5 py-3 dark:bg-slate-800"
@@ -485,10 +493,6 @@ export function InstallAppButton({
                     </div>
                   </div>
                 ))}
-              </div>
-
-              <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-3.5 py-3 text-xs font-bold leading-relaxed text-sky-800 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200">
-                提醒：iOS／iPadOS 的 Chrome、Edge 等瀏覽器同樣使用 Apple 的系統分享選單；如果畫面上沒有「加入主畫面」，可改用 Safari 開啟本網站後再依上面步驟操作。
               </div>
             </div>
 
