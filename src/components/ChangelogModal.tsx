@@ -72,6 +72,7 @@ export const DEFAULT_CHANGELOG_DATA: VersionLog[] = [
       '依實機回報回復今天下午已成功產生 App 的 PWA 核心：Manifest 還原為簡潔 standalone 結構、Service Worker 恢復立即 skipWaiting／clients.claim，移除 related_applications、launch_handler、getInstalledRelatedApps 與 1.5 秒等待閘門；並在 React 載入前提前保存原生 beforeinstallprompt，避免錯過系統安裝事件。',
       '再修正「安裝到桌面」按下無反應：移除會殘留的舊 localStorage 已安裝判斷，改以 standalone 與 Chromium 已安裝 PWA 自我偵測判斷；已安裝顯示「已安裝」，可安裝顯示「可安裝」。若原生安裝事件尚未就緒，按鈕會開啟精簡準備視窗並重新確認 Service Worker，不再無聲返回。',
       '桌機與橫式行動裝置在主選單不使用漢堡選單時，直接顯示「安裝到桌面」。首頁新手教學改為 Logo、訪客、第一張音檔照片三個焦點同時顯示，新增「註冊會員紀錄學習進度」提示；三個提示框錯開、整頁遮罩加深，並共用畫面中央唯一一組「永遠不再提醒」與「知道了」。',
+      '依手機、平板、桌機實機畫面重新美化三個新手提示：提示框縮窄並允許自然換行，改為貼近各自目標物的鄰近定位；箭頭縮小、線條變細並只走最短距離，移除跨越整個螢幕的長箭頭；三個提示框加入碰撞避讓與目標白色描邊。',
       'PWA 安裝與說明流程完全在瀏覽器端完成，不呼叫網站 API，不增加 Workers、D1、KV 或 R2 寫入。'
     ],
     removed: [
