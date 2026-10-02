@@ -17,6 +17,18 @@ type InstallNavigator = Navigator & {
   getInstalledRelatedApps?: () => Promise<RelatedApp[]>;
 };
 
+const isIOSFamily = () => {
+  if (typeof navigator === 'undefined') return false;
+
+  const ua = navigator.userAgent || '';
+  const platform = navigator.platform || '';
+
+  return (
+    /iPad|iPhone|iPod/i.test(ua) ||
+    (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+};
+
 declare global {
   interface Window {
     __ECHOSTARS_INSTALL_PROMPT__?: InstallEvent | null;
@@ -128,6 +140,7 @@ export function InstallAppButton({
 
   const [isInstalling, setIsInstalling] = useState(false);
   const [showInstaller, setShowInstaller] = useState(false);
+  const [showIOSInstallGuide, setShowIOSInstallGuide] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
 
   const readyEvent =
@@ -207,21 +220,39 @@ export function InstallAppButton({
   const handleInstall = async () => {
     if (isInstalling) return;
 
-    const event = promptEvent || window.__ECHOSTARS_INSTALL_PROMPT__;
-    if (event && !installed) {
-      // Fast path: same proven one-click native install flow used by the
-      // afternoon build. prompt() is called directly inside the user click.
-      await runNativePrompt(event);
-      return;
-    }
-
-    if (installed || await detectInstalledPwa()) {
+    if (installed) {
       publish();
       return;
     }
 
-    // Never fail silently. If Chromium has not emitted beforeinstallprompt yet,
-    // open a tiny readiness panel and prepare the SW/installability state.
+    // iOS/iPadOS browsers do not emit beforeinstallprompt. Never wait for an
+    // event that cannot arrive; show the shortest possible system install path.
+    if (isIOSFamily()) {
+      if (isStandalone()) {
+        installed = true;
+        publish();
+        return;
+      }
+
+      setIsPreparing(false);
+      setShowInstaller(false);
+      setShowIOSInstallGuide(true);
+      return;
+    }
+
+    const event = promptEvent || window.__ECHOSTARS_INSTALL_PROMPT__;
+    if (event) {
+      // Fast path: Chromium native install prompt, called directly from the
+      // user's click.
+      await runNativePrompt(event);
+      return;
+    }
+
+    if (await detectInstalledPwa()) {
+      publish();
+      return;
+    }
+
     setShowInstaller(true);
     void prepareInstall();
   };
@@ -230,7 +261,15 @@ export function InstallAppButton({
     <>
       <button
         type="button"
-        title={installed ? '繁星回聲已安裝' : readyEvent ? '安裝繁星回聲 App' : '準備安裝繁星回聲 App'}
+        title={
+          installed
+            ? '繁星回聲已安裝'
+            : isIOSFamily()
+            ? '加入主畫面'
+            : readyEvent
+            ? '安裝繁星回聲 App'
+            : '準備安裝繁星回聲 App'
+        }
         aria-label={installed ? '繁星回聲已安裝' : '安裝到桌面'}
         onClick={handleInstall}
         className={
@@ -252,6 +291,10 @@ export function InstallAppButton({
           <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
             <CheckCircle2 className="w-3.5 h-3.5" />
             已安裝
+          </span>
+        ) : isIOSFamily() ? (
+          <span className="ml-auto text-[10px] font-bold text-sky-600 dark:text-sky-400">
+            加入主畫面
           </span>
         ) : readyEvent ? (
           <span className="ml-auto text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
@@ -300,12 +343,73 @@ export function InstallAppButton({
               >
                 {isInstalling ? '開啟系統安裝中…' : '安裝'}
               </button>
-            ) : (
+            ) : isPreparing ? (
               <div className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 py-3 text-sm font-bold text-slate-600 dark:text-slate-300">
                 <LoaderCircle className="w-4 h-4 animate-spin" />
                 正在準備系統安裝…
               </div>
+            ) : (
+              <div className="mt-4 rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 py-3 text-center text-sm font-bold text-slate-600 dark:text-slate-300">
+                系統安裝按鈕尚未就緒，請重新整理後再試。
+              </div>
             )}
+          </section>
+        </div>
+      )}
+
+      {showIOSInstallGuide && !installed && (
+        <div
+          className="fixed inset-0 z-[230] flex items-center justify-center p-4 bg-black/55 backdrop-blur-[1px]"
+          onClick={() => setShowIOSInstallGuide(false)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-label="在 iPhone 或 iPad 安裝繁星回聲"
+            onClick={event => event.stopPropagation()}
+            className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-5"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-black text-base text-slate-900 dark:text-slate-100">
+                加入主畫面
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowIOSInstallGuide(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                aria-label="關閉"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2.5">
+              <div className="flex items-center gap-3 rounded-2xl bg-slate-100 dark:bg-slate-800 px-3.5 py-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary,#c06c84)] text-sm font-black text-white">
+                  1
+                </span>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  點瀏覽器的「分享」按鈕（□↑）
+                </span>
+              </div>
+              <div className="flex items-center gap-3 rounded-2xl bg-slate-100 dark:bg-slate-800 px-3.5 py-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary,#c06c84)] text-sm font-black text-white">
+                  2
+                </span>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                  選擇「加入主畫面」，再按「加入」
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowIOSInstallGuide(false)}
+              className="mt-4 w-full rounded-2xl px-4 py-3 text-sm font-black text-white"
+              style={{ backgroundColor: 'var(--color-primary,#c06c84)' }}
+            >
+              知道了
+            </button>
           </section>
         </div>
       )}
