@@ -77,6 +77,34 @@ export const EXCITEMENT_ADJECTIVES = [
 
 const DEVICE_KEY = 'sq_visitor_identity_v1';
 
+function createRandomVisitorIdentity(deviceId: string, previousFullName = ''): VisitorIdentity {
+  let animalIndex = Math.floor(Math.random() * ANIMALS.length);
+  let adjectiveIndex = Math.floor(Math.random() * ADJECTIVES.length);
+  let animalObj = ANIMALS[animalIndex];
+  let adjective = ADJECTIVES[adjectiveIndex];
+  let fullName = `${adjective}${animalObj.name}`;
+
+  // A refresh must visibly reroll the nickname, not occasionally land on the same combination.
+  if (fullName === previousFullName && ANIMALS.length * ADJECTIVES.length > 1) {
+    animalIndex = (animalIndex + 1) % ANIMALS.length;
+    animalObj = ANIMALS[animalIndex];
+    fullName = `${adjective}${animalObj.name}`;
+    if (fullName === previousFullName) {
+      adjectiveIndex = (adjectiveIndex + 1) % ADJECTIVES.length;
+      adjective = ADJECTIVES[adjectiveIndex];
+      fullName = `${adjective}${animalObj.name}`;
+    }
+  }
+
+  return {
+    deviceId,
+    animal: animalObj.name,
+    emoji: animalObj.emoji,
+    adjective,
+    fullName
+  };
+}
+
 export function getOrCreateVisitor(): VisitorIdentity {
   if (typeof window === 'undefined') {
     return {
@@ -88,39 +116,26 @@ export function getOrCreateVisitor(): VisitorIdentity {
     };
   }
 
+  let deviceId = '';
+  let previousFullName = '';
   const stored = localStorage.getItem(DEVICE_KEY);
   if (stored) {
     try {
       const parsed = JSON.parse(stored) as VisitorIdentity;
-      if (ADJECTIVES.includes(parsed.adjective)) return parsed;
-
-      // Migrate old/negative visitor adjectives locally while preserving device identity.
-      const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-      const migrated: VisitorIdentity = {
-        ...parsed,
-        adjective: adj,
-        fullName: `${adj}${parsed.animal || '海豚'}`
-      };
-      localStorage.setItem(DEVICE_KEY, JSON.stringify(migrated));
-      return migrated;
+      deviceId = parsed.deviceId || '';
+      previousFullName = parsed.fullName || '';
     } catch {
-      // ignore
+      // Ignore malformed local data and create a new device identity below.
     }
   }
 
-  // Create new stable visitor identity
-  const animalObj = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const deviceId = 'dev-' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+  if (!deviceId) {
+    deviceId = 'dev-' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+  }
 
-  const identity: VisitorIdentity = {
-    deviceId,
-    animal: animalObj.name,
-    emoji: animalObj.emoji,
-    adjective: adj,
-    fullName: `${adj}${animalObj.name}`
-  };
-
+  // The visible guest nickname intentionally changes on every page load, while
+  // deviceId remains stable so likes/ratings/playback identity are unaffected.
+  const identity = createRandomVisitorIdentity(deviceId, previousFullName);
   localStorage.setItem(DEVICE_KEY, JSON.stringify(identity));
   return identity;
 }
