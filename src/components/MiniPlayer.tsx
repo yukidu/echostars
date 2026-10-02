@@ -86,7 +86,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
 
           {/* Info & Time - Clicking expands detail view */}
           <div
-            className="max-w-[120px] sm:max-w-[170px] select-none min-w-0 cursor-pointer"
+            className="max-w-[90px] sm:max-w-[160px] select-none min-w-0 cursor-pointer"
             title="點擊開啟此音檔的播放時間軸"
           >
             <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate group-hover/bubble:text-rose-600 transition-colors">
