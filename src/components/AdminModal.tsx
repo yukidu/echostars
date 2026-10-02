@@ -69,7 +69,7 @@ interface AdminModalProps {
     options?: { persist?: boolean }
   ) => Promise<void> | void;
   onSwitchToAdmin: () => void;
-  onCategoriesUpdated?: () => void;
+  onCategoriesUpdated?: (categories?: string[]) => void;
 }
 
 export const AdminModal: React.FC<AdminModalProps> = ({
@@ -197,7 +197,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         const data = await res.json().catch(() => ({}));
         if (Array.isArray(data?.categories)) setCategoryList(data.categories);
         setNewCatName('');
-        if (onCategoriesUpdated) onCategoriesUpdated();
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
       }
     } finally {
       setIsCatSubmitting(false);
@@ -219,7 +219,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         const data = await res.json().catch(() => ({}));
         if (Array.isArray(data?.categories)) setCategoryList(data.categories);
         setEditingCatOld(null);
-        if (onCategoriesUpdated) onCategoriesUpdated();
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
       }
     } catch (e) {
       console.error(e);
@@ -234,7 +234,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         if (Array.isArray(data?.categories)) setCategoryList(data.categories);
-        if (onCategoriesUpdated) onCategoriesUpdated();
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
       }
     } catch (e) {
       console.error(e);
