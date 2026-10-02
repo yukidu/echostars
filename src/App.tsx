@@ -1670,12 +1670,12 @@ export default function App() {
           {
             key: 'logo',
             selector: '[data-tutorial-target="home-logo"]',
-            text: '按這裡回首頁播放清單'
+            text: '按此回首頁'
           },
           {
             key: 'visitor',
             selector: '[data-tutorial-target="visitor-profile"]',
-            text: '註冊會員紀錄學習進度'
+            text: '按此註冊會員，可紀錄學習進度'
           },
           {
             key: 'photo',

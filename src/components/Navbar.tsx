@@ -137,31 +137,31 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* Desktop Navigation Controls (Hidden on small mobile screens) */}
-        <div className="hidden md:flex items-center gap-1 sm:gap-2">
+        <div className="hidden md:flex items-center gap-1.5 sm:gap-2.5">
           {/* Home */}
           <button
             onClick={handleLogoClick}
             title="首頁播放清單（全部分類）"
-            className={`p-2 rounded-xl transition-all flex items-center justify-center ${
+            className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${
               currentTab === 'home'
                 ? 'bg-rose-100/90 dark:bg-slate-800 text-rose-700 dark:text-rose-300 shadow-xs font-bold'
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
             }`}
           >
-            <Home className="w-5 h-5" />
+            <Home className="w-6 h-6" />
           </button>
 
           {/* Statistics Tab - 排行榜 */}
           <button
             onClick={() => onSelectTab('stats')}
             title="排行榜"
-            className={`p-2 rounded-xl transition-all flex items-center justify-center ${
+            className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${
               currentTab === 'stats'
                 ? 'bg-rose-100/90 dark:bg-slate-800 text-rose-700 dark:text-rose-300 shadow-xs font-bold'
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
             }`}
           >
-            <BarChart3 className="w-5 h-5" />
+            <BarChart3 className="w-6 h-6" />
           </button>
 
           {/* Requirement 7 & 11: 通知鈴鐺顏色連動主色系 */}
@@ -169,7 +169,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => onSelectTab('notifications')}
               title={notificationsMenuTitle}
-              className={`p-2 rounded-xl transition-all relative flex items-center justify-center ${
+              className={`p-2.5 rounded-xl transition-all relative flex items-center justify-center ${
                 currentTab === 'notifications'
                   ? 'shadow-xs font-bold'
                   : 'hover:bg-slate-100 dark:hover:bg-slate-800/60'
@@ -179,7 +179,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 backgroundColor: currentTab === 'notifications' ? 'var(--color-light-pill, #fae8ed)' : undefined
               }}
             >
-              <Bell className="w-5 h-5" style={{ color: 'var(--color-primary, #c06c84)' }} />
+              <Bell className="w-6 h-6" style={{ color: 'var(--color-primary, #c06c84)' }} />
               {pendingNotificationsCount > 0 && (
                 <span
                   className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full text-white text-[9px] font-black flex items-center justify-center shadow-xs animate-pulse"
@@ -196,13 +196,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => onSelectTab('upload')}
               title="上傳音檔"
-              className={`p-2 rounded-xl transition-all flex items-center justify-center ${
+              className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${
                 currentTab === 'upload'
                   ? 'bg-rose-100/90 dark:bg-slate-800 text-rose-700 dark:text-rose-300 shadow-xs font-bold'
                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
               }`}
             >
-              <UploadCloud className="w-5 h-5" />
+              <UploadCloud className="w-6 h-6" />
             </button>
           )}
 
@@ -211,7 +211,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             data-tutorial-target="visitor-profile"
             onClick={() => onSelectTab('profile')}
             title="個人中心"
-            className={`px-2 py-1 rounded-2xl transition-all relative flex flex-col items-center justify-center text-center cursor-pointer min-w-[58px] max-w-[96px] sm:max-w-[120px] ${
+            className={`px-3 py-1.5 rounded-2xl transition-all relative flex flex-col items-center justify-center text-center cursor-pointer min-w-[64px] max-w-[104px] sm:max-w-[128px] ${
               currentTab === 'profile'
                 ? 'bg-rose-100/90 dark:bg-slate-800 text-rose-700 dark:text-rose-300 shadow-xs'
                 : 'hover:bg-slate-100 dark:hover:bg-slate-800/60'
@@ -234,7 +234,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* PWA install is shown directly whenever desktop/landscape navigation replaces the hamburger menu. */}
           <InstallAppButton
             compact
-            className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap"
           />
 
           {/* Admin Management */}
@@ -242,13 +242,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => onSelectTab('admin')}
               title="後台管理"
-              className={`p-2 rounded-xl transition-all relative flex items-center justify-center ${
+              className={`p-2.5 rounded-xl transition-all relative flex items-center justify-center ${
                 currentTab === 'admin'
                   ? 'bg-rose-100/90 dark:bg-slate-800 text-rose-700 dark:text-rose-300 shadow-xs font-bold'
                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
               }`}
             >
-              <Settings className="w-5 h-5" />
+              <Settings className="w-6 h-6" />
               {isSuperAdmin && (
                 <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
               )}
@@ -264,18 +264,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={onRandomPalette}
             title="隨機切換清新漸層配色"
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-all active:rotate-45"
+            className="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-all active:rotate-45"
           >
-            <Palette className="w-5 h-5" />
+            <Palette className="w-6 h-6" />
           </button>
 
           {/* Dark / Light Toggle */}
           <button
             onClick={onToggleTheme}
             title={isDark ? '切換為淺色模式' : '切換為深色模式'}
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-all active:scale-95"
+            className="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-all active:scale-95"
           >
-            {isDark ? <Sun className="w-5 h-5 text-amber-400" /> : <Moon className="w-5 h-5" />}
+            {isDark ? <Sun className="w-6 h-6 text-amber-400" /> : <Moon className="w-6 h-6" />}
           </button>
         </div>
 
@@ -286,7 +286,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             data-tutorial-target="visitor-profile"
             onClick={() => handleMobileNav('profile')}
-            className={`px-1 py-0.5 rounded-xl transition-colors flex flex-col items-center justify-center text-center min-w-[50px] max-w-[68px] shrink-0 ${
+            className={`px-1.5 py-1 rounded-xl transition-colors flex flex-col items-center justify-center text-center min-w-[54px] max-w-[72px] shrink-0 ${
               currentTab === 'profile'
                 ? 'bg-rose-100 text-rose-700 dark:bg-slate-800 dark:text-rose-300'
                 : 'hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -329,11 +329,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Random Palette on mobile */}
           <button
             onClick={onRandomPalette}
-            className="p-1.5 sm:p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors active:rotate-45"
+            className="p-2 sm:p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors active:rotate-45"
             title="隨機切換配色"
             aria-label="隨機配色"
           >
-            <Palette className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--color-primary,#c06c84)]" />
+            <Palette className="w-[18px] h-[18px] sm:w-6 sm:h-6 text-[var(--color-primary,#c06c84)]" />
           </button>
 
           {/* Quick theme toggle on mobile */}
@@ -341,21 +341,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           <button
             onClick={onToggleTheme}
-            className="p-1.5 sm:p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-2 sm:p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             title={isDark ? '切換淺色模式' : '切換深色模式'}
             aria-label="深淺色切換"
           >
-            {isDark ? <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" /> : <Moon className="w-4 h-4 sm:w-5 sm:h-5" />}
+            {isDark ? <Sun className="w-[18px] h-[18px] sm:w-6 sm:h-6 text-amber-400" /> : <Moon className="w-[18px] h-[18px] sm:w-6 sm:h-6" />}
           </button>
 
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-1.5 sm:p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 transition-colors ml-0.5"
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-200 transition-colors ml-0.5"
             title="開啟選單"
             aria-label="選單"
           >
-            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {isMobileMenuOpen ? <X className="w-[22px] h-[22px]" /> : <Menu className="w-[22px] h-[22px]" />}
           </button>
         </div>
       </div>
