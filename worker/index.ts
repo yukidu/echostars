@@ -97,6 +97,11 @@ export default {
         const ext = (fileName.split('.').pop()?.toLowerCase() || 'mp3').replace(/^\./, '');
         const fileType = ((formData.get('fileType') as string) || '').toLowerCase();
         const isImage = ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'webp';
+        const supportedAudioExtensions = new Set(['mp3', 'm4a', 'aac', 'wav', 'ogg', 'opus', 'webm']);
+
+        if (fileType !== 'cover' && !isImage && !supportedAudioExtensions.has(ext)) {
+          return errorResponse('不支援此音訊格式。請使用 MP3、M4A、AAC、WAV、OGG、OPUS 或 WEBM。', 415);
+        }
 
         let finalFileName: string;
 
