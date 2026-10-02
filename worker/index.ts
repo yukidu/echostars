@@ -101,8 +101,15 @@ export default {
         let finalFileName: string;
 
         if (fileType === 'cover' || isImage) {
-          const speaker = ((formData.get('speaker') as string) || '').replace(/[\\/:*?"<>|#&+=\s]/g, '').trim() || 'speaker';
-          finalFileName = `cover-${speaker}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+          const originalBaseName = fileName.replace(/\.[^/.]+$/, '').replace(/^cover-/i, '');
+          const speakerName = ((formData.get('speaker') as string) || '').trim();
+          const cleanBaseName = (speakerName || originalBaseName)
+            .replace(/[\\/:*?"<>|#&+=]/g, '')
+            .replace(/\s+/g, '-')
+            .trim() || 'speaker';
+          // Stable cover naming: cover-檔名.副檔名 (no timestamp/random suffix).
+          // Uploading the same speaker/file name intentionally replaces the old cover.
+          finalFileName = `cover-${cleanBaseName}.${ext}`;
         } else {
           // 命名格式：「ES00001-演講者+獎銜-中文曲目名稱.副檔名」
           // 00001 = 系統自動編號序號，+ 符號不顯示，- 符號保留顯示
@@ -187,6 +194,38 @@ export default {
         return jsonResponse({ success: true, key, url: fileUrl });
       } catch (err: any) {
         return errorResponse(err.message || 'R2 上傳失敗', 500);
+      }
+    }
+
+    // 3.1 R2 封面圖庫：列出 cover/ 內既有講者照片，供上傳介面快速選取
+    if (path === '/api/r2/covers' && method === 'GET') {
+      if (!env.R2_BUCKET) {
+        return errorResponse('Cloudflare R2 儲存桶未綁定', 503);
+      }
+      try {
+        const listed = await env.R2_BUCKET.list({ prefix: 'cover/', limit: 1000 });
+        const covers = (listed.objects || [])
+          .filter((obj: any) => /\.(jpe?g|png|webp)$/i.test(obj.key || ''))
+          .map((obj: any) => {
+            const fileName = String(obj.key || '').split('/').pop() || '';
+            let name = fileName
+              .replace(/\.[^.]+$/, '')
+              .replace(/^cover-/i, '')
+              // Backward compatibility with old cover-姓名-時間戳-亂碼.ext names.
+              .replace(/-\d{10,14}-[a-z0-9]{4,8}$/i, '');
+            name = name.replace(/-/g, ' ').trim() || '未命名講者';
+            return {
+              key: obj.key,
+              name,
+              url: `/api/r2/file/${encodeURIComponent(obj.key)}`,
+              size: obj.size || 0,
+              uploaded: obj.uploaded ? new Date(obj.uploaded).toISOString() : null
+            };
+          })
+          .sort((a: any, b: any) => a.name.localeCompare(b.name, 'zh-Hant'));
+        return jsonResponse({ covers });
+      } catch (err: any) {
+        return errorResponse(err.message || '無法讀取 R2 封面圖庫', 500);
       }
     }
 
