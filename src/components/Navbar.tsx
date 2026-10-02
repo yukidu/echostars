@@ -134,7 +134,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Mic className="w-4 h-4 sm:w-5 sm:h-5 text-white transition-transform group-hover:scale-110" />
             {/* Pulsing ring indicator */}
-            <span className="absolute inset-0 rounded-2xl ring-2 ring-rose-400/40 animate-ping" />
+            <span className="absolute inset-0 rounded-2xl border-2 animate-ping" style={{ borderColor: 'var(--color-primary, #c06c84)' }} />
           </div>
 
           <div className="flex items-center gap-1.5">
@@ -148,9 +148,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Sound wave bars animation - matches active theme palette */}
             <div className="hidden sm:flex items-center gap-0.5 h-4 ml-0.5">
               <span className="w-0.5 rounded-full animate-[pulseWaveBar_1.2s_ease-in-out_infinite]" style={{ backgroundColor: 'var(--color-primary, #c06c84)' }} />
-              <span className="w-0.5 rounded-full animate-[pulseWaveBar_1.2s_ease-in-out_0.2s_infinite]" style={{ backgroundColor: 'var(--color-primary-hover, #b15b73)' }} />
+              <span className="w-0.5 rounded-full animate-[pulseWaveBar_1.2s_ease-in-out_0.2s_infinite]" style={{ backgroundColor: 'var(--color-primary, #c06c84)' }} />
               <span className="w-0.5 rounded-full opacity-80 animate-[pulseWaveBar_1.2s_ease-in-out_0.4s_infinite]" style={{ backgroundColor: 'var(--color-primary, #c06c84)' }} />
-              <span className="w-0.5 rounded-full opacity-60 animate-[pulseWaveBar_1.2s_ease-in-out_0.6s_infinite]" style={{ backgroundColor: 'var(--color-primary-hover, #b15b73)' }} />
+              <span className="w-0.5 rounded-full opacity-60 animate-[pulseWaveBar_1.2s_ease-in-out_0.6s_infinite]" style={{ backgroundColor: 'var(--color-primary, #c06c84)' }} />
             </div>
           </div>
         </button>
