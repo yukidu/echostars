@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Play, Pause, ArrowUp } from 'lucide-react';
+import { Play, Pause, ArrowUp, Home } from 'lucide-react';
 import { Track, PlayerDisplayMode } from '../types';
 import { formatTime, formatRemainingTime } from '../utils/audio';
 
@@ -17,6 +17,7 @@ interface MiniPlayerProps {
   onSkip: (seconds: number) => void;
   onChangeSpeed: (speed: number) => void;
   onScrollToTop: () => void;
+  onReturnHome: () => void;
 }
 
 export const MiniPlayer: React.FC<MiniPlayerProps> = ({
@@ -31,7 +32,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   onSeek,
   onSkip,
   onChangeSpeed,
-  onScrollToTop
+  onScrollToTop,
+  onReturnHome
 }) => {
   const safeDuration = duration > 0 ? duration : (track.durationSeconds || 600);
   const primaryCategory = track.categories?.[0] || track.category || '事業';
@@ -42,9 +44,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   const drag = useRef<{x:number;y:number;left:number;top:number}|null>(null);
   {
     return (
-      <div onClick={()=>onSetPlayerMode('expanded')} style={position?{left:position.left,top:position.top,bottom:'auto',right:'auto'}:undefined} className="fixed bottom-5 right-4 z-[70] flex items-center gap-2 max-w-[calc(100vw-16px)]">
-        <button type="button" onClick={e=>{e.stopPropagation();onScrollToTop();}} aria-label="回到頁面最前面" className="w-[66px] h-[66px] shrink-0 rounded-full bg-white/90 dark:bg-slate-900/90 border border-slate-200 shadow-lg flex items-center justify-center text-[var(--color-primary)]"><ArrowUp size={30}/></button>
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-rose-200/80 dark:border-slate-700 shadow-2xl rounded-full p-2 pl-2.5 pr-3.5 flex items-center gap-2.5 hover:shadow-rose-500/15 transition-all group/bubble min-w-0">
+      <div onClick={()=>onSetPlayerMode('expanded')} style={position?{left:position.left,top:position.top,bottom:'auto',right:'auto'}:undefined} className="fixed bottom-5 right-2 sm:right-4 z-[70] flex items-center gap-1.5 max-w-[calc(100vw-8px)]">
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-rose-200/80 dark:border-slate-700 shadow-2xl rounded-full p-1.5 pl-2 pr-2.5 flex items-center gap-2 hover:shadow-rose-500/15 transition-all group/bubble min-w-0">
           {/* Rotating Photo when playing (Clicking photo toggles play/pause) */}
           <button
             type="button"
@@ -103,6 +104,24 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           {/* Floating player only */}
 
         </div>
+        <button
+          type="button"
+          onClick={e=>{e.stopPropagation();onScrollToTop();}}
+          aria-label="回到頁面最前面"
+          title="回到頁面最前面"
+          className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-full bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-[var(--color-primary)] active:scale-95"
+        >
+          <ArrowUp size={20}/>
+        </button>
+        <button
+          type="button"
+          onClick={e=>{e.stopPropagation();onReturnHome();}}
+          aria-label="返回首頁清單"
+          title="返回首頁清單"
+          className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-full bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 shadow-lg flex items-center justify-center text-[var(--color-primary)] active:scale-95"
+        >
+          <Home size={20}/>
+        </button>
       </div>
     );
   }
