@@ -45,7 +45,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   {
     return (
       <div onClick={()=>onSetPlayerMode('expanded')} style={position?{left:position.left,top:position.top,bottom:'auto',right:'auto'}:undefined} className="fixed bottom-5 right-2 sm:right-4 z-[70] flex items-center gap-1.5 max-w-[calc(100vw-8px)]">
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-rose-200/80 dark:border-slate-700 shadow-2xl rounded-full p-1.5 pl-2 pr-2.5 flex items-center gap-2 hover:shadow-rose-500/15 transition-all group/bubble min-w-0">
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-[var(--theme-border-subtle,#f1e7ea)] dark:border-slate-700 shadow-2xl rounded-full p-1.5 pl-2 pr-2.5 flex items-center gap-2 hover:shadow-rose-500/15 transition-all group/bubble min-w-0">
           {/* Rotating Photo when playing (Clicking photo toggles play/pause) */}
           <button
             type="button"
@@ -57,11 +57,12 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             title={isPlaying ? '點擊照片暫停' : '點擊照片播放'}
           >
             <div
-              className={`w-11 h-11 rounded-full overflow-hidden shadow-md ring-2 ring-rose-400 dark:ring-rose-500 ${
+              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden shadow-md ${
                 isPlaying ? 'animate-spin-slow' : ''
               }`}
               style={{
-                '--spin-duration': `${8 / Math.max(0.2, playbackRate)}s`
+                '--spin-duration': `${8 / Math.max(0.2, playbackRate)}s`,
+                boxShadow: '0 0 0 3px var(--color-primary, #c06c84), 0 6px 16px rgba(15,23,42,0.18)'
               } as React.CSSProperties}
             >
               <img
@@ -71,13 +72,15 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
               />
             </div>
 
-            {/* Play/Pause overlay on photo */}
-            <div className="absolute inset-0 bg-black/35 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              {isPlaying ? (
-                <Pause className="w-4 h-4 fill-white text-white" />
-              ) : (
-                <Play className="w-4 h-4 fill-white text-white ml-0.5" />
-              )}
+            {/* Always-visible semi-transparent play/pause control for touch devices. */}
+            <div className="absolute inset-0 rounded-full flex items-center justify-center pointer-events-none">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/35 backdrop-blur-[1px] flex items-center justify-center shadow-md">
+                {isPlaying ? (
+                  <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-white text-white" />
+                ) : (
+                  <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-white text-white ml-0.5" />
+                )}
+              </div>
             </div>
           </button>
 
