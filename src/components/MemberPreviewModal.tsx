@@ -134,7 +134,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
       likedBy: [],
       ratings: {}
     };
-    // Requirement 7: 確保學習檔案包含音檔學習進度、給予評價、留言內容
+    // Requirement 7: 確保學習檔案包含音檔學習進度、給予評價、心得內容
     const effectiveRating = foundTrack ? (foundTrack.ratings?.[liveUser.email] || foundTrack.ratings?.[liveUser.id] || 0) : (rec.rating || 0);
     const userCommentObj = userComments.find(c => c.trackId === rec.trackId);
     const effectiveComment = foundTrack ? (userCommentObj?.content || '') : (rec.comment || '');
@@ -262,7 +262,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
-            <span>留言紀錄 ({userComments.length})</span>
+            <span>心得紀錄 ({userComments.length})</span>
           </button>
 
           <button
@@ -372,11 +372,11 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: 留言紀錄 */}
+          {/* TAB 3: 心得紀錄 */}
           {activeTab === 'comments' && (
             <div className="space-y-2">
               {userComments.length === 0 ? (
-                <div className="text-center py-8 text-slate-400">該會員尚無留言紀錄</div>
+                <div className="text-center py-8 text-slate-400">該會員尚無心得紀錄</div>
               ) : (
                 userComments.map(c => {
                   const track = tracks.find(t => t.id === c.trackId);
@@ -401,7 +401,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
             </div>
           )}
 
-          {/* TAB 4: 已聆聽音檔清單 (Requirement 1: 首次聆聽、最近聆聽、聽完日期>95%、進度%、點擊次數、用戶留言、評價) */}
+          {/* TAB 4: 已聆聽音檔清單 (Requirement 1: 首次聆聽、最近聆聽、聽完日期>95%、進度%、點擊次數、用戶心得、評價) */}
           {activeTab === 'listening' && (
             <div className="space-y-2">
               {isLoadingRecords ? (
@@ -487,7 +487,7 @@ export const MemberPreviewModal: React.FC<MemberPreviewModalProps> = ({
 
                           {record.comment && (
                             <div className="text-slate-700 dark:text-slate-300 text-[11px] leading-relaxed bg-white/70 dark:bg-slate-900/40 p-1.5 rounded-lg">
-                              <span className="font-bold text-slate-500 text-[10px]">留言心得：</span>
+                              <span className="font-bold text-slate-500 text-[10px]">心得：</span>
                               “{record.comment}”
                             </div>
                           )}
