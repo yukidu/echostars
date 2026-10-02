@@ -99,6 +99,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [activeTab, setActiveTab] = useState<'profile' | 'ratings' | 'comments' | 'listening'>('profile');
   const [listeningRecords, setListeningRecords] = useState<Record<string, UserListeningRecord>>({});
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
+  const [hasLoadedListeningRecords, setHasLoadedListeningRecords] = useState(false);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const handleScrollTabs = (direction: 'left' | 'right') => {
     if (tabsContainerRef.current) {
@@ -117,6 +118,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       .then(res => res.json())
       .then(data => {
         setListeningRecords(data || {});
+        setHasLoadedListeningRecords(true);
         setIsLoadingRecords(false);
       })
       .catch(() => {
@@ -243,7 +245,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     if (!currentUser || isExportingCard) return;
     setIsExportingCard(true);
     try {
-      const records = userListenedItems.map(({ track, record }) => ({ track, record }));
+      let recordsMap = listeningRecords;
+      if (!hasLoadedListeningRecords) {
+        const idParam = currentUser.email || currentUser.id;
+        const res = await fetch(`/api/playback/history/${encodeURIComponent(idParam)}`);
+        if (res.ok) {
+          recordsMap = await res.json();
+          setListeningRecords(recordsMap || {});
+          setHasLoadedListeningRecords(true);
+        }
+      }
+      const records = Object.values(recordsMap || {}).flatMap(record => {
+        const track = tracks.find(item => item.id === record.trackId);
+        return track ? [{ track, record }] : [];
+      });
       const blob = await exportMemberProfileAndListeningImage(currentUser, records);
       await shareOrDownloadProfileCard(blob, currentUser.name);
     } catch (err) {
@@ -262,6 +277,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     try {
       await onClearListeningHistory();
       setListeningRecords({});
+      setHasLoadedListeningRecords(true);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : '清除學習紀錄失敗');
     } finally {
