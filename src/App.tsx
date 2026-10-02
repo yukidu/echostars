@@ -64,13 +64,54 @@ const DEFAULT_CATEGORIES: string[] = [
   '未分類'
 ];
 
+const HOME_CACHE_KEY = 'echostars_home_cache_v3_3';
+const HOME_CACHE_TTL_MS = 5 * 60 * 1000;
+
+type HomeCache = {
+  tracks: Track[];
+  categories: string[];
+  savedAt: number;
+};
+
+function readHomeCache(): HomeCache | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(HOME_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.tracks) || !Array.isArray(parsed.categories)) return null;
+    return {
+      tracks: parsed.tracks,
+      categories: parsed.categories,
+      savedAt: Number(parsed.savedAt) || 0
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeHomeCache(tracks: Track[], categories: string[]) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(HOME_CACHE_KEY, JSON.stringify({
+      tracks,
+      categories,
+      savedAt: Date.now()
+    }));
+  } catch {
+    // localStorage quota/full is non-fatal.
+  }
+}
 
 export default function App() {
   // Navigation & View States
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
 
   // Dynamic Categories (Requirement 5: 後台修改或刪除分類標籤後，首頁下拉選單同步更新)
-  const [categoryOptions, setCategoryOptions] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(() => {
+    const cached = readHomeCache();
+    return cached?.categories?.length ? cached.categories : DEFAULT_CATEGORIES;
+  });
 
   // Requirement 11 (v2.7): 記憶已解鎖的私秘VIP音檔，支援經由專屬連結永久解鎖
   const [unlockedVipTracks, setUnlockedVipTracks] = useState<string[]>(() => {
@@ -186,11 +227,11 @@ export default function App() {
   const canUpload = isSuperAdmin || currentUser?.isContributor === true;
 
   // Tracks, Comments, Users from Backend API
-  const [tracks, setTracks] = useState<Track[]>([]);
+  const [tracks, setTracks] = useState<Track[]>(() => readHomeCache()?.tracks || []);
   const [comments, setComments] = useState<Comment[]>([]);
   const [allComments, setAllComments] = useState<Comment[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => (readHomeCache()?.tracks || []).length === 0);
 
   // Requirement 6 (v2.4): 載入全站所有留言，確保首頁快速預覽留言被 @ 標記時即刻同步顯示於通知頁
   const fetchAllComments = async () => {
@@ -204,6 +245,17 @@ export default function App() {
       }
     } catch (e) {
       console.error('Failed to fetch all comments:', e);
+    }
+  };
+
+  const fetchAllUsers = async () => {
+    try {
+      const res = await fetch('/api/users');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) setAllUsers(data);
+    } catch (e) {
+      console.error('Failed to fetch users:', e);
     }
   };
 
@@ -354,22 +406,14 @@ export default function App() {
   // Requirement 5: 分類標籤同步函數 (後台增刪改後首頁下拉選單同步更新)
   const fetchCategories = async () => {
     try {
-      const [cRes, tRes] = await Promise.all([
-        fetch('/api/categories'),
-        fetch('/api/tracks')
-      ]);
+      const cRes = await fetch('/api/categories');
       if (cRes.ok) {
         const cData = await cRes.json();
         if (Array.isArray(cData)) {
           const list = Array.from(new Set(['全部', ...cData]));
           setCategoryOptions(list);
           setSelectedCategory(prev => (list.includes(prev) ? prev : '全部'));
-        }
-      }
-      if (tRes.ok) {
-        const tData = await tRes.json();
-        if (Array.isArray(tData)) {
-          setTracks(tData);
+          writeHomeCache(tracks, list);
         }
       }
     } catch (e) {
