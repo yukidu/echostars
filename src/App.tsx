@@ -1980,7 +1980,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => handleSortClick(field)}
-                      className={`w-full min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-0.5 shadow-2xs ${
+                      className={`w-full min-w-0 px-0 py-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-0 shadow-2xs ${
                         isActive
                           ? 'ring-2 ring-white/95 text-white brightness-110 font-black scale-102'
                           : 'text-white/85 hover:text-white hover:brightness-105 opacity-90 hover:opacity-100'
@@ -1990,11 +1990,11 @@ export default function App() {
                     >
                       <span className="truncate">{displayField}</span>
                       {isActive && (
-                        <span className="sort-direction-icon inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full bg-white text-[var(--color-primary,#c06c84)] shrink-0 shadow-2xs">
+                        <span className="sort-direction-icon inline-flex items-center justify-center w-3 h-3 ml-0 rounded-full bg-white text-[var(--color-primary,#c06c84)] shrink-0 shadow-2xs">
                           {sortDirection === 'desc' ? (
-                            <ArrowDown className="w-2.5 h-2.5 stroke-[3.5]" />
+                            <ArrowDown className="w-2 h-2 stroke-[3.5]" />
                           ) : (
-                            <ArrowUp className="w-2.5 h-2.5 stroke-[3.5]" />
+                            <ArrowUp className="w-2 h-2 stroke-[3.5]" />
                           )}
                         </span>
                       )}
@@ -2013,7 +2013,7 @@ export default function App() {
                       setIsSpeakerRankDropdownOpen(prev => !prev);
                       setIsCategoryDropdownOpen(false);
                     }}
-                    className={`w-full min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold text-white flex items-center justify-center gap-0.5 shadow-2xs hover:brightness-105 transition-all ${
+                    className={`w-full min-w-0 px-0 py-1 rounded-xl text-[10px] sm:text-xs font-bold text-white flex items-center justify-center gap-0 shadow-2xs hover:brightness-105 transition-all ${
                       selectedSpeakerRank !== '全部' ? 'ring-2 ring-amber-300' : ''
                     }`}
                     style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
@@ -2022,7 +2022,7 @@ export default function App() {
                     <span className="truncate min-w-0">
                       獎銜
                     </span>
-                    <ChevronDown className="w-3.5 h-3.5 text-white/90 shrink-0" />
+                    <ChevronDown className="w-3 h-3 text-white/90 shrink-0" />
                   </button>
 
                   {isSpeakerRankDropdownOpen && (
@@ -2070,14 +2070,14 @@ export default function App() {
                       setIsCategoryDropdownOpen(prev => !prev);
                       setIsSpeakerRankDropdownOpen(false);
                     }}
-                    className="w-full min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold text-white flex items-center justify-center gap-0.5 shadow-2xs hover:brightness-105 transition-all"
+                    className="w-full min-w-0 px-0 py-1 rounded-xl text-[10px] sm:text-xs font-bold text-white flex items-center justify-center gap-0 shadow-2xs hover:brightness-105 transition-all"
                     style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                     title="點擊展開分類選單"
                   >
                     <span className="truncate min-w-0">
                       分類
                     </span>
-                    <ChevronDown className="w-3.5 h-3.5 text-white/90 shrink-0" />
+                    <ChevronDown className="w-3 h-3 text-white/90 shrink-0" />
                   </button>
 
                   {/* Dropdown Menu with click outside backdrop */}
