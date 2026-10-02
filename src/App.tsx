@@ -1871,9 +1871,9 @@ export default function App() {
             </div>
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
-            <div className="sort-toolbar relative flex flex-wrap items-center justify-center gap-1.5 pt-0.5">
-              {/* Left: 5 Sort fields arranged in a tight row: 時間、評價、留言、按讚、演講人 */}
-              <div className="sort-options flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5">
+            <div className="sort-toolbar relative grid grid-cols-6 gap-1 w-full pt-0.5">
+              {/* Four sort buttons + two filters share the full row at equal width. */}
+              <div className="sort-options contents">
                 {(['時間', '評價', '留言', '演講人'] as SortField[]).map(field => {
                   const isActive = sortField === field;
                   const displayField = field === '演講人' ? '講者' : field === '留言' ? '心得' : field;
@@ -1881,7 +1881,7 @@ export default function App() {
                     <button
                       key={field}
                       onClick={() => handleSortClick(field)}
-                      className={`px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-0.5 shadow-2xs ${
+                      className={`w-full min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-0.5 shadow-2xs ${
                         isActive
                           ? 'ring-2 ring-white/95 text-white brightness-110 font-black scale-102'
                           : 'text-white/85 hover:text-white hover:brightness-105 opacity-90 hover:opacity-100'
@@ -1889,7 +1889,7 @@ export default function App() {
                       style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                       title={`依${displayField}排序，重複點擊切換遞增/遞減`}
                     >
-                      <span>{displayField}</span>
+                      <span className="truncate">{displayField}</span>
                       {isActive && (
                         <span className="inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full bg-white text-[var(--color-primary,#c06c84)] shrink-0 shadow-2xs">
                           {sortDirection === 'desc' ? (
@@ -1905,22 +1905,22 @@ export default function App() {
               </div>
 
               {/* Right: Dropdowns (分類選單與講師獎銜指標篩選) */}
-              <div className="filter-dropdowns flex items-center justify-center gap-1.5 shrink-0">
+              <div className="filter-dropdowns contents">
                 {/* 1. 講師獎銜篩選下拉選單 */}
-                <div className="relative shrink-0">
+                <div className="relative min-w-0">
                   <button
                     onClick={e => {
                       e.stopPropagation();
                       setIsSpeakerRankDropdownOpen(prev => !prev);
                       setIsCategoryDropdownOpen(false);
                     }}
-                    className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold text-white flex items-center gap-1 shadow-2xs hover:brightness-105 transition-all ${
+                    className={`w-full min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold text-white flex items-center justify-center gap-0.5 shadow-2xs hover:brightness-105 transition-all ${
                       selectedSpeakerRank !== '全部' ? 'ring-2 ring-amber-300' : ''
                     }`}
                     style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                     title="點擊依講師獎銜篩選"
                   >
-                    <span className="truncate max-w-[70px] sm:max-w-none">
+                    <span className="truncate min-w-0">
                       獎銜
                     </span>
                     <ChevronDown className="w-3.5 h-3.5 text-white/90 shrink-0" />
@@ -1963,18 +1963,18 @@ export default function App() {
                 </div>
 
                 {/* 2. Category Dropdown */}
-                <div className="relative shrink-0">
+                <div className="relative min-w-0">
                   <button
                     onClick={e => {
                       e.stopPropagation();
                       setIsCategoryDropdownOpen(prev => !prev);
                       setIsSpeakerRankDropdownOpen(false);
                     }}
-                    className="px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold text-white flex items-center gap-1 shadow-2xs hover:brightness-105 transition-all"
+                    className="w-full min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold text-white flex items-center justify-center gap-0.5 shadow-2xs hover:brightness-105 transition-all"
                     style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                     title="點擊展開分類選單"
                   >
-                    <span className="truncate max-w-[70px] sm:max-w-none">
+                    <span className="truncate min-w-0">
                       分類
                     </span>
                     <ChevronDown className="w-3.5 h-3.5 text-white/90 shrink-0" />
