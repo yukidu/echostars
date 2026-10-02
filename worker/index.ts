@@ -322,7 +322,7 @@ export default {
         if (method === 'GET') {
           if (env.DB) {
             try {
-              const { results } = await env.DB.prepare('SELECT name FROM categories ORDER BY createdAt ASC').all();
+              const { results } = await env.DB.prepare('SELECT name FROM categories ORDER BY createdAt ASC, rowid ASC').all();
               if (results && results.length > 0) {
                 return jsonResponse(results.map((r: any) => r.name));
               }
@@ -340,7 +340,7 @@ export default {
           if (env.DB) {
             try {
               await env.DB.prepare('INSERT OR IGNORE INTO categories (name, createdAt) VALUES (?, ?)').bind(name, Date.now()).run();
-              const { results } = await env.DB.prepare('SELECT name FROM categories ORDER BY createdAt ASC').all();
+              const { results } = await env.DB.prepare('SELECT name FROM categories ORDER BY createdAt ASC, rowid ASC').all();
               return jsonResponse({ success: true, categories: results.map((r: any) => r.name) });
             } catch (e) {
               console.error('D1 categories insert error:', e);
@@ -350,7 +350,55 @@ export default {
         }
       }
 
-      // 5.1.1 單一分類標籤修改/刪除。僅在實際管理操作時讀寫 D1。
+      // 5.1.1 分類順序：後台拖曳放開後才寫入一次 D1。
+      // 直接沿用 createdAt 作為排序鍵，避免新增資料表／KV。
+      if (path === '/api/categories/order' && method === 'PUT') {
+        if (!env.DB) return errorResponse('資料庫尚未連線', 503);
+
+        try {
+          const body: any = await request.json().catch(() => ({}));
+          const requestedOrder = Array.isArray(body.order)
+            ? body.order.map((name: any) => String(name || '').trim()).filter(Boolean)
+            : [];
+
+          const { results } = await env.DB.prepare(
+            'SELECT name FROM categories ORDER BY createdAt ASC, rowid ASC'
+          ).all();
+          const existing = (results || []).map((row: any) => String(row.name));
+          const existingSet = new Set(existing);
+
+          const normalized: string[] = [];
+          for (const name of requestedOrder) {
+            if (existingSet.has(name) && !normalized.includes(name)) {
+              normalized.push(name);
+            }
+          }
+          for (const name of existing) {
+            if (!normalized.includes(name)) normalized.push(name);
+          }
+
+          if (normalized.length === 0) {
+            return jsonResponse({ success: true, categories: [] });
+          }
+
+          // Keep the newest sort key below Date.now() so a category added
+          // immediately afterwards still naturally appends to the end.
+          const baseOrder = Date.now() - normalized.length;
+          const statements = normalized.map((name, index) =>
+            env.DB
+              .prepare('UPDATE categories SET createdAt = ? WHERE name = ?')
+              .bind(baseOrder + index, name)
+          );
+          await env.DB.batch(statements);
+
+          return jsonResponse({ success: true, categories: normalized });
+        } catch (e: any) {
+          console.error('D1 category reorder error:', e);
+          return errorResponse(e?.message || '分類排序儲存失敗', 500);
+        }
+      }
+
+      // 5.1.2 單一分類標籤修改/刪除。僅在實際管理操作時讀寫 D1。
       if (path.startsWith('/api/categories/') && (method === 'PUT' || method === 'DELETE')) {
         if (!env.DB) return errorResponse('資料庫尚未連線', 503);
         const oldName = decodeURIComponent(path.slice('/api/categories/'.length)).trim();
@@ -394,7 +442,7 @@ export default {
             await env.DB.batch(statements);
           }
 
-          const { results } = await env.DB.prepare('SELECT name FROM categories ORDER BY createdAt ASC').all();
+          const { results } = await env.DB.prepare('SELECT name FROM categories ORDER BY createdAt ASC, rowid ASC').all();
           return jsonResponse({ success: true, categories: (results || []).map((r: any) => r.name) });
         } catch (e: any) {
           console.error('D1 category mutation error:', e);
