@@ -75,7 +75,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
 
   const hasReadAccess = canAccess && isVipUnlocked;
 
-  const handlePlayClick = (e: React.MouseEvent) => {
+  const handlePlayClick = (e: React.MouseEvent<HTMLElement>) => {
     e.stopPropagation();
     if (onTogglePlay) onTogglePlay(e.currentTarget);
   };

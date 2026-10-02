@@ -65,7 +65,7 @@ const inferImageType = (bytes: Uint8Array, declaredMime = '') => {
 const makePictureResult = (bytes: Uint8Array, declaredMime = '') => {
   if (!bytes.length) return null;
   const type = inferImageType(bytes, declaredMime);
-  const blob = new Blob([bytes], { type: type.mime });
+  const blob = new Blob([new Uint8Array(bytes).buffer], { type: type.mime });
   return {
     pictureBlob: blob,
     pictureMimeType: type.mime,

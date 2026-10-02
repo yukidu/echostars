@@ -83,14 +83,17 @@ test('track likes return the frontend contract and persist cancellation across r
   db.sqlite.close();
 });
 
-test('ratings aggregate all visitors; cancellation preserves other member ratings', async () => {
+test('ratings aggregate all visitors; legacy zero scores preserve existing ratings', async () => {
   const db = database();
   await call(db, '/api/tracks/t-test/rate', 'POST', { identifier: 'u-admin', score: 5 });
   const rated = await call(db, '/api/tracks/t-test/rate', 'POST', { identifier: 'other@example.com', score: 3 });
   assert.equal(rated.data.rating, 4);
   assert.equal(rated.data.ratingCount, 2);
   const cancel = await call(db, '/api/tracks/t-test/rate', 'POST', { identifier: 'other@example.com', score: 0 });
-  assert.deepEqual(cancel.data.ratings, { 'u-admin': 5 });
+  assert.deepEqual(cancel.data.ratings, { 'u-admin': 5, 'other@example.com': 3 });
+  assert.equal(cancel.data.ignoredZero, true);
+  assert.equal(cancel.data.rating, 4);
+  assert.equal(cancel.data.ratingCount, 2);
   const invalid = await call(db, '/api/tracks/t-test/rate', 'POST', { identifier: 'other', score: 9 });
   assert.equal(invalid.status, 400);
   db.sqlite.close();
@@ -242,4 +245,43 @@ test('v3 offline cleanup deletes real cached URLs after 95 percent and 15 days',
   await Promise.resolve();await Promise.resolve();
   assert.equal(removed[1],'https://audio.example/b.mp3');
  }finally{for(const [key,value]of Object.entries(previous)){if(value===undefined)delete (globalThis as any)[key];else (globalThis as any)[key]=value;}}
+});
+
+
+test('category order rejects malformed and stale lists without writing, then preserves CRUD order', async () => {
+  const db = database();
+  let batches = 0;
+  const batch = db.batch;
+  db.batch = async statements => { batches++; return batch(statements); };
+  const request = async (path: string, method = 'GET', body?: any) => {
+    const response = await worker.fetch(new Request('https://test.example' + path, {
+      method, ...(body !== undefined ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {})
+    }), { DB: db });
+    return { status: response.status, data: await response.json() as any };
+  };
+  const original = (await request('/api/categories')).data as string[];
+  const reversed = [...original].reverse();
+  for (const categories of [undefined, 'bad', [1], [''], [...original, original[0]], original.slice(1), [...original.slice(1), '不存在']]) {
+    const result = await request('/api/categories/order', 'PUT', { categories });
+    assert.ok(result.status === 400 || result.status === 409);
+    assert.equal(batches, 0);
+    assert.deepEqual((await request('/api/categories')).data, original);
+  }
+  assert.equal((await request('/api/categories/order', 'PUT', null)).status, 400);
+  assert.equal((await request('/api/categories/order', 'PUT', [])).status, 400);
+  assert.equal(batches, 0);
+  const saved = await request('/api/categories/order', 'PUT', { categories: reversed.map(name => ` ${name} `) });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.data.categories, reversed);
+  assert.equal(batches, 1);
+  assert.deepEqual((await request('/api/categories')).data, reversed);
+  const added = await request('/api/categories', 'POST', { name: '測試分類' });
+  assert.deepEqual(added.data.categories, [...reversed, '測試分類']);
+  const renamed = await request('/api/categories/' + encodeURIComponent(reversed[0]), 'PUT', { newName: '改名分類' });
+  assert.deepEqual(renamed.data.categories, ['改名分類', ...reversed.slice(1), '測試分類']);
+  const removed = await request('/api/categories/' + encodeURIComponent('改名分類'), 'DELETE');
+  assert.deepEqual(removed.data.categories, [...reversed.slice(1), '測試分類']);
+  const legacy = await request('/api/categories/order', 'PUT', { order: removed.data.categories });
+  assert.equal(legacy.status, 200);
+  db.sqlite.close();
 });
