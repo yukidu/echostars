@@ -60,7 +60,9 @@ export const AudioCard: React.FC<AudioCardProps> = ({
   // Requirement 11 (v2.7): 私秘VIP音檔一律顯示鎖頭+「私秘VIP」
   const displayRequiredRank = track.isPrivateVip
     ? '私秘VIP'
-    : (track.requiredRank === '無' ? '公開' : track.requiredRank);
+    : (!track.requiredRank || track.requiredRank === '無' || track.requiredRank === '公開'
+      ? '公開'
+      : track.requiredRank);
 
   // Requirement 18: 名字與獎銜連在一起顯示，顏色字體一致
   const speakerDisplay = `${track.speaker}${track.speakerRank || ''}`;
