@@ -377,7 +377,7 @@ export default function App() {
   }, []);
 
   const [sortField, setSortField] = useState<SortField>('權限');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [trackToEdit, setTrackToEdit] = useState<Track | null>(null);
 
   // Audio Playback Engine
@@ -1504,13 +1504,14 @@ export default function App() {
             break;
           }
           case '權限': {
-            diff = getRequiredRankSortIndex(a) - getRequiredRankSortIndex(b);
-            // Default secondary priority: within the same permission level, sort by upload time.
-            if (diff === 0) {
-              diff = getUploadTimestamp(a.uploadDate) - getUploadTimestamp(b.uploadDate);
-              if (diff === 0) diff = getUploadSequence(a) - getUploadSequence(b);
+            // Primary: permission from public/low to high. Secondary: newest upload first.
+            const permissionDiff = getRequiredRankSortIndex(a) - getRequiredRankSortIndex(b);
+            if (permissionDiff !== 0) {
+              return sortDirection === 'desc' ? -permissionDiff : permissionDiff;
             }
-            break;
+            let timeDiff = getUploadTimestamp(b.uploadDate) - getUploadTimestamp(a.uploadDate);
+            if (timeDiff === 0) timeDiff = getUploadSequence(b) - getUploadSequence(a);
+            return timeDiff;
           }
           case '評價': {
             diff = (a.rating || 0) - (b.rating || 0);
