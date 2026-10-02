@@ -1969,12 +1969,12 @@ export default function App() {
             </div>
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
-            <div className={`sort-toolbar relative grid grid-cols-6 gap-1 w-[100dvw] max-w-[100dvw] left-1/2 -translate-x-1/2 px-2 pt-0.5 sm:w-full sm:max-w-none sm:left-auto sm:translate-x-0 sm:px-0 ${(isSpeakerRankDropdownOpen || isCategoryDropdownOpen) ? 'z-[100]' : 'z-20'}`}>
-              {/* Four sort buttons + two filters share the full row at equal width. */}
+            <div className={`sort-toolbar relative grid grid-cols-5 gap-1 w-[100dvw] max-w-[100dvw] left-1/2 -translate-x-1/2 px-2 pt-0.5 sm:w-full sm:max-w-none sm:left-auto sm:translate-x-0 sm:px-0 ${(isSpeakerRankDropdownOpen || isCategoryDropdownOpen) ? 'z-[100]' : 'z-20'}`}>
+              {/* v3.7: three sort buttons + two filters always stay visible, including narrow portrait screens. */}
               <div className="sort-options contents">
-                {(['時間', '評價', '留言', '演講人'] as SortField[]).map(field => {
+                {(['時間', '評價', '留言'] as SortField[]).map(field => {
                   const isActive = sortField === field;
-                  const displayField = field === '演講人' ? '講者' : field === '留言' ? '心得' : field;
+                  const displayField = field === '留言' ? '心得' : field;
                   return (
                     <button
                       key={field}
