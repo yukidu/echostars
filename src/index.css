@@ -282,7 +282,7 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
   display: grid !important;
   grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
   grid-auto-flow: column !important;
-  gap: 4px !important;
+  gap: 1px !important;
 }
 .sort-toolbar > .sort-toolbar-item {
   display: block !important;
@@ -296,14 +296,11 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
   width: 100% !important;
   min-width: 0 !important;
   justify-content: center;
-  padding: 8px 2px;
+  padding: 8px 0;
+  gap: 0 !important;
   font-size: 12px;
   white-space: nowrap;
 }
-@media (max-width: 480px) {
-  .sort-toolbar .sort-direction-icon { display: none !important; }
-}
-
 /* v3.7 real-device fix: toolbar always stays inside its content container.
    Never use 100dvw/left/translate centering, which can clip the left columns on portrait phones. */
 .sort-toolbar {
