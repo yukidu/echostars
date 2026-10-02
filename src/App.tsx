@@ -78,6 +78,23 @@ type HomeCache = {
   savedAt: number;
 };
 
+type AppHistoryState = {
+  echostars?: true;
+  view?: 'guard' | 'home' | 'detail' | 'tab';
+  trackId?: string;
+  tab?: 'stats' | 'notifications';
+};
+
+function shouldProtectBrowserBack() {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/i.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/i.test(ua);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+  return isIOS || isAndroid || isStandalone;
+}
+
 function readHomeCache(): HomeCache | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -233,6 +250,10 @@ export default function App() {
 
   // Tracks, Comments, Users from Backend API
   const [tracks, setTracks] = useState<Track[]>(() => readHomeCache()?.tracks || []);
+  const tracksHistoryRef = useRef<Track[]>(tracks);
+  useEffect(() => {
+    tracksHistoryRef.current = tracks;
+  }, [tracks]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [allComments, setAllComments] = useState<Comment[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
@@ -441,6 +462,149 @@ export default function App() {
   const [isChangelogOpen, setIsChangelogOpen] = useState(false);
   const [permissionAlert, setPermissionAlert] = useState<string | null>(null);
   const [permissionAlertPosition, setPermissionAlertPosition] = useState<{ left: number; top: number } | null>(null);
+
+  // Browser back/forward integration for the SPA.
+  // Desktop gets normal in-app history; mobile/PWA gets one same-page guard entry
+  // so the first Back action can never immediately close the app/tab.
+  const historyReadyRef = useRef(false);
+  const historyApplyingPopRef = useRef(false);
+  const savedPreferredModeHistoryRef = useRef(savedPreferredMode);
+
+  useEffect(() => {
+    savedPreferredModeHistoryRef.current = savedPreferredMode;
+  }, [savedPreferredMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const protectBack = shouldProtectBrowserBack();
+    const homeState: AppHistoryState = { echostars: true, view: 'home' };
+    const existing = window.history.state as AppHistoryState | null;
+
+    if (protectBack) {
+      if (!existing?.echostars) {
+        window.history.replaceState(
+          { echostars: true, view: 'guard' } satisfies AppHistoryState,
+          '',
+          window.location.href
+        );
+        window.history.pushState(homeState, '', window.location.href);
+      } else if (existing.view === 'guard') {
+        window.history.pushState(homeState, '', window.location.href);
+      } else if (existing.view !== 'home') {
+        // A reload should start from a predictable root state. Direct share URLs
+        // can still reopen their track through the existing bootstrap logic.
+        window.history.replaceState(homeState, '', window.location.href);
+      }
+    } else {
+      window.history.replaceState(homeState, '', window.location.href);
+    }
+
+    historyReadyRef.current = true;
+
+    const closeTransientUi = () => {
+      setIsShareOpen(false);
+      setIsBwExportOpen(false);
+      setIsUploadOpen(false);
+      setIsAdminOpen(false);
+      setIsProfileOpen(false);
+      setIsChangelogOpen(false);
+      setCommentPreviewTrack(null);
+      setPreviewMember(null);
+      setTrackToEdit(null);
+    };
+
+    const showHomeFromHistory = () => {
+      setCurrentTab('home');
+      setSelectedDetailTrack(null);
+      setPlayerModeState(savedPreferredModeHistoryRef.current);
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    };
+
+    const handlePopState = (event: PopStateEvent) => {
+      historyApplyingPopRef.current = true;
+      closeTransientUi();
+
+      const state = event.state as AppHistoryState | null;
+
+      if (state?.echostars && state.view === 'detail' && state.trackId) {
+        const track = tracksHistoryRef.current.find(item => item.id === state.trackId);
+        if (track) {
+          setCurrentTab('home');
+          setSelectedDetailTrack(track);
+          setPlayerModeState('expanded');
+        } else {
+          showHomeFromHistory();
+        }
+      } else if (
+        state?.echostars &&
+        state.view === 'tab' &&
+        (state.tab === 'stats' || state.tab === 'notifications')
+      ) {
+        setSelectedDetailTrack(null);
+        setPlayerModeState(savedPreferredModeHistoryRef.current);
+        setCurrentTab(state.tab);
+      } else {
+        showHomeFromHistory();
+      }
+
+      window.requestAnimationFrame(() => {
+        historyApplyingPopRef.current = false;
+
+        // Mobile browsers and standalone PWAs must keep one in-app entry behind
+        // the root page. Back at root therefore returns to home instead of
+        // closing the PWA or leaving/closing the current tab.
+        if (
+          protectBack &&
+          (!state?.echostars || state.view === 'guard')
+        ) {
+          window.history.pushState(homeState, '', window.location.href);
+        }
+      });
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (
+      typeof window === 'undefined' ||
+      !historyReadyRef.current ||
+      historyApplyingPopRef.current
+    ) {
+      return;
+    }
+
+    const detailTrack =
+      selectedDetailTrack ||
+      (currentTrack && playerMode === 'expanded' ? currentTrack : null);
+
+    let nextState: AppHistoryState;
+    if (detailTrack) {
+      nextState = { echostars: true, view: 'detail', trackId: detailTrack.id };
+    } else if (currentTab === 'stats' || currentTab === 'notifications') {
+      nextState = { echostars: true, view: 'tab', tab: currentTab };
+    } else {
+      nextState = { echostars: true, view: 'home' };
+    }
+
+    const currentState = window.history.state as AppHistoryState | null;
+    const isSame =
+      currentState?.echostars === true &&
+      currentState.view === nextState.view &&
+      currentState.trackId === nextState.trackId &&
+      currentState.tab === nextState.tab;
+
+    if (!isSame) {
+      window.history.pushState(nextState, '', window.location.href);
+    }
+  }, [
+    currentTab,
+    selectedDetailTrack?.id,
+    currentTrack?.id,
+    playerMode
+  ]);
 
   const showPermissionAlert = useCallback((message: string, anchor?: HTMLElement | null) => {
     setPermissionAlert(message);
@@ -2463,11 +2627,11 @@ export default function App() {
       </Suspense>}
 
       {/* Social Share Modal */}
-      {currentTrack && (
+      {(selectedDetailTrack || currentTrack) && (
         <ShareModal
           isOpen={isShareOpen}
           onClose={() => setIsShareOpen(false)}
-          track={currentTrack}
+          track={selectedDetailTrack || currentTrack!}
           visitor={visitor}
           currentUser={currentUser}
         />
