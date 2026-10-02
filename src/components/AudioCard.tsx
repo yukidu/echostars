@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, MessageSquare, Heart, Clock, Lock, CheckCircle2, Play, Pause } from 'lucide-react';
+import { Star, MessageSquare, Heart, Clock, Lock, CheckCircle2 } from 'lucide-react';
 import { Track } from '../types';
 import { AudioMemory } from '../utils/audio';
 
@@ -88,28 +88,19 @@ export const AudioCard: React.FC<AudioCardProps> = ({
       <div className="flex items-start gap-3 sm:gap-4">
         {/* Left: large portrait + progress + duration + access level */}
         <div className="shrink-0 w-28 sm:w-32">
-          <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden bg-black/20 dark:bg-slate-800 shadow-sm">
+          <button
+            type="button"
+            onClick={handlePlayClick}
+            className="relative block w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden bg-black/20 dark:bg-slate-800 shadow-sm text-left"
+            title={isPlaying ? '點擊照片暫停' : '點擊照片播放'}
+            aria-label={isPlaying ? '暫停播放' : '開始播放'}
+          >
             <img
               src={track.speakerAvatar}
               alt={track.speaker}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               loading="lazy"
             />
-
-            {/* Semi-transparent center play/pause control */}
-            <button
-              type="button"
-              onClick={handlePlayClick}
-              className="absolute inset-0 m-auto z-20 w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-black/35 hover:bg-black/50 backdrop-blur-[1px] text-white flex items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95"
-              title={isPlaying ? '暫停播放' : '開始播放'}
-              aria-label={isPlaying ? '暫停播放' : '開始播放'}
-            >
-              {isPlaying ? (
-                <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white" />
-              ) : (
-                <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white ml-0.5" />
-              )}
-            </button>
 
             {/* Listening progress: always one line, compact font. */}
             {isCompleted ? (
@@ -125,16 +116,16 @@ export const AudioCard: React.FC<AudioCardProps> = ({
 
             {/* Access level sits inside the portrait at the bottom. */}
             <div
-              className="absolute bottom-0 inset-x-0 z-30 flex items-center justify-center gap-0.5 bg-black/35 px-1 py-1 text-[8px] sm:text-[9px] font-black text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] whitespace-nowrap overflow-hidden"
+              className="absolute bottom-0 inset-x-0 z-30 flex items-center justify-center gap-0.5 bg-black/35 px-1 py-[2px] sm:py-0.5 text-[8px] sm:text-[9px] leading-none font-black text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] whitespace-nowrap overflow-hidden"
               title={`收聽權限：${displayRequiredRank}`}
             >
               {displayRequiredRank !== '公開' && <Lock className="w-2.5 h-2.5 shrink-0" />}
               <span className="truncate">{displayRequiredRank}</span>
             </div>
-          </div>
+          </button>
 
           {/* Duration moved below portrait */}
-          <div className="mt-1.5 flex items-center justify-center gap-1 text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap">
+          <div className="mt-1 flex items-center justify-center gap-1 text-[9px] sm:text-[10px] leading-none text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap">
             <Clock className="w-2.5 h-2.5 shrink-0" />
             <span>{displayDuration}</span>
           </div>
@@ -144,19 +135,19 @@ export const AudioCard: React.FC<AudioCardProps> = ({
         {/* Right: all remaining card information. Right padding intentionally 0. */}
         <div className="flex-1 min-w-0 flex flex-col self-stretch pr-0">
           <div className="pr-0">
-            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 leading-snug break-words line-clamp-3 group-hover:text-[var(--color-primary,#c06c84)] dark:group-hover:text-rose-400 transition-colors">
+            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 leading-tight break-words line-clamp-3 group-hover:text-[var(--color-primary,#c06c84)] dark:group-hover:text-rose-400 transition-colors">
               {track.title}
             </h3>
 
-            <p className="font-bold text-sm sm:text-base text-slate-700 dark:text-slate-200 mt-1 truncate">
+            <p className="font-bold text-sm sm:text-base leading-tight text-slate-700 dark:text-slate-200 mt-0.5 truncate">
               {speakerDisplay}
             </p>
 
-            <div className="flex flex-nowrap items-center gap-1 mt-1.5 w-full overflow-hidden">
+            <div className="flex flex-nowrap items-center gap-1 mt-1 w-full overflow-hidden">
               {categories.slice(0, 3).map((cat, idx) => (
                 <span
                   key={idx}
-                  className="inline-flex w-fit max-w-[33%] shrink-0 text-[9px] sm:text-[10px] font-semibold px-1.5 py-0.5 rounded-md border text-center truncate whitespace-nowrap"
+                  className="inline-flex w-fit max-w-[32%] shrink-0 box-border text-[9px] sm:text-[10px] leading-none font-semibold p-1 rounded-md border text-center truncate whitespace-nowrap"
                   style={{
                     backgroundColor: 'var(--color-light-pill, #fae8ed)',
                     color: 'var(--color-primary, #c06c84)',
@@ -170,7 +161,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
             </div>
           </div>
 
-          <div className="mt-auto pt-2.5 space-y-2 sm:space-y-0 sm:flex sm:items-center sm:gap-4 border-t border-slate-100 dark:border-slate-800 pr-0">
+          <div className="mt-auto pt-1.5 space-y-1 sm:space-y-0 sm:flex sm:items-center sm:gap-3 border-t border-slate-100 dark:border-slate-800 pr-0">
             {/* Enlarged rating row */}
             <div
               className="flex items-center flex-nowrap gap-[2px] min-w-0"
@@ -206,7 +197,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
             </div>
 
             {/* Enlarged feedback + likes row */}
-            <div className="flex items-center gap-3 sm:gap-4 text-sm text-slate-600 dark:text-slate-400 sm:ml-auto">
+            <div className="flex items-center gap-2.5 sm:gap-3 text-sm leading-none text-slate-600 dark:text-slate-400 sm:ml-auto">
               <button
                 type="button"
                 onClick={e => {
