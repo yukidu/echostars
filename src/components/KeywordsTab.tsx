@@ -361,17 +361,7 @@ export const KeywordsTab: React.FC<KeywordsTabProps> = ({
 
       {/* SECTION 2: 關鍵字直接編輯與管理 (Direct Keyword Management) */}
       <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-          <div>
-            <h4 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 text-xs sm:text-sm">
-              <Tag className="w-4 h-4 text-rose-500" />
-              <span>網友關鍵字清單與直接編輯</span>
-            </h4>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              在此直接編輯關鍵字名稱，修改後會自動更新並即時連動至所有音檔的詳細資訊頁面。
-            </p>
-          </div>
-
+        <div className="flex justify-end">
           {/* Search Box */}
           <div className="relative w-full sm:w-56 shrink-0">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
