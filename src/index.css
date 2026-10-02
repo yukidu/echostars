@@ -280,11 +280,35 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
 
 .app-modal-overlay { z-index: 100 !important; }
 
-/* Seven controls remain in one row at every viewport width. */
-.sort-toolbar { display: grid !important; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 4px !important; flex-wrap: nowrap !important; }
+/* v3.6: six controls remain equal-width in one row.
+   Portrait phones use the full viewport; landscape/desktop align to the audio-card container. */
+.sort-toolbar { display: grid !important; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 4px !important; flex-wrap: nowrap !important; }
 .sort-toolbar .sort-options, .sort-toolbar .filter-dropdowns { display: contents !important; }
 .sort-toolbar > .filter-dropdowns > div { min-width: 0; }
 .sort-toolbar button { min-width: 0; }
 .sort-toolbar .sort-options > button,
 .sort-toolbar .filter-dropdowns > div > button { width: 100%; justify-content: center; padding: 8px 2px; font-size: 12px; white-space: nowrap; }
 @media(max-width:480px) { .sort-toolbar .sort-options > button > .inline-flex { display: none; } }
+
+@media (max-width: 639px) and (orientation: portrait) {
+  .sort-toolbar {
+    width: 100dvw !important;
+    max-width: 100dvw !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    padding-inline: 8px !important;
+  }
+}
+
+@media (min-width: 640px), (orientation: landscape) {
+  .sort-toolbar {
+    width: 100% !important;
+    max-width: 100% !important;
+    left: auto !important;
+    transform: none !important;
+    padding-inline: 0 !important;
+  }
+}
+
+/* Admin stays visible in the background while the editor must always sit above it. */
+.upload-modal-overlay { z-index: 160 !important; }
