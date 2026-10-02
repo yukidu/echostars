@@ -1969,17 +1969,16 @@ export default function App() {
             </div>
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
-            <div className={`sort-toolbar relative grid grid-cols-5 gap-1 w-[100dvw] max-w-[100dvw] left-1/2 -translate-x-1/2 px-2 pt-0.5 sm:w-full sm:max-w-none sm:left-auto sm:translate-x-0 sm:px-0 ${(isSpeakerRankDropdownOpen || isCategoryDropdownOpen) ? 'z-[100]' : 'z-20'}`}>
-              {/* v3.7: three sort buttons + two filters always stay visible, including narrow portrait screens. */}
-              <div className="sort-options contents">
-                {(['時間', '評價', '留言'] as SortField[]).map(field => {
+            <div className={`sort-toolbar relative flex items-stretch gap-1 w-[100dvw] max-w-[100dvw] left-1/2 -translate-x-1/2 px-2 pt-0.5 sm:w-full sm:max-w-none sm:left-auto sm:translate-x-0 sm:px-0 ${(isSpeakerRankDropdownOpen || isCategoryDropdownOpen) ? 'z-[100]' : 'z-20'}`}>
+              {/* v3.7 hotfix: all five controls are direct flex children; avoids mobile Safari display:contents/grid loss. */}
+              {(['時間', '評價', '留言'] as SortField[]).map(field => {
                   const isActive = sortField === field;
                   const displayField = field === '留言' ? '心得' : field;
                   return (
                     <button
                       key={field}
                       onClick={() => handleSortClick(field)}
-                      className={`w-full min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-0.5 shadow-2xs ${
+                      className={`flex-1 basis-0 min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-0.5 shadow-2xs ${
                         isActive
                           ? 'ring-2 ring-white/95 text-white brightness-110 font-black scale-102'
                           : 'text-white/85 hover:text-white hover:brightness-105 opacity-90 hover:opacity-100'
@@ -2000,12 +1999,10 @@ export default function App() {
                     </button>
                   );
                 })}
-              </div>
 
               {/* Right: Dropdowns (分類選單與講師獎銜指標篩選) */}
-              <div className="filter-dropdowns contents">
-                {/* 1. 講師獎銜篩選下拉選單 */}
-                <div className="relative min-w-0">
+              {/* 1. 講師獎銜篩選下拉選單 */}
+              <div className="relative flex-1 basis-0 min-w-0">
                   <button
                     onClick={e => {
                       e.stopPropagation();
@@ -2060,8 +2057,8 @@ export default function App() {
                   )}
                 </div>
 
-                {/* 2. Category Dropdown */}
-                <div className="relative min-w-0">
+              {/* 2. Category Dropdown */}
+              <div className="relative flex-1 basis-0 min-w-0">
                   <button
                     onClick={e => {
                       e.stopPropagation();
@@ -2113,7 +2110,6 @@ export default function App() {
                       </div>
                     </>
                   )}
-                </div>
               </div>
             </div>
 
