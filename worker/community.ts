@@ -297,10 +297,22 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
         if (!row) return json({ error: '找不到此項目' }, 404);
         if (action === 'rate') {
           const ratings = parse(row.ratings, {});
+          // Legacy cached clients used score=0 to cancel a rating. Treat it as a
+          // no-op so an accidental repeat tap cannot reset the aggregate to 0.0.
+          if (body.score === 0) {
+            return json({
+              rating: Number(row.rating) || 0,
+              ratingCount: Number(row.ratingCount) || 0,
+              ratings,
+              ignoredZero: true
+            });
+          }
           keys.forEach(k => delete ratings[k]);
-          if (body.score) ratings[identifier] = body.score;
-          const scores = Object.values(ratings).filter((n: any) => Number.isFinite(n) && n > 0 && n <= 5) as number[];
-          const ratingCount = scores.length, rating = ratingCount ? Math.round(scores.reduce((a, b) => a + b, 0) / ratingCount * 10) / 10 : 0;
+          ratings[identifier] = body.score;
+          const scores = Object.values(ratings)
+            .map((n: any) => Number(n))
+            .filter((n: number) => Number.isFinite(n) && n >= 1 && n <= 5);
+          const ratingCount = scores.length, rating = ratingCount ? Math.round(scores.reduce((a, b) => a + b, 0) / ratingCount * 10) / 10 : Number(row.rating) || 0;
           const update = await db.prepare("UPDATE tracks SET ratings = ?, rating = ?, ratingCount = ? WHERE id = ? AND COALESCE(ratings, '') = ?")
             .bind(JSON.stringify(ratings), rating, ratingCount, id, row.ratings ?? '').run();
           if (update.meta.changes) return json({ rating, ratingCount, ratings, canceled: body.score === 0 });
