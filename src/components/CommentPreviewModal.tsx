@@ -45,11 +45,13 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
   onCommentAdded,
   onDeleteComment
 }) => {
-  const canModerateComments =
+  const isSuperAdminModerator =
     isAdmin ||
-    currentUser?.isAdminUser === true ||
-    currentUser?.role === '管理員' ||
     currentUser?.role === '超級管理員';
+  const isAdminModerator =
+    isSuperAdminModerator ||
+    currentUser?.isAdminUser === true ||
+    currentUser?.role === '管理員';
 
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -543,7 +545,7 @@ const threads = commentThreads(comments);
                           <span>回覆</span>
                         </button>
 
-                        {(canModerateComments || isAuthor) && onDeleteComment && (
+                        {(isAuthor || isSuperAdminModerator || (isAdminModerator && isVisitor)) && onDeleteComment && (
                           <button
                             type="button"
                             onClick={async () => {
