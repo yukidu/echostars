@@ -432,17 +432,19 @@ export default function App() {
   }, []);
 
   // Requirement 5: 分類標籤同步函數 (後台增刪改後首頁下拉選單同步更新)
-  const fetchCategories = async () => {
+  const fetchCategories = async (providedCategories?: string[]) => {
     try {
-      const cRes = await fetch('/api/categories');
-      if (cRes.ok) {
-        const cData = await cRes.json();
-        if (Array.isArray(cData)) {
-          const list = Array.from(new Set(['全部', ...cData]));
-          setCategoryOptions(list);
-          setSelectedCategory(prev => (list.includes(prev) ? prev : '全部'));
-          writeHomeCache(tracks, list, homeCacheValidatedAtRef.current || Date.now());
-        }
+      const cData = Array.isArray(providedCategories)
+        ? providedCategories
+        : await (async () => {
+            const cRes = await fetch('/api/categories');
+            return cRes.ok ? await cRes.json() : null;
+          })();
+      if (Array.isArray(cData)) {
+        const list = Array.from(new Set(['全部', ...cData]));
+        setCategoryOptions(list);
+        setSelectedCategory(prev => (list.includes(prev) ? prev : '全部'));
+        writeHomeCache(tracks, list, homeCacheValidatedAtRef.current || Date.now());
       }
     } catch (e) {
       console.error('Failed to sync categories:', e);
