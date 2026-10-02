@@ -653,7 +653,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
             {track.speaker} · {track.speakerRank}
           </p>
 
-          {/* Requirement 4 (v2.8): 評價、留言、按讚排列極致緊密，星星更緊密，留言顯示 icon+數字，刪除「則留言」，圖標放大與愛心星星一致 */}
+          {/* Requirement 4 (v2.8): 評價、心得、按讚排列極致緊密，星星更緊密，心得顯示 icon+數字，刪除「則心得」，圖標放大與愛心星星一致 */}
           <div className="flex items-center justify-center gap-1.5 sm:gap-2.5 text-xs text-slate-600 dark:text-slate-400 bg-white/85 dark:bg-slate-800/80 py-1 sm:py-1.5 px-2.5 sm:px-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-2xs select-none">
             {/* Direct 5-star interactive rating (星星更緊密排列) */}
             <div className="flex items-center gap-0 -space-x-1">
@@ -686,7 +686,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
 
             <span className="text-slate-300 dark:text-slate-600 text-[10px]">|</span>
 
-            {/* Requirement 4: 顯示X留言，改成 「icon+數字」 即可，後面中文三個字「則留言」刪除，icon放大跟愛心、星星一樣大 */}
+            {/* Requirement 4: 顯示X心得，改成 「icon+數字」 即可，後面中文三個字「則心得」刪除，icon放大跟愛心、星星一樣大 */}
             <button
               type="button"
               onClick={() => {
@@ -696,7 +696,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                 }
               }}
               className="inline-flex items-center gap-1 hover:text-rose-600 transition-colors cursor-pointer text-xs font-semibold tabular-nums whitespace-nowrap"
-              title="查看留言區"
+              title="查看心得區"
             >
               <MessageSquare className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-slate-500 dark:text-slate-400 shrink-0" />
               <span>{comments.length}</span>
@@ -895,7 +895,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
         </div>
       </div>
 
-      {/* Requirement 5.1, 5.2, 5.4 (v2.7): 「分享錄音」與「匯出圖卡」按鈕移到留言板的上面 */}
+      {/* Requirement 5.1, 5.2, 5.4 (v2.7): 「分享錄音」與「匯出圖卡」按鈕移到心得收穫的上面 */}
       <div className="detail-share-actions flex items-center justify-center gap-3 py-2">
         <button
           type="button"

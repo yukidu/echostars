@@ -73,12 +73,12 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
     setIsLoading(initial.length === 0);
     apiJson(`/api/tracks/${encodeURIComponent(track.id)}/comments`, { signal: controller.signal })
       .then(data => { if (!controller.signal.aborted) setComments(Array.isArray(data) ? data : []); })
-      .catch(error => { if (!controller.signal.aborted) setErrorMsg(error.message || '留言載入失敗'); })
+      .catch(error => { if (!controller.signal.aborted) setErrorMsg(error.message || '心得載入失敗'); })
       .finally(() => { if (!controller.signal.aborted) setIsLoading(false); });
     return () => controller.abort();
   }, [isOpen, track?.id]);
 
-  // Requirement 1 & 8: 判斷留言作者是否為已註冊會員。若是訪客，則回傳 null
+  // Requirement 1 & 8: 判斷心得作者是否為已註冊會員。若是訪客，則回傳 null
   const getRegisteredAuthor = (c: Comment): UserProfile | null => {
     const email=c.authorEmail?.toLowerCase().trim();
     if (!email) return null;
@@ -93,7 +93,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
     onViewMember(member);
   };
 
-  // Requirement 3, 4, 5: 快速留言支援 @ 與 ＠ 標記功能
+  // Requirement 3, 4, 5: 快速心得支援 @ 與 ＠ 標記功能
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setInputText(val);
@@ -251,7 +251,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
     ];
     const lower = inputText.toLowerCase().replace(/\s+/g, '');
     if (toxicWords.some(w => lower.includes(w.toLowerCase()))) {
-      setErrorMsg('留言未通過智慧審核（含不當言論），請使用友善用詞。');
+      setErrorMsg('心得未通過智慧審核（含不當言論），請使用友善用詞。');
       setIsSubmitting(false);
       return;
     }
@@ -277,7 +277,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
 
       if (!res.ok) {
         const errData = await res.json();
-        throw new Error(errData.error || '留言失敗');
+        throw new Error(errData.error || '心得失敗');
       }
 
       const data = await res.json();
@@ -288,13 +288,13 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
       setIsMentionOpen(false);
       if (onCommentAdded) onCommentAdded();
     } catch (err: any) {
-      setErrorMsg(err.message || '留言發送失敗，請稍後再試');
+      setErrorMsg(err.message || '心得發送失敗，請稍後再試');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Requirement 3 & 4: 解析留言文字中被 @ 與 ＠ 標記的內容
+  // Requirement 3 & 4: 解析心得文字中被 @ 與 ＠ 標記的內容
   const renderFormattedContent = (value: string) => {
     const content = typeof value === 'string' ? value : '';
     const regex = /[@＠]([^\s@＠\n,，。！!？?]+)/g;
@@ -391,7 +391,7 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
             </div>
             <div className="min-w-0">
               <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 flex flex-wrap items-center gap-1.5">
-                <span>留言即時預覽</span>
+                <span>心得即時預覽</span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--color-light-pill,#fae8ed)] text-[var(--color-primary,#c06c84)] font-mono font-bold">
                   共 {comments.length} 則
                 </span>
@@ -413,11 +413,11 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
         <div className="p-4 overflow-y-auto min-h-0 flex-1 space-y-3">
           {isLoading ? (
             <div className="text-center py-10 text-xs text-slate-400 animate-pulse">
-              載入留言中...
+              載入心得中...
             </div>
           ) : comments.length === 0 ? (
             <div className="text-center py-10 text-xs text-slate-400">
-              這部演講目前尚無留言，歡迎在下方搶先發表第一則心得！
+              這部演講目前尚無心得，歡迎在下方搶先發表第一則心得！
             </div>
           ) : (
             (() => {
@@ -483,7 +483,7 @@ const threads = commentThreads(comments);
                           {displayAuthorName}
                         </span>
 
-                        {/* Requirement 5 (v2.7): 留言板的訪客身份，「(訪客)」二個字改成「訪客」 */}
+                        {/* Requirement 5 (v2.7): 心得收穫的訪客身份，「(訪客)」二個字改成「訪客」 */}
                         {isVisitor && (
                           <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-[var(--color-light-pill,#fae8ed)] text-[var(--color-primary,#c06c84)] font-medium border border-[var(--theme-border-subtle,#f1e7ea)] dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 select-none">
                             訪客
@@ -510,7 +510,7 @@ const threads = commentThreads(comments);
                               ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/60 font-bold'
                               : 'text-slate-400 hover:text-rose-500'
                           }`}
-                          title={userLiked ? '取消讚' : '按讚這則留言'}
+                          title={userLiked ? '取消讚' : '按讚這則心得'}
                         >
                           <Heart className={`w-3 h-3 ${userLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
                           <span>{userLikesCount > 0 ? userLikesCount : ''}</span>
@@ -525,7 +525,7 @@ const threads = commentThreads(comments);
                             if (inputRef.current) inputRef.current.focus();
                           }}
                           className="flex items-center gap-0.5 text-[11px] text-slate-400 hover:text-[var(--color-primary,#c06c84)] px-1 py-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                          title="回覆此留言"
+                          title="回覆此心得"
                         >
                           <Reply className="w-3 h-3" />
                           <span>回覆</span>
@@ -665,7 +665,7 @@ const threads = commentThreads(comments);
                   ? `回覆 @${replyingTo.authorName}... (輸入 @ 或 ＠ 標記)`
                   : currentUser
                   ? `以 ${currentUser.name} 快速發表心得... (輸入 @ 或 ＠ 標記)`
-                  : '發表快速留言... (輸入 @ 或 ＠ 標記)'
+                  : '發表快速心得... (輸入 @ 或 ＠ 標記)'
               }
               maxLength={300}
               className="min-w-0 flex-1 px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-hidden focus:ring-1 focus:ring-[var(--color-primary,#c06c84)]"

@@ -943,7 +943,7 @@ app.post('/api/tracks/:id/rate', (req, res) => {
   });
 });
 
-// GET /api/comments (Requirement 6 v2.4: 取得全站所有錄音檔留言，提供通知頁面即時呈現 @ 標記)
+// GET /api/comments (Requirement 6 v2.4: 取得全站所有錄音檔心得，提供通知頁面即時呈現 @ 標記)
 app.get('/api/comments', (_req, res) => {
   const enriched = comments.map(c => {
     let matchedUser: UserProfile | undefined;
@@ -995,7 +995,7 @@ app.put('/api/changelog', (req, res) => {
 
 app.get('/api/tracks/:id/comments', (req, res) => {
   const trackComments = comments.filter(c => c.trackId === req.params.id);
-  // Requirement 1: 不論是新留言或過去的舊留言，留言板顯示的名字，都要和會員自己後台基本資料設定修改的名字，維持同步。
+  // Requirement 1: 不論是新心得或過去的舊心得，心得收穫顯示的名字，都要和會員自己後台基本資料設定修改的名字，維持同步。
   const enriched = trackComments.map(c => {
     let matchedUser: UserProfile | undefined;
     if (c.authorEmail && c.authorEmail !== 'guest' && !c.authorEmail.startsWith('guest-')) {
@@ -1038,7 +1038,7 @@ app.post('/api/tracks/:id/comments', (req, res) => {
   } = req.body;
 
   if (!content || !content.trim()) {
-    return res.status(400).json({ error: '請輸入留言內容' });
+    return res.status(400).json({ error: '請輸入心得內容' });
   }
 
   const track = tracks.find(t => t.id === req.params.id);
@@ -1053,7 +1053,7 @@ app.post('/api/tracks/:id/comments', (req, res) => {
   const lowerContent = content.toLowerCase().replace(/\s+/g, '');
   const isToxic = toxicWords.some(w => lowerContent.includes(w.toLowerCase()));
   if (isToxic) {
-    return res.status(422).json({ error: '留言經 Cloudflare Workers AI 智慧審核未通過（含不當或攻擊性言論），請使用友善用詞。' });
+    return res.status(422).json({ error: '心得經 Cloudflare Workers AI 智慧審核未通過（含不當或攻擊性言論），請使用友善用詞。' });
   }
 
   const newComment: Comment = {
@@ -1082,11 +1082,11 @@ app.post('/api/tracks/:id/comments', (req, res) => {
   res.json(newComment);
 });
 
-// POST /api/comments/:id/like (Requirement 15: 幫特定留言按讚)
+// POST /api/comments/:id/like (Requirement 15: 幫特定心得按讚)
 app.post('/api/comments/:id/like', (req, res) => {
   const { identifier } = req.body;
   const comment = comments.find(c => c.id === req.params.id);
-  if (!comment) return res.status(404).json({ error: '留言不存在' });
+  if (!comment) return res.status(404).json({ error: '心得不存在' });
 
   if (!comment.likedBy) comment.likedBy = [];
   if (comment.likes === undefined) comment.likes = 0;
@@ -1109,11 +1109,11 @@ app.post('/api/comments/:id/like', (req, res) => {
 app.put('/api/comments/:id', (req, res) => {
   const { content } = req.body;
   const comment = comments.find(c => c.id === req.params.id);
-  if (!comment) return res.status(404).json({ error: '留言不存在' });
+  if (!comment) return res.status(404).json({ error: '心得不存在' });
 
   const owns = comment.authorEmail ? req.body.userEmail && comment.authorEmail.toLowerCase().trim() === req.body.userEmail.toLowerCase().trim() : comment.deviceId && comment.deviceId === req.body.deviceId;
-  if (!owns) return res.status(403).json({error:'只能修改自己的留言'});
-  if (!content?.trim()) return res.status(400).json({error:'留言不可空白'});
+  if (!owns) return res.status(403).json({error:'只能修改自己的心得'});
+  if (!content?.trim()) return res.status(400).json({error:'心得不可空白'});
   comment.content = content.trim();
   saveStoreToDisk();
   res.json(comment);
@@ -1122,7 +1122,7 @@ app.put('/api/comments/:id', (req, res) => {
 // DELETE /api/comments/:id (Only admin or author, NOT contributor)
 app.delete('/api/comments/:id', (req, res) => {
   const index = comments.findIndex(c => c.id === req.params.id);
-  if (index === -1) return res.status(404).json({ error: '留言不存在' });
+  if (index === -1) return res.status(404).json({ error: '心得不存在' });
 
   const trackId = comments[index].trackId;
   comments.splice(index, 1);
@@ -1215,7 +1215,7 @@ app.put('/api/users/:id', (req, res) => {
   const oldName = user.name;
   Object.assign(user, req.body);
 
-  // Requirement 2 & 3: 個人基本資料，名稱修改後，留言板同步跟著改（含管理員留言）
+  // Requirement 2 & 3: 個人基本資料，名稱修改後，心得收穫同步跟著改（含管理員心得）
   if (req.body.name || req.body.avatar) {
     comments.forEach(c => {
       const matchEmail = user.email && c.authorEmail && c.authorEmail.toLowerCase().trim() === user.email.toLowerCase().trim();
@@ -1483,7 +1483,7 @@ app.get('/api/leaderboard', (_req, res) => {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  // 3. 留言數前5名 (Requirement 10: 統計數據為0則不計入)
+  // 3. 心得數前5名 (Requirement 10: 統計數據為0則不計入)
   const topComments = [...validMembers]
     .map(u => {
       const count = comments.filter(c =>

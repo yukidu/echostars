@@ -74,7 +74,7 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
     if (!currentBlob) return;
     const filename =
       mode === 'comments'
-        ? `聲藏講堂_${currentTrack?.title || '演講'}_留言全覽.jpg`
+        ? `聲藏講堂_${currentTrack?.title || '演講'}_心得全覽.jpg`
         : `聲藏講堂_${currentUser.name}_評價精選清單.jpg`;
 
     await shareOrDownloadImage(currentBlob, filename, '聲藏講堂黑白極簡分享圖');
@@ -117,7 +117,7 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
               }`}
             >
-              本曲留言全覽圖 ({comments.length} 則)
+              本曲心得全覽圖 ({comments.length} 則)
             </button>
           )}
 

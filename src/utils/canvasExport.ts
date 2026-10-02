@@ -144,7 +144,7 @@ export async function exportMemberProfileAndListeningImage(
   ctx.fillStyle = '#000000';
   ctx.fillText(`已聆聽錄音檔學習進度清單（共 ${records.length} 部）`, padding, 290);
 
-  // List of tracks (Requirement 7: 包含進度、評價、留言，排版緊密)
+  // List of tracks (Requirement 7: 包含進度、評價、心得，排版緊密)
   let y = 302;
 
   if (records.length === 0) {
@@ -187,7 +187,7 @@ export async function exportMemberProfileAndListeningImage(
         ctx.font = '11.5px "PingFang TC", "Microsoft JhengHei", sans-serif';
         ctx.fillStyle = '#555555';
         const cleanComment = record.comment.length > 42 ? record.comment.substring(0, 42) + '...' : record.comment;
-        ctx.fillText(`學員心得留言：“ ${cleanComment} ”`, padding + 12, y + 72);
+        ctx.fillText(`學員心得：“ ${cleanComment} ”`, padding + 12, y + 72);
       }
 
       // Divider line
@@ -365,7 +365,7 @@ export async function exportTrackCommentsImage(
 
   ctx.font = '14px sans-serif';
   ctx.fillStyle = '#666666';
-  ctx.fillText('AUDIO KNOWLEDGE REPOSITORY • 演講留言全覽', padding, 120);
+  ctx.fillText('AUDIO KNOWLEDGE REPOSITORY • 演講心得全覽', padding, 120);
 
   // Track info
   ctx.font = 'bold 22px "PingFang TC", "Microsoft JhengHei", sans-serif';
@@ -379,7 +379,7 @@ export async function exportTrackCommentsImage(
 
   ctx.font = '13px sans-serif';
   ctx.fillStyle = '#777777';
-  ctx.fillText(`留言總數：共 ${trackComments.length} 則留言 • 匯出時間：${new Date().toLocaleDateString('zh-TW')}`, padding, 215);
+  ctx.fillText(`心得總數：共 ${trackComments.length} 則心得 • 匯出時間：${new Date().toLocaleDateString('zh-TW')}`, padding, 215);
 
   // Line
   ctx.beginPath();
@@ -395,7 +395,7 @@ export async function exportTrackCommentsImage(
   if (trackComments.length === 0) {
     ctx.font = 'italic 16px sans-serif';
     ctx.fillStyle = '#888888';
-    ctx.fillText('目前本篇錄音檔尚無留言。', padding, y + 30);
+    ctx.fillText('目前本篇錄音檔尚無心得。', padding, y + 30);
     y += itemHeight;
   } else {
     trackComments.forEach((c) => {
@@ -583,7 +583,7 @@ export async function exportTrackFullCardImage(
   const durationText = `時長：${track.duration || '約 10 分鐘'}   |   演講日期：${track.speechDate || '近期'}   |   權限級別：${track.requiredRank === '無' ? '公開' : track.requiredRank}`;
   ctx.fillText(durationText, padding + 15, currentY + 54);
 
-  const seriesText = `系列：${track.series ? `${track.series} (${track.seriesOrder || '第 1 集'})` : '單篇講座'}   |   評分：★ ${track.rating || 0} (${track.ratingCount || 0}人)   |   讚數：${track.likes || 0}   |   留言：${trackComments.length}則`;
+  const seriesText = `系列：${track.series ? `${track.series} (${track.seriesOrder || '第 1 集'})` : '單篇講座'}   |   評分：★ ${track.rating || 0} (${track.ratingCount || 0}人)   |   讚數：${track.likes || 0}   |   心得：${trackComments.length}則`;
   ctx.fillText(seriesText, padding + 15, currentY + 76);
 
   currentY += 105;
@@ -649,13 +649,13 @@ export async function exportTrackFullCardImage(
   // Section 3: Netizens Comments Section
   ctx.font = 'bold 15px "PingFang TC", "Microsoft JhengHei", sans-serif';
   ctx.fillStyle = '#000000';
-  ctx.fillText(`【 網友心得回饋與留言互動 】（共 ${trackComments.length} 則）`, padding, currentY);
+  ctx.fillText(`【 網友心得回饋與互動 】（共 ${trackComments.length} 則）`, padding, currentY);
   currentY += 20;
 
   if (trackComments.length === 0) {
     ctx.font = 'italic 13px sans-serif';
     ctx.fillStyle = '#777777';
-    ctx.fillText('本篇演講目前尚無留言。', padding + 12, currentY + 15);
+    ctx.fillText('本篇演講目前尚無心得。', padding + 12, currentY + 15);
     currentY += 40;
   } else {
     for (let i = 0; i < preparedComments.length; i++) {

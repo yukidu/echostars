@@ -530,7 +530,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                       : 'border-transparent text-slate-500 dark:text-slate-400'
                   }`}
                 >
-                  留言
+                  心得
                 </button>
                 <button
                   onClick={() => setActiveTab('listening')}
@@ -1062,7 +1062,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <div className="space-y-2">
                   {userComments.length === 0 ? (
                     <div className="text-center py-8 text-slate-400">
-                      您尚未在任何演講下留言
+                      您尚未在任何演講下留下心得
                     </div>
                   ) : (
                     userComments.map(c => {
@@ -1233,7 +1233,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                               )}
                               {record.comment && (
                                 <div className="text-slate-700 dark:text-slate-300 bg-white/70 dark:bg-slate-900/40 p-1.5 rounded-lg border border-slate-200/40 dark:border-slate-800">
-                                  <span className="text-slate-400 text-[10px] block">個人心得留言：</span>
+                                  <span className="text-slate-400 text-[10px] block">個人心得：</span>
                                   <p className="italic text-xs mt-0.5">"{record.comment}"</p>
                                 </div>
                               )}

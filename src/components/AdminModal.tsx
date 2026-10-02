@@ -1442,9 +1442,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 category: '【 評價與互動 】',
                 items: [
                   { name: '1~5 星評分與心得按讚', perms: [true, true, true, true, true, true, true] },
-                  { name: '發表心得留言與即時討論', perms: [true, true, true, true, true, true, true] },
-                  { name: '編輯或刪除自己發布的留言', perms: [false, true, true, true, true, true, true] },
-                  { name: '管理/刪除他人違規留言', perms: [false, false, false, false, false, false, true] }
+                  { name: '發表心得與即時討論', perms: [true, true, true, true, true, true, true] },
+                  { name: '編輯或刪除自己發布的心得', perms: [false, true, true, true, true, true, true] },
+                  { name: '管理/刪除他人違規心得', perms: [false, false, false, false, false, false, true] }
                 ]
               },
               {

@@ -212,7 +212,7 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
   }, [registeredUsers, serverLeaderboard, users]);
 
   // 2. 熱門音檔排行榜數據
-  // (1) 留言數排行
+  // (1) 心得數排行
   const hotTracksByComments = useMemo(() => {
     return [...tracks]
       .map(t => ({
@@ -730,12 +730,12 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
             )}
           </div>
 
-          {/* 3. 留言數前 5 名 */}
+          {/* 3. 心得數前 5 名 */}
           <div className="bg-white/90 dark:bg-slate-900/80 rounded-3xl p-4 border border-rose-100/60 dark:border-slate-800 shadow-xs space-y-3">
             <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                 <MessageSquare className="w-4 h-4 text-blue-500" />
-                <span>留言數前 5 名</span>
+                <span>心得數前 5 名</span>
               </h3>
               <span className="text-[10px] text-slate-400">心得回饋數</span>
             </div>
@@ -797,12 +797,12 @@ export const StatisticsView: React.FC<StatisticsViewProps> = ({
       {activeTab === 'hot-tracks' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* 1. 留言數排行 */}
+            {/* 1. 心得數排行 */}
             <div className="bg-white/90 dark:bg-slate-900/80 rounded-3xl p-4 border border-rose-100/60 dark:border-slate-800 shadow-xs space-y-3">
               <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                   <MessageSquare className="w-4 h-4 text-blue-500" />
-                  <span>留言數排行</span>
+                  <span>心得數排行</span>
                 </h3>
                 <span className="text-[10px] text-slate-400">心得最熱絡</span>
               </div>

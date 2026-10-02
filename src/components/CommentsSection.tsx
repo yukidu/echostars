@@ -106,12 +106,12 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
 
   const handleAuthorClick = (c: Comment) => {
     const member = getRegisteredAuthor(c);
-    // 訪客留言不可被點選，點了不會有任何作用也不會出現卡片
+    // 訪客心得不可被點選，點了不會有任何作用也不會出現卡片
     if (!member || !onViewMember) return;
     onViewMember(member);
   };
 
-  // Requirement 4: 留言板@標記功能，不要自動顯示互動對話框，等用戶自己輸入文字的時候，才出現視窗給挑選
+  // Requirement 4: 心得收穫@標記功能，不要自動顯示互動對話框，等用戶自己輸入文字的時候，才出現視窗給挑選
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setInputText(val);
@@ -238,7 +238,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     ];
     const lower = inputText.toLowerCase().replace(/\s+/g, '');
     if (toxicWords.some(w => lower.includes(w.toLowerCase()))) {
-      setErrorMessage('留言經 Cloudflare Workers AI 智慧審核未通過（含不當或攻擊性言論），請使用友善用詞。');
+      setErrorMessage('心得經 Cloudflare Workers AI 智慧審核未通過（含不當或攻擊性言論），請使用友善用詞。');
       setIsSubmitting(false);
       return;
     }
@@ -249,7 +249,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
       setReplyingTo(null);
       setIsMentionOpen(false);
     } catch (err: any) {
-      setErrorMessage(err.message || '留言發送失敗，請稍後再試');
+      setErrorMessage(err.message || '心得發送失敗，請稍後再試');
     } finally {
       setIsSubmitting(false);
     }
@@ -270,7 +270,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
     }
   };
 
-  // Requirement 9: 解析留言內容中的 @會員 與 @錄音檔
+  // Requirement 9: 解析心得內容中的 @會員 與 @錄音檔
   const renderFormattedContent = (value: string) => {
     const content = typeof value === 'string' ? value : '';
     // Regex matching @label or ＠label (Requirement 4)
@@ -357,7 +357,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-rose-500" />
-          <span>留言板</span>
+          <span>心得收穫</span>
           <span className="text-slate-400 font-normal text-base">({comments.length})</span>
         </h3>
       </div>
@@ -391,7 +391,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
             placeholder={
               replyingTo
                 ? `回覆 @${replyingTo.authorName}...`
-                : '寫下您的心得或留言...'
+                : '寫下您的心得收穫...'
             }
             className="w-full bg-transparent resize-none outline-hidden text-sm sm:text-base text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
           />
@@ -506,7 +506,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
                 className="px-5 py-2 rounded-xl text-white font-medium text-sm transition-all shadow-xs active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
               >
-                {isSubmitting ? '審核中...' : '送出留言'}
+                {isSubmitting ? '審核中...' : '送出心得'}
               </button>
             </div>
           </div>
@@ -524,7 +524,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
       <div className="space-y-2.5 divide-y divide-slate-100 dark:divide-slate-800/70">
         {comments.length === 0 ? (
           <div className="text-center py-6 text-slate-400 dark:text-slate-500 text-xs">
-            目前還沒有留言，快來當第一個分享心得的人吧！
+            目前還沒有心得，快來當第一個分享心得的人吧！
           </div>
         ) : (
           (() => {
@@ -532,14 +532,14 @@ const threads = commentThreads(comments);
               const rootComments = threads.roots;
 
             const renderCommentItem = (c: Comment, isReply = false) => {
-              // Requirement 5: 可以刪除和編輯自己的留言
+              // Requirement 5: 可以刪除和編輯自己的心得
               const isAuthor = Boolean(c.authorEmail
                 ? currentUser?.email && c.authorEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
                 : c.deviceId && c.deviceId === visitor.deviceId);
 
               const registeredAuthor = getRegisteredAuthor(c);
               const isVisitor = !registeredAuthor;
-              // Requirement 2 & 3: 留言板顯示的名字，跟會員自己後台設定修改的名字同步，取消「🐲杜杜龍」
+              // Requirement 2 & 3: 心得收穫顯示的名字，跟會員自己後台設定修改的名字同步，取消「🐲杜杜龍」
               const displayAuthorName = registeredAuthor?.name || c.authorName;
               const displayAuthorAvatar = registeredAuthor?.avatar || c.authorAvatar;
               // Requirement 5 (v2.5): 如果是訪客，那他不應該有獎銜。因為訪客不能設定基本資料。訪客暱稱的名字右邊要增加顯示（訪客）做區分。
@@ -601,7 +601,7 @@ const threads = commentThreads(comments);
                         </span>
                       )}
 
-                      {/* Requirement 5 (v2.7): 留言板的訪客身份，「(訪客)」二個字改成「訪客」 */}
+                      {/* Requirement 5 (v2.7): 心得收穫的訪客身份，「(訪客)」二個字改成「訪客」 */}
                       {isVisitor && (
                         <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-[var(--color-light-pill,#fae8ed)] text-[var(--color-primary,#c06c84)] border border-[var(--theme-border-subtle,#f1e7ea)] dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 font-medium select-none">
                           訪客
@@ -629,7 +629,7 @@ const threads = commentThreads(comments);
                             ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/60 font-bold'
                             : 'text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`}
-                        title={userLiked ? '取消讚' : '按讚這則留言'}
+                        title={userLiked ? '取消讚' : '按讚這則心得'}
                       >
                         <Heart className={`w-3 h-3 ${userLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
                         <span>{userLikesCount > 0 ? userLikesCount : ''}</span>
@@ -645,7 +645,7 @@ const threads = commentThreads(comments);
                           }
                         }}
                         className="flex items-center gap-0.5 text-[11px] text-slate-400 hover:text-[var(--color-primary,#c06c84)] px-1.5 py-0.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                        title="回覆此留言"
+                        title="回覆此心得"
                       >
                         <Reply className="w-3 h-3" />
                         <span>回覆</span>
@@ -654,7 +654,7 @@ const threads = commentThreads(comments);
                       {isAuthor && editingId !== c.id && (
                         <button
                           onClick={() => handleStartEdit(c)}
-                          title="編輯留言"
+                          title="編輯心得"
                           className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -664,7 +664,7 @@ const threads = commentThreads(comments);
                       {(isAdmin || isAuthor) && editingId !== c.id && (
                         <button
                           onClick={() => onDeleteComment(c.id)}
-                          title="刪除留言"
+                          title="刪除心得"
                           className="p-1 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
