@@ -804,9 +804,14 @@ export default {
           if (!id) return errorResponse('缺少使用者識別', 400);
           if (env.DB) {
             try {
-              await env.DB.prepare(
-                'DELETE FROM playback_memories WHERE userIdentifier = ? OR key LIKE ?'
-              ).bind(id, `${id}_%`).run();
+              await env.DB.batch([
+                env.DB.prepare(
+                  'DELETE FROM playback_memories WHERE userIdentifier = ? OR key LIKE ?'
+                ).bind(id, `${id}_%`),
+                env.DB.prepare(
+                  'UPDATE users SET playCount = 0 WHERE email = ? OR id = ?'
+                ).bind(id, id)
+              ]);
             } catch (e: any) {
               console.error('D1 playback history delete error:', e);
               return errorResponse(e?.message || '清除學習紀錄失敗', 500);
