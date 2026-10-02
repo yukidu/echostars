@@ -74,10 +74,10 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
     if (!currentBlob) return;
     const filename =
       mode === 'comments'
-        ? `聲藏講堂_${currentTrack?.title || '演講'}_心得全覽.jpg`
-        : `聲藏講堂_${currentUser.name}_評價精選清單.jpg`;
+        ? `繁星回聲_${currentTrack?.title || '演講'}_心得全覽.jpg`
+        : `繁星回聲_${currentUser.name}_評價精選清單.jpg`;
 
-    await shareOrDownloadImage(currentBlob, filename, '聲藏講堂黑白極簡分享圖');
+    await shareOrDownloadImage(currentBlob, filename, '繁星回聲黑白極簡分享圖');
   };
 
   return (
