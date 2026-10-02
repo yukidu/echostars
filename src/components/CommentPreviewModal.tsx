@@ -42,6 +42,12 @@ export const CommentPreviewModal: React.FC<CommentPreviewModalProps> = ({
   onViewMember,
   onCommentAdded
 }) => {
+  const canModerateComments =
+    isAdmin ||
+    currentUser?.isAdminUser === true ||
+    currentUser?.role === '管理員' ||
+    currentUser?.role === '超級管理員';
+
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [inputText, setInputText] = useState('');
