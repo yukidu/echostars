@@ -357,24 +357,25 @@ export default {
 
         try {
           const body: any = await request.json().catch(() => ({}));
-          const requestedOrder = Array.isArray(body.order)
-            ? body.order.map((name: any) => String(name || '').trim()).filter(Boolean)
-            : [];
-
+          // Accept the earlier client field during rolling PWA updates.
+          if (!body || typeof body !== 'object' || Array.isArray(body)) {
+            return errorResponse('分類排序格式錯誤', 400);
+          }
+          const requested = body.categories ?? body.order;
+          if (!Array.isArray(requested) || requested.some(name => typeof name !== 'string' || !name.trim())) {
+            return errorResponse('分類排序必須是分類名稱陣列', 400);
+          }
+          const normalized: string[] = requested.map(name => name.trim());
+          if (new Set(normalized).size !== normalized.length) {
+            return errorResponse('分類排序不可包含重複項目', 400);
+          }
           const { results } = await env.DB.prepare(
             'SELECT name FROM categories ORDER BY createdAt ASC, rowid ASC'
           ).all();
           const existing = (results || []).map((row: any) => String(row.name));
           const existingSet = new Set(existing);
-
-          const normalized: string[] = [];
-          for (const name of requestedOrder) {
-            if (existingSet.has(name) && !normalized.includes(name)) {
-              normalized.push(name);
-            }
-          }
-          for (const name of existing) {
-            if (!normalized.includes(name)) normalized.push(name);
+          if (normalized.length !== existing.length || normalized.some(name => !existingSet.has(name))) {
+            return errorResponse('分類已變更，請重新開啟分類標籤後再排序', 409);
           }
 
           if (normalized.length === 0) {

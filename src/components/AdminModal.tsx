@@ -175,6 +175,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const categoryDragTimerRef = useRef<number | null>(null);
   const categoryDragNameRef = useRef<string | null>(null);
   const categoryDragActiveRef = useRef(false);
+  const categoryDragPointerIdRef = useRef<number | null>(null);
   const categoryDragStartPointRef = useRef<{ x: number; y: number } | null>(null);
   const categoryOrderBeforeDragRef = useRef<string[]>([]);
   const categoryDragOrderRef = useRef<string[]>([]);
@@ -196,7 +197,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       const res = await fetch('/api/categories/order', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order })
+        body: JSON.stringify({ categories: order })
       });
       if (!res.ok) throw new Error(`分類排序儲存失敗：${res.status}`);
 
@@ -207,6 +208,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       onCategoriesUpdated?.(savedOrder);
     } catch (error) {
       console.error(error);
+      window.alert('分類排序儲存失敗，已還原原順序。請重新開啟分類標籤後再試。');
       categoryListRef.current = fallbackOrder;
       setCategoryList(fallbackOrder);
       onCategoriesUpdated?.(fallbackOrder);
@@ -219,9 +221,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     cat: string,
     event: React.PointerEvent<HTMLButtonElement>
   ) => {
-    if (isCategoryOrderSaving || editingCatOld === cat) return;
+    if (event.pointerType === 'touch' || !event.isPrimary || event.button !== 0) return;
+    if (isCategoryOrderSaving || isCatSubmitting || editingCatOld !== null || cat === '全部') return;
 
     clearCategoryDragTimer();
+    categoryDragPointerIdRef.current = event.pointerId;
     categoryDragNameRef.current = cat;
     categoryDragStartPointRef.current = { x: event.clientX, y: event.clientY };
     categoryOrderBeforeDragRef.current = [...categoryListRef.current];
@@ -233,19 +237,28 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       // Pointer capture is best-effort; elementFromPoint still handles the move.
     }
 
-    const delay = event.pointerType === 'touch' ? 420 : 0;
+    categoryDragActiveRef.current = true;
+    setDraggingCategory(cat);
+  };
+
+  const handleCategoryTouchStart = (cat: string, event: React.TouchEvent<HTMLButtonElement>) => {
+    if (event.touches.length !== 1 || isCategoryOrderSaving || isCatSubmitting || editingCatOld !== null || cat === '全部') return;
+    clearCategoryDragTimer();
+    const touch = event.touches[0];
+    categoryDragNameRef.current = cat;
+    categoryDragStartPointRef.current = { x: touch.clientX, y: touch.clientY };
+    categoryOrderBeforeDragRef.current = [...categoryListRef.current];
+    categoryDragOrderRef.current = [...categoryListRef.current];
     categoryDragTimerRef.current = window.setTimeout(() => {
       categoryDragTimerRef.current = null;
       categoryDragActiveRef.current = true;
       setDraggingCategory(cat);
-      if (event.pointerType === 'touch') {
-        navigator.vibrate?.(18);
-      }
-    }, delay);
+      navigator.vibrate?.(18);
+    }, 420);
   };
 
   const handleCategoryDragPointerMove = (
-    event: React.PointerEvent<HTMLButtonElement>
+    event: { clientX: number; clientY: number; preventDefault: () => void }
   ) => {
     const start = categoryDragStartPointRef.current;
     if (!categoryDragActiveRef.current) {
@@ -298,8 +311,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setCategoryList(next);
   };
 
-  const finishCategoryDrag = () => {
+  const finishCategoryDrag = (cancelled = false) => {
     clearCategoryDragTimer();
+    categoryDragPointerIdRef.current = null;
     categoryDragStartPointRef.current = null;
 
     const wasActive = categoryDragActiveRef.current;
@@ -322,8 +336,59 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       return;
     }
 
+    if (cancelled) {
+      categoryListRef.current = before;
+      setCategoryList(before);
+      return;
+    }
     void persistCategoryOrder(next, before);
   };
+
+  useEffect(() => {
+    const move = (event: TouchEvent) => {
+      if (!categoryDragNameRef.current) return;
+      if (event.touches.length !== 1) {
+        finishCategoryDrag(true);
+        return;
+      }
+      const touch = event.touches[0];
+      handleCategoryDragPointerMove({
+        clientX: touch.clientX, clientY: touch.clientY,
+        preventDefault: () => event.preventDefault()
+      });
+    };
+    const end = () => finishCategoryDrag();
+    const cancel = () => finishCategoryDrag(true);
+    // Keyed rows move in the DOM during sorting, which can release pointer
+    // capture. Document listeners still receive the final pointer-up.
+    const pointerMove = (event: PointerEvent) => {
+      if (event.pointerId === categoryDragPointerIdRef.current) handleCategoryDragPointerMove(event);
+    };
+    const pointerEnd = (event: PointerEvent) => {
+      if (event.pointerId === categoryDragPointerIdRef.current) finishCategoryDrag(event.type === 'pointercancel');
+    };
+    document.addEventListener('pointermove', pointerMove);
+    document.addEventListener('pointerup', pointerEnd);
+    document.addEventListener('pointercancel', pointerEnd);
+    document.addEventListener('touchmove', move, { passive: false });
+    document.addEventListener('touchend', end);
+    document.addEventListener('touchcancel', cancel);
+    return () => {
+      document.removeEventListener('pointermove', pointerMove);
+      document.removeEventListener('pointerup', pointerEnd);
+      document.removeEventListener('pointercancel', pointerEnd);
+      document.removeEventListener('touchmove', move);
+      document.removeEventListener('touchend', end);
+      document.removeEventListener('touchcancel', cancel);
+    };
+  });
+
+  useEffect(() => {
+    finishCategoryDrag(true);
+    return () => {
+      clearCategoryDragTimer();
+    };
+  }, [isOpen, activeTab]);
 
   const loadCategories = async () => {
     try {
@@ -345,7 +410,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCatName.trim() || isCatSubmitting) return;
+    if (!newCatName.trim() || isCatSubmitting || isCategoryOrderSaving || categoryDragNameRef.current) return;
     setIsCatSubmitting(true);
     try {
       const res = await fetch('/api/categories', {
@@ -365,6 +430,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   };
 
   const handleRenameCategory = async (oldName: string) => {
+    if (isCategoryOrderSaving || categoryDragNameRef.current) return;
     if (!editingCatNew.trim() || editingCatNew.trim() === oldName) {
       setEditingCatOld(null);
       return;
@@ -387,6 +453,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   };
 
   const handleDeleteCategory = async (catName: string) => {
+    if (isCategoryOrderSaving || categoryDragNameRef.current) return;
     try {
       const res = await fetch(`/api/categories/${encodeURIComponent(catName)}`, {
         method: 'DELETE'
@@ -1504,13 +1571,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           type="button"
                           aria-label={`拖曳「${cat}」調整排序`}
                           title="手機長按後拖曳；桌機按住即可拖曳"
-                          disabled={isCategoryOrderSaving}
+                          disabled={isCategoryOrderSaving || isCatSubmitting || editingCatOld !== null || cat === '全部'}
                           onPointerDown={event => handleCategoryDragPointerDown(cat, event)}
-                          onPointerMove={handleCategoryDragPointerMove}
-                          onPointerUp={finishCategoryDrag}
-                          onPointerCancel={finishCategoryDrag}
+                          onTouchStart={event => handleCategoryTouchStart(cat, event)}
+                          onContextMenu={event => event.preventDefault()}
                           className="p-1 -ml-0.5 rounded-md text-slate-400 hover:text-[var(--color-primary,#c06c84)] hover:bg-white dark:hover:bg-slate-800 disabled:opacity-40 cursor-grab active:cursor-grabbing shrink-0"
-                          style={{ touchAction: 'none' }}
+                          style={{ touchAction: 'auto', WebkitTouchCallout: 'none' }}
                         >
                           <GripVertical className="w-4 h-4" />
                         </button>
