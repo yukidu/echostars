@@ -17,7 +17,6 @@ import {
   Check,
   X,
   Tag,
-  Hash,
   Image as ImageIcon,
   RotateCcw,
   RotateCw,
@@ -411,7 +410,6 @@ export const DetailView: React.FC<DetailViewProps> = ({
       <div className="relative rounded-2xl p-3 sm:p-4 bg-white/80 dark:bg-slate-900/80 border border-amber-200/70 dark:border-slate-800 shadow-2xs backdrop-blur-xs">
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-1.5 font-bold text-xs text-slate-800 dark:text-slate-200">
-            <Hash className="w-3.5 h-3.5 text-amber-500 shrink-0" />
             <span>網友關鍵字</span>
             <span className="text-[10px] text-slate-400 font-normal">
               ({trackKeywords.length}/20 組)
@@ -491,7 +489,6 @@ export const DetailView: React.FC<DetailViewProps> = ({
                     className="cursor-pointer hover:underline flex items-center gap-0.5"
                     title={`點擊篩選只顯示符合「${kw}」的音檔`}
                   >
-                    <span className="text-amber-500 font-bold">#</span>
                     <span>{kw}</span>
                   </button>
 
@@ -670,7 +667,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
           {/* Requirement 4 (v2.8): 評價、心得、按讚排列極致緊密，星星更緊密，心得顯示 icon+數字，刪除「則心得」，圖標放大與愛心星星一致 */}
           <div className="flex items-center justify-center gap-1.5 sm:gap-2.5 text-xs text-slate-600 dark:text-slate-400 bg-white/85 dark:bg-slate-800/80 py-1 sm:py-1.5 px-2.5 sm:px-3 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-2xs select-none">
             {/* Direct 5-star interactive rating (星星更緊密排列) */}
-            <div className="flex items-center gap-0 -space-x-1">
+            <div className="flex items-center gap-0.5 sm:gap-1">
               {[1, 2, 3, 4, 5].map(star => {
                 const currentScore = effectiveUserRating;
                 const active = hoverRating > 0 ? star <= hoverRating : (currentScore > 0 && star <= currentScore);

@@ -193,6 +193,36 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
   transform: scale(1.04);
 }
 
+/* v3.7: slow breathing halo under the permanent brand logo/title. */
+@keyframes brandGlowBreath {
+  0%, 100% {
+    transform: scale(0.88);
+    opacity: 0.22;
+  }
+  50% {
+    transform: scale(1.16);
+    opacity: 0.55;
+  }
+}
+
+.brand-logo-glow {
+  position: relative;
+  isolation: isolate;
+}
+
+.brand-logo-glow::before {
+  content: '';
+  position: absolute;
+  inset: 7px -8px 3px -8px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--color-primary, #c06c84) 42%, transparent);
+  filter: blur(14px);
+  transform-origin: center;
+  z-index: -1;
+  pointer-events: none;
+  animation: brandGlowBreath 4.8s ease-in-out infinite;
+}
+
 /* Infinite turntable spin for playing photo */
 @keyframes continuousSpin {
   from {
@@ -282,7 +312,7 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
   display: grid !important;
   grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
   grid-auto-flow: column !important;
-  gap: 1px !important;
+  gap: 8px !important;
 }
 .sort-toolbar > .sort-toolbar-item {
   display: block !important;
