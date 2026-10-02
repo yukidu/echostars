@@ -63,6 +63,16 @@ app.post('/api/r2/upload', uploadMiddleware.single('file') as any, async (req, r
   const ext = path.extname(req.file.originalname || req.file.filename || '.mp3').toLowerCase() || '.mp3';
   const fileType = (req.body.fileType || '').toLowerCase();
   const isImage = ext === '.jpg' || ext === '.jpeg' || ext === '.png' || ext === '.webp';
+  const supportedAudioExtensions = new Set(['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.opus', '.webm']);
+
+  if (fileType !== 'cover' && !isImage && !supportedAudioExtensions.has(ext)) {
+    try {
+      if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    } catch {}
+    return res.status(415).json({
+      error: '不支援此音訊格式。請使用 MP3、M4A、AAC、WAV、OGG、OPUS 或 WEBM。'
+    });
+  }
 
   let finalFileName: string;
 
