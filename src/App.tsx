@@ -14,7 +14,6 @@ import {
   CategoryType,
   SortField,
   SortDirection,
-  SortType,
   RANK_ORDER,
   AmwayRank,
   PlayerDisplayMode,
@@ -65,13 +64,6 @@ const DEFAULT_CATEGORIES: string[] = [
   '未分類'
 ];
 
-const SORT_OPTIONS: SortType[] = [
-  '最新上傳',
-  '評價最高',
-  '留言最多',
-  '按讚最多',
-  '演講者'
-];
 
 export default function App() {
   // Navigation & View States
@@ -803,7 +795,7 @@ export default function App() {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || '留言失敗');
+      throw new Error(errData.error || '心得發送失敗');
     }
 
     const commentData = await res.json();
@@ -826,7 +818,7 @@ export default function App() {
   const handleDeleteComment = async (commentId: string) => {
     const targetTrack = selectedDetailTrack || currentTrack;
     const res = await fetch(`/api/comments/${commentId}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('只能修改自己的留言，或連線暫時失敗。');
+    if (!res.ok) throw new Error('只能修改自己的心得，或連線暫時失敗。');
     if (res.ok) {
       setComments(prev => prev.filter(c => c.id !== commentId));
       setAllComments(prev => prev.filter(c => c.id !== commentId));
@@ -1655,8 +1647,9 @@ export default function App() {
             <div className="sort-toolbar relative flex flex-wrap items-center justify-center gap-1.5 pt-0.5">
               {/* Left: 5 Sort fields arranged in a tight row: 時間、評價、留言、按讚、演講人 */}
               <div className="sort-options flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5">
-                {(['時間', '評價', '留言', '按讚', '演講人'] as SortField[]).map(field => {
+                {(['時間', '評價', '留言', '演講人'] as SortField[]).map(field => {
                   const isActive = sortField === field;
+                  const displayField = field === '演講人' ? '講者' : field === '留言' ? '心得' : field;
                   return (
                     <button
                       key={field}
@@ -1667,9 +1660,9 @@ export default function App() {
                           : 'text-white/85 hover:text-white hover:brightness-105 opacity-90 hover:opacity-100'
                       }`}
                       style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
-                      title={`依${field}排序，重複點擊切換遞增/遞減`}
+                      title={`依${displayField}排序，重複點擊切換遞增/遞減`}
                     >
-                      <span>{field === '演講人' ? '講者' : field}</span>
+                      <span>{displayField}</span>
                       {isActive && (
                         <span className="inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full bg-white text-[var(--color-primary,#c06c84)] shrink-0 shadow-2xs">
                           {sortDirection === 'desc' ? (
