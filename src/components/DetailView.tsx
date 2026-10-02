@@ -616,11 +616,12 @@ export const DetailView: React.FC<DetailViewProps> = ({
         <div className="relative z-10 flex flex-col items-center text-center pt-1">
           <div className="relative mb-3">
             <div
-              className={`w-36 h-36 sm:w-44 sm:h-44 rounded-full overflow-hidden shadow-xl ring-4 ring-rose-300/80 dark:ring-rose-800/80 bg-slate-100 dark:bg-slate-800 ${
+              className={`w-36 h-36 sm:w-44 sm:h-44 rounded-full overflow-hidden shadow-xl bg-slate-100 dark:bg-slate-800 ${
                 isPlaying ? 'animate-spin-slow' : ''
               }`}
               style={{
-                '--spin-duration': `${8 / Math.max(0.2, playbackRate)}s`
+                '--spin-duration': `${8 / Math.max(0.2, playbackRate)}s`,
+                boxShadow: '0 0 0 4px var(--color-primary, #c06c84), 0 12px 28px rgba(15,23,42,0.18)'
               } as React.CSSProperties}
             >
               <img
