@@ -649,7 +649,7 @@ export async function exportTrackFullCardImage(
   // Section 3: Netizens Comments Section
   ctx.font = 'bold 15px "PingFang TC", "Microsoft JhengHei", sans-serif';
   ctx.fillStyle = '#000000';
-  ctx.fillText(`【 網友心得回饋與心得互動 】（共 ${trackComments.length} 則）`, padding, currentY);
+  ctx.fillText(`【 網友心得回饋與互動 】（共 ${trackComments.length} 則）`, padding, currentY);
   currentY += 20;
 
   if (trackComments.length === 0) {
