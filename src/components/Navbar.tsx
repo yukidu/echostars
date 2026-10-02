@@ -5,6 +5,8 @@ import { VisitorIdentity } from '../utils/visitor';
 import { TwinklingStars } from './TwinklingStars';
 import { InstallAppButton } from './InstallAppButton';
 
+const HOME_TUTORIAL_NEVER_REMIND_KEY = 'echostars_home_tutorial_never_remind_v1';
+
 export type NavTab = 'home' | 'stats' | 'notifications' | 'profile' | 'upload' | 'admin';
 
 interface NavbarProps {
@@ -86,7 +88,22 @@ export const Navbar: React.FC<NavbarProps> = ({
     setIsMobileMenuOpen(false);
   };
 
-  const [showTutorial, setShowTutorial] = useState(true);
+  const [showTutorial, setShowTutorial] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(HOME_TUTORIAL_NEVER_REMIND_KEY) !== '1';
+  });
+  const [neverRemindTutorial, setNeverRemindTutorial] = useState(false);
+
+  const handleNeverRemindTutorialChange = (checked: boolean) => {
+    setNeverRemindTutorial(checked);
+    if (typeof window === 'undefined') return;
+    if (checked) {
+      localStorage.setItem(HOME_TUTORIAL_NEVER_REMIND_KEY, '1');
+    } else {
+      localStorage.removeItem(HOME_TUTORIAL_NEVER_REMIND_KEY);
+    }
+  };
+
   const dismissTutorial = () => { setShowTutorial(false); };
   const handleLogoClick = () => {
     dismissTutorial();
@@ -141,7 +158,27 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </button>
 
-        {showTutorial && <div role="status" className="absolute top-full left-3 z-[80] max-w-[calc(100vw-24px)] rounded-2xl bg-[var(--color-primary)] text-white p-4 shadow-xl border-2 border-white"><div className="absolute -top-8 left-10 text-4xl font-black text-[var(--color-primary)]" aria-hidden="true">↑</div><p className="font-bold text-lg">按這裡回首頁播放清單</p><button type="button" onClick={dismissTutorial} className="mt-2 rounded-lg bg-white/20 px-3 py-2">知道了</button></div>}
+        {showTutorial && (
+          <div
+            role="status"
+            className="absolute top-full left-3 z-[80] max-w-[calc(100vw-24px)] rounded-2xl bg-[var(--color-primary)] text-white p-4 shadow-xl border-2 border-white"
+          >
+            <div className="absolute -top-8 left-10 text-4xl font-black text-[var(--color-primary)]" aria-hidden="true">↑</div>
+            <p className="font-bold text-lg">按這裡回首頁播放清單</p>
+            <label className="mt-3 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={neverRemindTutorial}
+                onChange={e => handleNeverRemindTutorialChange(e.target.checked)}
+                className="w-4 h-4 rounded border-white/70 accent-white cursor-pointer"
+              />
+              <span className="font-bold text-sm">永遠不再提醒！</span>
+            </label>
+            <button type="button" onClick={dismissTutorial} className="mt-2 rounded-lg bg-white/20 px-3 py-2">
+              知道了
+            </button>
+          </div>
+        )}
         {/* Desktop Navigation Controls (Hidden on small mobile screens) */}
         <div className="hidden md:flex items-center gap-1 sm:gap-2">
           {/* Home */}
