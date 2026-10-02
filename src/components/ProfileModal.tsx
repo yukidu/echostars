@@ -434,7 +434,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
             <div>
               <h3 className="font-extrabold text-base text-slate-800 dark:text-slate-100">
-                歡迎登入 繁星的回聲
+                歡迎登入 繁星回聲
               </h3>
               <p className="text-slate-500 dark:text-slate-400 mt-1">
                 支援 Google 帳號授權綁定與專屬身分識別
