@@ -69,6 +69,7 @@ export const DEFAULT_CHANGELOG_DATA: VersionLog[] = [
       '訪客暱稱改為每次重新整理都重新隨機正面形容詞＋動物名稱，但保留原 deviceId；首頁調色盤擴充更多青綠、靛藍、金橙、酒紅、鈷藍、紫羅蘭等色系；左上麥克風音波與外圈動畫全部跟隨目前主色。新增第一張音檔照片新手提示「按照片可播放或暫停」，並提供本機「永遠不再顯示此提示」選項。',
       '首頁新手教學統一加入聚光燈效果：教學顯示時整頁以深色半透明遮罩淡化，只保留對話框、箭頭與目前指向的 Logo／第一張音檔照片清楚可見；兩個教學依序顯示避免重疊，checkbox 文案統一為「永遠不再提醒」。',
       'PWA 更新流程改為偵測新版 Service Worker 後詢問「是否現在自動更新」，確認後立即切換新版並重新開啟；安裝後以 standalone App 模式啟動，不顯示一般瀏覽器網址列。',
+      '依實機回報回復今天下午已成功產生 App 的 PWA 核心：Manifest 還原為簡潔 standalone 結構、Service Worker 恢復立即 skipWaiting／clients.claim，移除 related_applications、launch_handler、getInstalledRelatedApps 與 1.5 秒等待閘門；並在 React 載入前提前保存原生 beforeinstallprompt，避免錯過系統安裝事件。',
       'PWA 安裝與說明流程完全在瀏覽器端完成，不呼叫網站 API，不增加 Workers、D1、KV 或 R2 寫入。'
     ],
     removed: [

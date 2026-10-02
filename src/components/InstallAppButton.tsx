@@ -1,28 +1,18 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { CheckCircle2, Download, LoaderCircle } from 'lucide-react';
 
-type InstallChoice = {
-  outcome: 'accepted' | 'dismissed' | string;
-  platform?: string;
-};
-
 interface InstallEvent extends Event {
-  prompt(): Promise<InstallChoice | void>;
-  userChoice: Promise<InstallChoice>;
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' | string; platform?: string }>;
 }
 
-type RelatedApp = {
-  platform?: string;
-  id?: string;
-  url?: string;
-};
+declare global {
+  interface Window {
+    __ECHOSTARS_INSTALL_PROMPT__?: InstallEvent | null;
+  }
+}
 
-type InstallNavigator = Navigator & {
-  standalone?: boolean;
-  getInstalledRelatedApps?: () => Promise<RelatedApp[]>;
-};
-
-const INSTALLED_HINT_KEY = 'echostars_pwa_installed_hint_v1';
+const INSTALLED_HINT_KEY = 'echostars_pwa_installed_hint_v2';
 
 const readInstalledHint = () => {
   if (typeof window === 'undefined') return false;
@@ -39,124 +29,54 @@ const writeInstalledHint = (value: boolean) => {
     if (value) localStorage.setItem(INSTALLED_HINT_KEY, '1');
     else localStorage.removeItem(INSTALLED_HINT_KEY);
   } catch {
-    // localStorage can be unavailable in restricted browsing modes.
+    // localStorage may be unavailable in private/restricted browsing modes.
   }
 };
 
-let promptEvent: InstallEvent | null = null;
+let promptEvent: InstallEvent | null =
+  typeof window !== 'undefined'
+    ? (window.__ECHOSTARS_INSTALL_PROMPT__ || null)
+    : null;
+
 let installed =
   typeof window !== 'undefined' &&
   (
     window.matchMedia('(display-mode: standalone)').matches ||
-    (navigator as InstallNavigator).standalone === true ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true ||
     readInstalledHint()
   );
 
 let revision = 0;
 const listeners = new Set<() => void>();
-const promptWaiters = new Set<(event: InstallEvent | null) => void>();
-
 const publish = () => {
   revision += 1;
   listeners.forEach(fn => fn());
 };
 
-const resolvePromptWaiters = (event: InstallEvent | null) => {
-  promptWaiters.forEach(resolve => resolve(event));
-  promptWaiters.clear();
+const capturePrompt = (event: InstallEvent) => {
+  event.preventDefault();
+  promptEvent = event;
+  window.__ECHOSTARS_INSTALL_PROMPT__ = event;
+  installed = false;
+  writeInstalledHint(false);
+  publish();
 };
-
-const isStandaloneMode = () =>
-  typeof window !== 'undefined' &&
-  (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (navigator as InstallNavigator).standalone === true
-  );
-
-async function refreshInstalledState() {
-  if (typeof navigator === 'undefined') return installed;
-
-  if (isStandaloneMode()) {
-    if (!installed) {
-      installed = true;
-      publish();
-    }
-    return true;
-  }
-
-  const installNavigator = navigator as InstallNavigator;
-  if (typeof installNavigator.getInstalledRelatedApps === 'function') {
-    try {
-      const apps = await installNavigator.getInstalledRelatedApps();
-      const hasInstalledPwa = apps.some(app => app.platform === 'webapp');
-      if (hasInstalledPwa && !installed) {
-        installed = true;
-        writeInstalledHint(true);
-        publish();
-      }
-      return installed || hasInstalledPwa;
-    } catch {
-      // This API is optional/experimental; fall back to display-mode + install events.
-    }
-  }
-
-  return installed;
-}
-
-function waitForNativeInstallPrompt(timeoutMs = 1500) {
-  if (promptEvent) return Promise.resolve(promptEvent);
-
-  return new Promise<InstallEvent | null>(resolve => {
-    const resolver = (event: InstallEvent | null) => {
-      window.clearTimeout(timer);
-      resolve(event);
-    };
-    const timer = window.setTimeout(() => {
-      promptWaiters.delete(resolver);
-      resolve(null);
-    }, timeoutMs);
-    promptWaiters.add(resolver);
-  });
-}
-
-function getUnsupportedInstallMessage() {
-  if (typeof navigator === 'undefined') {
-    return '目前瀏覽器沒有提供原生 App 安裝介面。';
-  }
-
-  const ua = navigator.userAgent || '';
-  const isIOS =
-    /iPad|iPhone|iPod/.test(ua) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const isMac = /Macintosh|Mac OS X/i.test(ua);
-  const isSafari = /Safari/i.test(ua) && !/Chrome|CriOS|Chromium|Edg|OPR/i.test(ua);
-
-  if (isIOS) {
-    return 'iPhone／iPad 系統目前不允許網站程式碼直接啟動安裝視窗。';
-  }
-
-  if (isMac && isSafari) {
-    return 'Mac Safari 目前不允許網站程式碼直接啟動「加入 Dock」；Chrome／Edge 可使用此按鈕直接安裝。';
-  }
-
-  return '目前瀏覽器尚未提供原生 App 安裝事件，請稍後再試。';
-}
 
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeinstallprompt', event => {
-    event.preventDefault();
-    installed = false;
-    writeInstalledHint(false);
-    promptEvent = event as InstallEvent;
-    resolvePromptWaiters(promptEvent);
-    publish();
+    capturePrompt(event as InstallEvent);
+  });
+
+  window.addEventListener('echostars-install-prompt-ready', () => {
+    const event = window.__ECHOSTARS_INSTALL_PROMPT__;
+    if (event) capturePrompt(event);
   });
 
   window.addEventListener('appinstalled', () => {
     installed = true;
     writeInstalledHint(true);
     promptEvent = null;
-    resolvePromptWaiters(null);
+    window.__ECHOSTARS_INSTALL_PROMPT__ = null;
     publish();
   });
 
@@ -189,41 +109,54 @@ export function InstallAppButton({
   const [isInstalling, setIsInstalling] = useState(false);
 
   useEffect(() => {
-    void refreshInstalledState();
+    const standalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+    if (standalone && !installed) {
+      installed = true;
+      writeInstalledHint(true);
+      publish();
+    }
+
+    const earlyPrompt = window.__ECHOSTARS_INSTALL_PROMPT__;
+    if (earlyPrompt && earlyPrompt !== promptEvent) {
+      capturePrompt(earlyPrompt);
+    }
   }, []);
 
   const handleInstall = async () => {
-    if (isInstalling) return;
+    if (isInstalling || installed) return;
+
+    // This is deliberately the same proven flow used by the afternoon build:
+    // use the real BeforeInstallPromptEvent captured by Chromium and call it
+    // directly from the user's click. No synthetic prompt and no timeout gate.
+    const event = promptEvent || window.__ECHOSTARS_INSTALL_PROMPT__;
+    if (!event) {
+      // Keep the permanent menu item visible, but do not show the old false
+      // "unsupported" error. A valid Chromium install event will be captured
+      // as soon as the browser publishes it.
+      if ('serviceWorker' in navigator) {
+        void navigator.serviceWorker.ready.then(registration => registration.update()).catch(() => {});
+      }
+      return;
+    }
 
     setIsInstalling(true);
     try {
-      if (await refreshInstalledState()) return;
-
-      const event = promptEvent || await waitForNativeInstallPrompt();
-      if (!event) {
-        window.alert(getUnsupportedInstallMessage());
-        return;
-      }
-
-      promptEvent = null;
-      publish();
-
-      const promptResult = await event.prompt();
-      const choice =
-        promptResult && typeof promptResult === 'object' && 'outcome' in promptResult
-          ? promptResult
-          : await event.userChoice;
+      await event.prompt();
+      const choice = await event.userChoice;
 
       if (choice.outcome === 'accepted') {
         installed = true;
         writeInstalledHint(true);
-        publish();
-      } else {
-        await refreshInstalledState();
       }
+
+      promptEvent = null;
+      window.__ECHOSTARS_INSTALL_PROMPT__ = null;
+      publish();
     } catch (error) {
-      console.warn('Native PWA installation failed:', error);
-      window.alert(getUnsupportedInstallMessage());
+      console.warn('PWA native install prompt failed:', error);
     } finally {
       setIsInstalling(false);
     }
@@ -254,12 +187,6 @@ export function InstallAppButton({
         <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
           <CheckCircle2 className="w-3.5 h-3.5" />
           已安裝
-        </span>
-      )}
-
-      {!installed && isInstalling && (
-        <span className="ml-auto text-[10px] font-bold text-slate-400 dark:text-slate-500">
-          準備安裝
         </span>
       )}
     </button>
