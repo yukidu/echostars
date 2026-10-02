@@ -64,13 +64,54 @@ const DEFAULT_CATEGORIES: string[] = [
   '未分類'
 ];
 
+const HOME_CACHE_KEY = 'echostars_home_cache_v3_3';
+const HOME_CACHE_TTL_MS = 5 * 60 * 1000;
+
+type HomeCache = {
+  tracks: Track[];
+  categories: string[];
+  savedAt: number;
+};
+
+function readHomeCache(): HomeCache | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(HOME_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.tracks) || !Array.isArray(parsed.categories)) return null;
+    return {
+      tracks: parsed.tracks,
+      categories: parsed.categories,
+      savedAt: Number(parsed.savedAt) || 0
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeHomeCache(tracks: Track[], categories: string[], savedAt = Date.now()) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(HOME_CACHE_KEY, JSON.stringify({
+      tracks,
+      categories,
+      savedAt
+    }));
+  } catch {
+    // localStorage quota/full is non-fatal.
+  }
+}
 
 export default function App() {
   // Navigation & View States
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
 
   // Dynamic Categories (Requirement 5: 後台修改或刪除分類標籤後，首頁下拉選單同步更新)
-  const [categoryOptions, setCategoryOptions] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(() => {
+    const cached = readHomeCache();
+    return cached?.categories?.length ? cached.categories : DEFAULT_CATEGORIES;
+  });
 
   // Requirement 11 (v2.7): 記憶已解鎖的私秘VIP音檔，支援經由專屬連結永久解鎖
   const [unlockedVipTracks, setUnlockedVipTracks] = useState<string[]>(() => {
@@ -186,24 +227,44 @@ export default function App() {
   const canUpload = isSuperAdmin || currentUser?.isContributor === true;
 
   // Tracks, Comments, Users from Backend API
-  const [tracks, setTracks] = useState<Track[]>([]);
+  const [tracks, setTracks] = useState<Track[]>(() => readHomeCache()?.tracks || []);
   const [comments, setComments] = useState<Comment[]>([]);
   const [allComments, setAllComments] = useState<Comment[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => (readHomeCache()?.tracks || []).length === 0);
+  const homeCacheValidatedAtRef = useRef(readHomeCache()?.savedAt || 0);
+  const hasFetchedAllCommentsRef = useRef(false);
+  const hasFetchedAllUsersRef = useRef(false);
 
-  // Requirement 6 (v2.4): 載入全站所有留言，確保首頁快速預覽留言被 @ 標記時即刻同步顯示於通知頁
-  const fetchAllComments = async () => {
+  // Heavy community datasets are loaded only when a view actually needs them.
+  const fetchAllComments = async (force = false) => {
+    if (hasFetchedAllCommentsRef.current && !force) return;
     try {
       const res = await fetch('/api/comments');
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
           setAllComments(data);
+          hasFetchedAllCommentsRef.current = true;
         }
       }
     } catch (e) {
       console.error('Failed to fetch all comments:', e);
+    }
+  };
+
+  const fetchAllUsers = async (force = false) => {
+    if (hasFetchedAllUsersRef.current && !force) return;
+    try {
+      const res = await fetch('/api/users');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setAllUsers(data);
+        hasFetchedAllUsersRef.current = true;
+      }
+    } catch (e) {
+      console.error('Failed to fetch users:', e);
     }
   };
 
@@ -326,6 +387,7 @@ export default function App() {
     trackId: '',
     second: -1
   });
+  const durationRepairStartedRef = useRef(false);
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [selectedDetailTrack, setSelectedDetailTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -354,22 +416,14 @@ export default function App() {
   // Requirement 5: 分類標籤同步函數 (後台增刪改後首頁下拉選單同步更新)
   const fetchCategories = async () => {
     try {
-      const [cRes, tRes] = await Promise.all([
-        fetch('/api/categories'),
-        fetch('/api/tracks')
-      ]);
+      const cRes = await fetch('/api/categories');
       if (cRes.ok) {
         const cData = await cRes.json();
         if (Array.isArray(cData)) {
           const list = Array.from(new Set(['全部', ...cData]));
           setCategoryOptions(list);
           setSelectedCategory(prev => (list.includes(prev) ? prev : '全部'));
-        }
-      }
-      if (tRes.ok) {
-        const tData = await tRes.json();
-        if (Array.isArray(tData)) {
-          setTracks(tData);
+          writeHomeCache(tracks, list, homeCacheValidatedAtRef.current || Date.now());
         }
       }
     } catch (e) {
@@ -403,59 +457,92 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [playerMode, savedPreferredMode, setPlayerMode]);
 
-  // 1. Fetch initial data and purge stale offline tracks (> 2 weeks or finished)
+  // 1. Fast home bootstrap: show local cache immediately, then refresh only when stale.
   useEffect(() => {
     purgeStaleOfflineTracks();
 
-    async function loadData() {
+    const cached = readHomeCache();
+    const cacheFresh = Boolean(
+      cached?.tracks?.length &&
+      Date.now() - cached.savedAt < HOME_CACHE_TTL_MS
+    );
+    const urlParams = new URLSearchParams(window.location.search);
+    const requestedTrackId =
+      urlParams.get('track') ||
+      (window.location.pathname.startsWith('/share/')
+        ? decodeURIComponent(window.location.pathname.slice(7))
+        : null);
+
+    if (cached?.tracks?.length) {
+      const memories: Record<string, AudioMemory> = {};
+      cached.tracks.forEach((t: Track) => {
+        const m = getStoredPlayback(t.id);
+        if (m) memories[t.id] = m;
+      });
+      setPlaybackMemories(memories);
+      setIsLoading(false);
+    }
+
+    async function refreshHomeData() {
+      // Fresh cache avoids a Worker request + full D1 track scan on quick revisits.
+      // A direct/shared track URL always revalidates so a newly uploaded track can open.
+      if (cacheFresh && !requestedTrackId) return;
+
       try {
-        const [tracksRes, usersRes, catRes] = await Promise.all([
+        const [tracksRes, catRes] = await Promise.all([
           fetch('/api/tracks'),
-          fetch('/api/users'),
           fetch('/api/categories')
         ]);
 
+        let nextCategories = cached?.categories?.length ? cached.categories : DEFAULT_CATEGORIES;
         if (catRes.ok) {
           const cData = await catRes.json();
           if (Array.isArray(cData)) {
-            const list = Array.from(new Set(['全部', ...cData]));
-            setCategoryOptions(list);
+            nextCategories = Array.from(new Set(['全部', ...cData]));
+            setCategoryOptions(nextCategories);
           }
         }
 
         if (tracksRes.ok) {
           const tData = await tracksRes.json();
           if (Array.isArray(tData)) {
+            homeCacheValidatedAtRef.current = Date.now();
             setTracks(tData);
+            writeHomeCache(tData, nextCategories, homeCacheValidatedAtRef.current);
 
             const memories: Record<string, AudioMemory> = {};
             tData.forEach((t: Track) => {
               const m = getStoredPlayback(t.id);
               if (m) memories[t.id] = m;
             });
-            setPlaybackMemories(memories);
+            setPlaybackMemories(prev => ({ ...memories, ...prev }));
 
-            // Check URL query param ?track=t-1
-            const urlParams = new URLSearchParams(window.location.search);
-            const trackParam = urlParams.get('track') || (window.location.pathname.startsWith('/share/') ? decodeURIComponent(window.location.pathname.slice(7)) : null);
-            if (trackParam) {
-              const found = tData.find((t: Track) => t.id === trackParam);
-              if (found) {
-                handlePlayTrack(found, 'expanded');
-              }
+            if (requestedTrackId) {
+              const found = tData.find((t: Track) => t.id === requestedTrackId);
+              if (found) handlePlayTrack(found, 'expanded');
             }
           }
         }
+      } catch (err) {
+        console.error('Failed to refresh home data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
 
-        if (usersRes.ok) {
-          const uData = await usersRes.json();
-          if (Array.isArray(uData)) {
-            setAllUsers(uData);
+    void refreshHomeData();
 
-            // Sync current user from Cloudflare D1 if logged in
-            if (currentUser && currentUser.email) {
-              const cleanCurrentEmail = currentUser.email.toLowerCase().trim();
-              const matched = uData.find((u: UserProfile) => u.email?.toLowerCase().trim() === cleanCurrentEmail);
+    // Non-critical personalized data loads after first paint and never blocks home.
+    const backgroundTimer = window.setTimeout(async () => {
+      if (currentUser?.email) {
+        try {
+          const profileCheckKey = 'echostars_profile_checked_at_v3_3';
+          const lastProfileCheck = Number(localStorage.getItem(profileCheckKey) || 0);
+          if (Date.now() - lastProfileCheck > 10 * 60 * 1000) {
+            const profileRes = await fetch(`/api/users/profile?email=${encodeURIComponent(currentUser.email)}`);
+            if (profileRes.ok) {
+              const profileData = await profileRes.json();
+              const matched = profileData?.user;
               if (matched) {
                 const isOwner = isSuperAdminEmail(matched.email);
                 const synced: UserProfile = {
@@ -470,45 +557,63 @@ export default function App() {
                 };
                 setCurrentUser(synced);
                 localStorage.setItem('sq_current_user_v1', JSON.stringify(synced));
+                localStorage.setItem(profileCheckKey, String(Date.now()));
               }
             }
           }
+        } catch (e) {
+          console.warn('Failed to refresh current user profile:', e);
         }
 
-        // Fetch permanent playback history from Cloudflare D1 for current user or visitor
-        const activeIdentifier = currentUser?.email || visitor?.deviceId;
-        if (activeIdentifier) {
-          try {
-            const histRes = await fetch(`/api/playback/history/${encodeURIComponent(activeIdentifier)}`);
-            if (histRes.ok) {
-              const histData = await histRes.json();
-              if (histData && typeof histData === 'object') {
-                setPlaybackMemories(prev => ({ ...prev, ...histData }));
-              }
+        // Logged-in members get cross-device playback sync. Visitors rely on
+        // localStorage and therefore cost zero D1 reads for playback history.
+        try {
+          const histRes = await fetch(`/api/playback/history/${encodeURIComponent(currentUser.email)}`);
+          if (histRes.ok) {
+            const histData = await histRes.json();
+            if (histData && typeof histData === 'object') {
+              setPlaybackMemories(prev => ({ ...prev, ...histData }));
             }
-          } catch (e) {
-            console.warn('Failed to load playback memories:', e);
           }
+        } catch (e) {
+          console.warn('Failed to load playback memories:', e);
         }
-
-        // Fetch all comments for mention notifications
-        await fetchAllComments();
-      } catch (err) {
-        console.error('Failed to load data:', err);
-      } finally {
-        setIsLoading(false);
       }
-    }
+    }, 0);
 
-    loadData();
+    return () => window.clearTimeout(backgroundTimer);
   }, []);
 
-  // Sync all comments when switching to notifications tab
+  // Load large users/comments datasets only for screens that use them.
   useEffect(() => {
-    if (currentTab === 'notifications') {
-      fetchAllComments();
+    const needsCommunityData =
+      currentTab === 'notifications' ||
+      currentTab === 'stats' ||
+      isAdminOpen ||
+      isProfileOpen ||
+      Boolean(commentPreviewTrack) ||
+      Boolean(selectedDetailTrack);
+
+    if (!needsCommunityData) return;
+    void fetchAllUsers();
+    if (
+      currentTab === 'notifications' ||
+      currentTab === 'stats' ||
+      Boolean(commentPreviewTrack)
+    ) {
+      void fetchAllComments();
     }
-  }, [currentTab]);
+  }, [currentTab, isAdminOpen, isProfileOpen, commentPreviewTrack, selectedDetailTrack]);
+
+  useEffect(() => {
+    if (tracks.length > 0) {
+      writeHomeCache(
+        tracks,
+        categoryOptions,
+        homeCacheValidatedAtRef.current || readHomeCache()?.savedAt || Date.now()
+      );
+    }
+  }, [tracks, categoryOptions]);
 
   useEffect(() => {
     const trackId = (selectedDetailTrack || currentTrack)?.id;
@@ -576,6 +681,10 @@ export default function App() {
       return;
     }
 
+    if (currentTrack && currentTrack.id !== track.id) {
+      syncPlaybackToCloud(true);
+    }
+
     setCurrentTrack(track);
     setPlayerMode(effectiveMode);
 
@@ -583,7 +692,13 @@ export default function App() {
     setTracks(prev =>
       prev.map(t => (t.id === track.id ? { ...t, playCount: (t.playCount || 0) + 1 } : t))
     );
-    fetch(`/api/tracks/${track.id}/play`, { method: 'POST' }).catch(() => {});
+    fetch(`/api/tracks/${track.id}/play`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userIdOrDeviceId: currentUser?.email || null
+      })
+    }).catch(() => {});
 
     // Record to offline cache registry
     recordOfflineTrack(track.id, track.audioUrl);
@@ -613,10 +728,81 @@ export default function App() {
     }
   };
 
+  const syncPlaybackToCloud = (force = false) => {
+    // Visitors already have instant localStorage progress; only logged-in members
+    // need D1 for cross-device resume. This avoids needless writes for anonymous use.
+    if (!currentUser?.email || !currentTrack || !audioRef.current) return;
+
+    const cur = audioRef.current.currentTime || 0;
+    const dur = audioRef.current.duration || currentTrack.durationSeconds || 0;
+    if (!dur || !Number.isFinite(dur)) return;
+
+    const wholeSecond = Math.floor(cur);
+    const lastSync = lastPlaybackSyncRef.current;
+    const sameTrack = lastSync.trackId === currentTrack.id;
+    const secondsSinceLast = sameTrack ? wholeSecond - lastSync.second : Number.POSITIVE_INFINITY;
+
+    if (!force) {
+      if (wholeSecond < 1) return;
+      if (sameTrack && secondsSinceLast < 60) return;
+    } else if (sameTrack && Math.abs(secondsSinceLast) < 10) {
+      return;
+    }
+
+    lastPlaybackSyncRef.current = { trackId: currentTrack.id, second: wholeSecond };
+    fetch('/api/playback/record', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: force,
+      body: JSON.stringify({
+        trackId: currentTrack.id,
+        userIdOrDeviceId: currentUser.email,
+        currentTime: cur,
+        duration: dur
+      })
+    }).catch(() => {});
+  };
+
+  const handleLoadedMetadata = () => {
+    if (!audioRef.current || !currentTrack) return;
+    const realDuration = audioRef.current.duration;
+    if (!Number.isFinite(realDuration) || realDuration <= 0) return;
+
+    const seconds = Math.round(realDuration);
+    const label = `約 ${Math.max(1, Math.round(seconds / 60))} 分鐘`;
+    setDuration(realDuration);
+
+    if (
+      Math.abs((currentTrack.durationSeconds || 0) - seconds) > 5 ||
+      currentTrack.duration === '約 10 分鐘'
+    ) {
+      updateTrackCopies(currentTrack.id, t => ({
+        ...t,
+        durationSeconds: seconds,
+        duration: label
+      }));
+
+      // Persist duration repair only for the super admin. New uploads already
+      // store the correct value locally before reaching Cloudflare.
+      if (isSuperAdmin) {
+        fetch(`/api/tracks/${encodeURIComponent(currentTrack.id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            durationSeconds: seconds,
+            duration: label,
+            userEmail: currentUser?.email
+          })
+        }).catch(() => {});
+      }
+    }
+  };
+
   // Toggle Play / Pause
   const handleTogglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) {
+      syncPlaybackToCloud(true);
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
@@ -691,29 +877,9 @@ export default function App() {
     // Offline space management: auto purge if >95% completed
     handleTrackProgressOffline(currentTrack.id, cur, dur);
 
-    // Sync to backend at most once for each 15-second checkpoint.
-    // "timeupdate" fires several times per second, so checking only second % 15
-    // would otherwise send duplicate requests throughout the same second.
-    const wholeSecond = Math.floor(cur);
-    const isSyncCheckpoint = wholeSecond > 0 && wholeSecond % 15 === 0;
-    const lastSync = lastPlaybackSyncRef.current;
-    if (
-      isSyncCheckpoint &&
-      (lastSync.trackId !== currentTrack.id || lastSync.second !== wholeSecond)
-    ) {
-      lastPlaybackSyncRef.current = { trackId: currentTrack.id, second: wholeSecond };
-      const idKey = currentUser ? currentUser.email : visitor.deviceId;
-      fetch('/api/playback/record', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          trackId: currentTrack.id,
-          userIdOrDeviceId: idKey,
-          currentTime: cur,
-          duration: dur
-        })
-      }).catch(() => {});
-    }
+    // Cloud sync is intentionally low-frequency to preserve the D1 free tier.
+    // Local progress remains instant on every timeupdate.
+    syncPlaybackToCloud(false);
   };
 
   const pendingInteractions = useRef(new Set<string>());
@@ -722,6 +888,78 @@ export default function App() {
     setCurrentTrack(prev => prev?.id === trackId ? change(prev) : prev);
     setSelectedDetailTrack(prev => prev?.id === trackId ? change(prev) : prev);
   };
+
+  // One-time v3.3 repair for legacy tracks that were all stored as 10 minutes.
+  // Runs only for the super admin, sequentially and after home data exists.
+  useEffect(() => {
+    if (!isSuperAdmin || durationRepairStartedRef.current || tracks.length === 0) return;
+
+    const candidates = tracks.filter(t =>
+      Boolean(t.audioUrl) &&
+      ((Number(t.durationSeconds) === 600) || t.duration === '約 10 分鐘')
+    );
+    if (candidates.length === 0) return;
+
+    durationRepairStartedRef.current = true;
+    let cancelled = false;
+
+    const readRemoteDuration = (url: string): Promise<number> =>
+      new Promise((resolve, reject) => {
+        const probe = document.createElement('audio');
+        const timer = window.setTimeout(() => {
+          probe.removeAttribute('src');
+          reject(new Error('duration metadata timeout'));
+        }, 12000);
+        probe.preload = 'metadata';
+        probe.onloadedmetadata = () => {
+          window.clearTimeout(timer);
+          const seconds = Number.isFinite(probe.duration) ? Math.round(probe.duration) : 0;
+          probe.removeAttribute('src');
+          seconds > 0 ? resolve(seconds) : reject(new Error('invalid duration'));
+        };
+        probe.onerror = () => {
+          window.clearTimeout(timer);
+          probe.removeAttribute('src');
+          reject(new Error('duration metadata failed'));
+        };
+        probe.src = url;
+      });
+
+    void (async () => {
+      for (const track of candidates) {
+        if (cancelled) break;
+        try {
+          const seconds = await readRemoteDuration(track.audioUrl);
+          if (cancelled) break;
+          const label = `約 ${Math.max(1, Math.round(seconds / 60))} 分鐘`;
+
+          const res = await fetch(`/api/tracks/${encodeURIComponent(track.id)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              durationSeconds: seconds,
+              duration: label,
+              userEmail: currentUser?.email
+            })
+          });
+          if (res.ok) {
+            updateTrackCopies(track.id, t => ({
+              ...t,
+              durationSeconds: seconds,
+              duration: label
+            }));
+          }
+        } catch {
+          // A single unsupported/corrupt audio file must not stop the repair queue.
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 150));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdmin, tracks.length]);
 
   const handleTrackInteraction = async (trackId: string, action: 'like' | 'rate', score?: number) => {
     const pendingKey = trackId;
@@ -802,7 +1040,6 @@ export default function App() {
     const newComment = commentData.comment || commentData;
     setComments(prev => [newComment, ...prev]);
     setAllComments(prev => [newComment, ...prev]);
-    fetchAllComments();
 
     setTracks(prev =>
       prev.map(t =>
@@ -822,7 +1059,6 @@ export default function App() {
     if (res.ok) {
       setComments(prev => prev.filter(c => c.id !== commentId));
       setAllComments(prev => prev.filter(c => c.id !== commentId));
-      fetchAllComments();
       if (targetTrack) {
         setTracks(prev =>
           prev.map(t =>
@@ -852,7 +1088,6 @@ export default function App() {
       setAllComments(prev =>
         prev.map(c => (c.id === commentId ? { ...c, content: newContent } : c))
       );
-      fetchAllComments();
     }
   };
 
@@ -1215,8 +1450,12 @@ export default function App() {
       {/* Hidden Native Audio Element */}
       <audio
         ref={audioRef}
+        onLoadedMetadata={handleLoadedMetadata}
         onTimeUpdate={handleTimeUpdate}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => {
+          syncPlaybackToCloud(true);
+          setIsPlaying(false);
+        }}
         onWaiting={() => setIsLoadingAudio(true)}
         onCanPlay={() => setIsLoadingAudio(false)}
         onError={() => {
@@ -1644,9 +1883,9 @@ export default function App() {
             </div>
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
-            <div className="sort-toolbar relative flex flex-wrap items-center justify-center gap-1.5 pt-0.5">
-              {/* Left: 5 Sort fields arranged in a tight row: 時間、評價、留言、按讚、演講人 */}
-              <div className="sort-options flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5">
+            <div className="sort-toolbar relative grid grid-cols-6 gap-1 w-full pt-0.5">
+              {/* Four sort buttons + two filters share the full row at equal width. */}
+              <div className="sort-options contents">
                 {(['時間', '評價', '留言', '演講人'] as SortField[]).map(field => {
                   const isActive = sortField === field;
                   const displayField = field === '演講人' ? '講者' : field === '留言' ? '心得' : field;
@@ -1654,7 +1893,7 @@ export default function App() {
                     <button
                       key={field}
                       onClick={() => handleSortClick(field)}
-                      className={`px-2.5 py-1 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-0.5 shadow-2xs ${
+                      className={`w-full min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-0.5 shadow-2xs ${
                         isActive
                           ? 'ring-2 ring-white/95 text-white brightness-110 font-black scale-102'
                           : 'text-white/85 hover:text-white hover:brightness-105 opacity-90 hover:opacity-100'
@@ -1662,7 +1901,7 @@ export default function App() {
                       style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                       title={`依${displayField}排序，重複點擊切換遞增/遞減`}
                     >
-                      <span>{displayField}</span>
+                      <span className="truncate">{displayField}</span>
                       {isActive && (
                         <span className="inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full bg-white text-[var(--color-primary,#c06c84)] shrink-0 shadow-2xs">
                           {sortDirection === 'desc' ? (
@@ -1678,22 +1917,22 @@ export default function App() {
               </div>
 
               {/* Right: Dropdowns (分類選單與講師獎銜指標篩選) */}
-              <div className="filter-dropdowns flex items-center justify-center gap-1.5 shrink-0">
+              <div className="filter-dropdowns contents">
                 {/* 1. 講師獎銜篩選下拉選單 */}
-                <div className="relative shrink-0">
+                <div className="relative min-w-0">
                   <button
                     onClick={e => {
                       e.stopPropagation();
                       setIsSpeakerRankDropdownOpen(prev => !prev);
                       setIsCategoryDropdownOpen(false);
                     }}
-                    className={`px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold text-white flex items-center gap-1 shadow-2xs hover:brightness-105 transition-all ${
+                    className={`w-full min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold text-white flex items-center justify-center gap-0.5 shadow-2xs hover:brightness-105 transition-all ${
                       selectedSpeakerRank !== '全部' ? 'ring-2 ring-amber-300' : ''
                     }`}
                     style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                     title="點擊依講師獎銜篩選"
                   >
-                    <span className="truncate max-w-[70px] sm:max-w-none">
+                    <span className="truncate min-w-0">
                       獎銜
                     </span>
                     <ChevronDown className="w-3.5 h-3.5 text-white/90 shrink-0" />
@@ -1736,18 +1975,18 @@ export default function App() {
                 </div>
 
                 {/* 2. Category Dropdown */}
-                <div className="relative shrink-0">
+                <div className="relative min-w-0">
                   <button
                     onClick={e => {
                       e.stopPropagation();
                       setIsCategoryDropdownOpen(prev => !prev);
                       setIsSpeakerRankDropdownOpen(false);
                     }}
-                    className="px-2.5 sm:px-3 py-1 rounded-xl text-xs font-bold text-white flex items-center gap-1 shadow-2xs hover:brightness-105 transition-all"
+                    className="w-full min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold text-white flex items-center justify-center gap-0.5 shadow-2xs hover:brightness-105 transition-all"
                     style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                     title="點擊展開分類選單"
                   >
-                    <span className="truncate max-w-[70px] sm:max-w-none">
+                    <span className="truncate min-w-0">
                       分類
                     </span>
                     <ChevronDown className="w-3.5 h-3.5 text-white/90 shrink-0" />
@@ -1909,6 +2148,7 @@ export default function App() {
         tracks={tracks}
         onViewMember={user => setPreviewMember(user)}
         onCommentAdded={async () => {
+          hasFetchedAllCommentsRef.current = false;
           if (commentPreviewTrack) {
             setTracks(prev =>
               prev.map(t =>
@@ -1924,7 +2164,6 @@ export default function App() {
               if (res.ok) setComments(await res.json());
             } catch {}
           }
-          await fetchAllComments();
         }}
       />
 

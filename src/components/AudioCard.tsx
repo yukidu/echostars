@@ -66,6 +66,10 @@ export const AudioCard: React.FC<AudioCardProps> = ({
 
   // Requirement 18: 名字與獎銜連在一起顯示，顏色字體一致
   const speakerDisplay = `${track.speaker}${track.speakerRank || ''}`;
+  const displayDuration =
+    Number.isFinite(Number(track.durationSeconds)) && Number(track.durationSeconds) > 0
+      ? `約 ${Math.max(1, Math.round(Number(track.durationSeconds) / 60))} 分鐘`
+      : (track.duration || '時間待確認');
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -122,26 +126,23 @@ export const AudioCard: React.FC<AudioCardProps> = ({
                 [已聽 {Math.round(progressRatio * 100)}%]
               </div>
             ) : null}
+
+            {/* Access level sits inside the portrait at the bottom. */}
+            <div
+              className="absolute bottom-0 inset-x-0 z-30 flex items-center justify-center gap-0.5 bg-black/35 px-1 py-1 text-[8px] sm:text-[9px] font-black text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] whitespace-nowrap overflow-hidden"
+              title={`收聽權限：${displayRequiredRank}`}
+            >
+              {displayRequiredRank !== '公開' && <Lock className="w-2.5 h-2.5 shrink-0" />}
+              <span className="truncate">{displayRequiredRank}</span>
+            </div>
           </div>
 
           {/* Duration moved below portrait */}
           <div className="mt-1.5 flex items-center justify-center gap-1 text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap">
             <Clock className="w-2.5 h-2.5 shrink-0" />
-            <span>{track.duration}</span>
+            <span>{displayDuration}</span>
           </div>
 
-          {/* Access level below portrait. Non-public uses yellow lock + text + shadow. */}
-          <div
-            className={`mt-0.5 min-h-4 flex items-center justify-center gap-0.5 text-[8px] sm:text-[9px] font-bold whitespace-nowrap overflow-hidden ${
-              displayRequiredRank === '公開'
-                ? 'text-slate-400 dark:text-slate-500'
-                : 'text-amber-400 drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]'
-            }`}
-            title={`收聽權限：${displayRequiredRank}`}
-          >
-            {displayRequiredRank !== '公開' && <Lock className="w-2.5 h-2.5 shrink-0" />}
-            <span className="truncate">{displayRequiredRank}</span>
-          </div>
         </div>
 
         {/* Right: all remaining card information. Right padding intentionally 0. */}
@@ -155,16 +156,17 @@ export const AudioCard: React.FC<AudioCardProps> = ({
               {speakerDisplay}
             </p>
 
-            <div className="flex items-center gap-1 flex-wrap mt-1.5">
-              {categories.map((cat, idx) => (
+            <div className="grid grid-cols-3 gap-1 mt-1.5 w-full overflow-hidden">
+              {categories.slice(0, 3).map((cat, idx) => (
                 <span
                   key={idx}
-                  className="text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.5 rounded-md border"
+                  className="min-w-0 text-[9px] sm:text-[10px] font-semibold px-1 py-0.5 rounded-md border text-center truncate whitespace-nowrap"
                   style={{
                     backgroundColor: 'var(--color-light-pill, #fae8ed)',
                     color: 'var(--color-primary, #c06c84)',
                     borderColor: 'var(--theme-border-subtle, #f1e7ea)'
                   }}
+                  title={cat}
                 >
                   {cat}
                 </span>

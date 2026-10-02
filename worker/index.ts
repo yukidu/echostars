@@ -377,9 +377,22 @@ export default {
           const cleanLikedBy = Array.isArray(body.likedBy) ? body.likedBy : [];
           const cleanRatings = typeof body.ratings === 'object' && body.ratings !== null ? body.ratings : {};
 
+          const incomingDurationSeconds = Number(body.durationSeconds);
+          const normalizedDurationSeconds =
+            Number.isFinite(incomingDurationSeconds) && incomingDurationSeconds > 0
+              ? Math.round(incomingDurationSeconds)
+              : 0;
+          const normalizedDuration =
+            String(body.duration || '').trim() ||
+            (normalizedDurationSeconds > 0
+              ? `約 ${Math.max(1, Math.round(normalizedDurationSeconds / 60))} 分鐘`
+              : '時間待確認');
+
           const newTrack = {
             ...body,
             id,
+            duration: normalizedDuration,
+            durationSeconds: normalizedDurationSeconds,
             uploadDate: body.uploadDate || new Date().toISOString().split('T')[0],
             categories: cleanCategories,
             keywords: cleanKeywords,
@@ -409,7 +422,7 @@ export default {
                 id, newTrack.title || '無標題', newTrack.speaker || '未知講者', newTrack.speakerRank || '無',
                 newTrack.speakerAvatar || '', JSON.stringify(newTrack.categories), JSON.stringify(newTrack.keywords),
                 newTrack.rating, newTrack.ratingCount, newTrack.commentsCount, newTrack.likes,
-                newTrack.duration || '約 10 分鐘', newTrack.durationSeconds || 600, newTrack.audioUrl || '',
+                newTrack.duration || '時間待確認', newTrack.durationSeconds || 0, newTrack.audioUrl || '',
                 newTrack.series || '', newTrack.speechDate || '', newTrack.requiredRank || '無', newTrack.seriesOrder || '',
                 newTrack.uploadDate, newTrack.description || '', newTrack.uploaderId || '', newTrack.uploaderEmail || '',
                 newTrack.playCount, newTrack.isPrivateVip ? 1 : 0, JSON.stringify(newTrack.externalVideos),
@@ -529,9 +542,20 @@ export default {
         // 5.3.3 音檔播放計數 (POST /api/tracks/:id/play)
         if (path.match(/^\/api\/tracks\/[^/]+\/play$/) && method === 'POST') {
           const trackId = path.split('/')[3];
+          const body: any = await request.json().catch(() => ({}));
+          const userIdentifier = String(body.userIdOrDeviceId || '').trim();
           if (env.DB && trackId) {
             try {
-              await env.DB.prepare('UPDATE tracks SET playCount = playCount + 1 WHERE id = ?').bind(trackId).run();
+              const statements = [
+                env.DB.prepare('UPDATE tracks SET playCount = playCount + 1 WHERE id = ?').bind(trackId)
+              ];
+              if (userIdentifier) {
+                statements.push(
+                  env.DB.prepare('UPDATE users SET playCount = playCount + 1 WHERE email = ? OR id = ?')
+                    .bind(userIdentifier, userIdentifier)
+                );
+              }
+              await env.DB.batch(statements);
             } catch (e) {
               console.error('D1 play count update error:', e);
             }
@@ -674,10 +698,6 @@ export default {
               Date.now(), isCompleted, dateStr, isCompleted ? dateStr : null
             ).run();
 
-            // Increment user play count if playing actively
-            if (currentTime % 30 < 2) {
-              await env.DB.prepare('UPDATE users SET playCount = playCount + 1 WHERE email = ? OR id = ?').bind(userIdOrDeviceId, userIdOrDeviceId).run();
-            }
           } catch (e) {
             console.error('D1 playback memory save error:', e);
           }
