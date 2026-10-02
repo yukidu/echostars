@@ -111,7 +111,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   useEffect(() => {
-    if (!isOpen || !currentUser || activeTab !== 'listening') return;
+    if (!isOpen || !currentUser || activeTab !== 'listening' || hasLoadedListeningRecords) return;
     setIsLoadingRecords(true);
     const idParam = currentUser.email || currentUser.id;
     fetch(`/api/playback/history/${encodeURIComponent(idParam)}`)
@@ -124,7 +124,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       .catch(() => {
         setIsLoadingRecords(false);
       });
-  }, [isOpen, currentUser, activeTab]);
+  }, [isOpen, currentUser, activeTab, hasLoadedListeningRecords]);
 
   // Edit profile states for all fields
   const [isEditing, setIsEditing] = useState(false);
