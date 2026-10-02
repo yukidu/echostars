@@ -1969,9 +1969,9 @@ export default function App() {
             </div>
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
-            <div className={`sort-toolbar relative grid grid-cols-5 gap-1 w-[100dvw] max-w-[100dvw] left-1/2 -translate-x-1/2 px-2 pt-0.5 sm:w-full sm:max-w-none sm:left-auto sm:translate-x-0 sm:px-0 ${(isSpeakerRankDropdownOpen || isCategoryDropdownOpen) ? 'z-[100]' : 'z-20'}`}>
-              {/* v3.7 portrait hotfix: every control uses the same grid-cell wrapper.
-                  This matches the two dropdowns that render correctly on narrow mobile browsers. */}
+            <div className={`sort-toolbar relative grid grid-cols-5 gap-1 w-full max-w-full px-0 pt-0.5 ${(isSpeakerRankDropdownOpen || isCategoryDropdownOpen) ? 'z-[100]' : 'z-20'}`}>
+              {/* v3.7 portrait hotfix: keep all five controls inside the content container.
+                  Avoid viewport-width + translate centering, which clipped the left side on real phones. */}
               {(['時間', '評價', '留言'] as SortField[]).map(field => {
                 const isActive = sortField === field;
                 const displayField = field === '留言' ? '心得' : field;

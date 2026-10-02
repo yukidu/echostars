@@ -304,24 +304,14 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
   .sort-toolbar .sort-direction-icon { display: none !important; }
 }
 
-@media (max-width: 639px) and (orientation: portrait) {
-  .sort-toolbar {
-    width: 100dvw !important;
-    max-width: 100dvw !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    padding-inline: 8px !important;
-  }
-}
-
-@media (min-width: 640px), (orientation: landscape) {
-  .sort-toolbar {
-    width: 100% !important;
-    max-width: 100% !important;
-    left: auto !important;
-    transform: none !important;
-    padding-inline: 0 !important;
-  }
+/* v3.7 real-device fix: toolbar always stays inside its content container.
+   Never use 100dvw/left/translate centering, which can clip the left columns on portrait phones. */
+.sort-toolbar {
+  width: 100% !important;
+  max-width: 100% !important;
+  left: auto !important;
+  transform: none !important;
+  padding-inline: 0 !important;
 }
 
 /* Admin stays visible in the background while the editor must always sit above it. */
