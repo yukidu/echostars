@@ -20,7 +20,11 @@ import { Track } from '../types';
 
 interface KeywordsTabProps {
   tracks: Track[];
-  onUpdateTrack?: (trackId: string, updates: Partial<Track>) => Promise<void> | void;
+  onUpdateTrack?: (
+    trackId: string,
+    updates: Partial<Track>,
+    options?: { persist?: boolean }
+  ) => Promise<void> | void;
   onEditTrack?: (track: Track) => void;
 }
 
@@ -116,7 +120,7 @@ export const KeywordsTab: React.FC<KeywordsTabProps> = ({
             const nextKws = t.keywords.map(k => (k === oldKw ? trimmed : k));
             const uniqueKws = Array.from(new Set(nextKws));
             if (onUpdateTrack) {
-              onUpdateTrack(t.id, { keywords: uniqueKws });
+              onUpdateTrack(t.id, { keywords: uniqueKws }, { persist: false });
             }
           }
         });
@@ -149,7 +153,7 @@ export const KeywordsTab: React.FC<KeywordsTabProps> = ({
           if (Array.isArray(t.keywords) && t.keywords.includes(kw)) {
             const nextKws = t.keywords.filter(k => k !== kw);
             if (onUpdateTrack) {
-              onUpdateTrack(t.id, { keywords: nextKws });
+              onUpdateTrack(t.id, { keywords: nextKws }, { persist: false });
             }
           }
         });
@@ -196,7 +200,11 @@ export const KeywordsTab: React.FC<KeywordsTabProps> = ({
       if (res.ok) {
         const data = await res.json();
         if (onUpdateTrack) {
-          onUpdateTrack(targetTrack.id, { keywords: data.keywords || [...currentKeywords, trimmed] });
+          onUpdateTrack(
+            targetTrack.id,
+            { keywords: data.keywords || [...currentKeywords, trimmed] },
+            { persist: false }
+          );
         }
         setNewKeywordToAdd('');
         setSuccessMessage(`已成功為《${targetTrack.title}》新增關鍵字「${trimmed}」！`);
