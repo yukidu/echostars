@@ -342,6 +342,28 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
         return json(normalizeComment({ ...row, content: body.content.trim() }));
       }
       if (method === 'DELETE') {
+        const body: any = await request.json().catch(() => ({}));
+        const userEmail = String(body.userEmail || '').toLowerCase().trim();
+        const owns = row.authorEmail
+          ? Boolean(userEmail && String(row.authorEmail).toLowerCase().trim() === userEmail)
+          : Boolean(row.deviceId && body.deviceId && row.deviceId === body.deviceId);
+
+        let canModerate = userEmail === 'yukidu@gmail.com';
+        if (!canModerate && userEmail) {
+          const actor: any = await db.prepare(
+            'SELECT role, isAdminUser, isBlocked FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1'
+          ).bind(userEmail).first();
+          canModerate = Boolean(
+            actor &&
+            !actor.isBlocked &&
+            (actor.isAdminUser || actor.role === '管理員' || actor.role === '超級管理員')
+          );
+        }
+
+        if (!owns && !canModerate) {
+          return json({ error: '沒有刪除此心得的權限' }, 403);
+        }
+
         await db.batch([
           db.prepare('UPDATE comments SET replyToId = NULL WHERE replyToId = ?').bind(id),
           db.prepare('DELETE FROM comments WHERE id = ?').bind(id),
