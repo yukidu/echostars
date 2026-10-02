@@ -16,7 +16,8 @@ import {
   Edit2,
   Check,
   Tag,
-  Crown
+  Crown,
+  Search
 } from 'lucide-react';
 import { Track, CategoryType, AmwayRank, RANK_ORDER, ExternalLinkItem, UserProfile, SPEAKER_RANK_OPTIONS, GAR_ELIGIBLE_RANKS } from '../types';
 import { parseID3Tags } from '../utils/id3Parser';
@@ -72,6 +73,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [coverPreview, setCoverPreview] = useState<string>('');
   const [coverLibrary, setCoverLibrary] = useState<CoverLibraryItem[]>([]);
   const [isCoverLibraryLoading, setIsCoverLibraryLoading] = useState(false);
+  const [coverSearch, setCoverSearch] = useState('');
 
   const [title, setTitle] = useState('');
   const [speaker, setSpeaker] = useState('');
@@ -158,19 +160,49 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     }
   };
 
-  const loadCoverLibrary = async () => {
+  const loadCoverLibrary = async (force = false) => {
+    const cacheKey = 'echostars_cover_library_v3_5';
+    const cacheTtl = 10 * 60 * 1000;
+    if (!force && typeof sessionStorage !== 'undefined') {
+      try {
+        const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
+        if (cached && Array.isArray(cached.covers) && Date.now() - Number(cached.savedAt || 0) < cacheTtl) {
+          setCoverLibrary(cached.covers);
+          return;
+        }
+      } catch {}
+    }
+
     setIsCoverLibraryLoading(true);
     try {
       const res = await fetch('/api/r2/covers');
       if (!res.ok) return;
       const data = await res.json();
-      setCoverLibrary(Array.isArray(data?.covers) ? data.covers : []);
+      const covers = Array.isArray(data?.covers) ? data.covers : [];
+      setCoverLibrary(covers);
+      if (typeof sessionStorage !== 'undefined') {
+        try { sessionStorage.setItem(cacheKey, JSON.stringify({ covers, savedAt: Date.now() })); } catch {}
+      }
     } catch {
       // R2 cover library is optional; manual upload remains available.
     } finally {
       setIsCoverLibraryLoading(false);
     }
   };
+
+  const filteredCoverLibrary = React.useMemo(() => {
+    const q = coverSearch.trim().toLocaleLowerCase('zh-Hant');
+    if (!q) return coverLibrary;
+    return coverLibrary.filter(item =>
+      item.name.toLocaleLowerCase('zh-Hant').includes(q) ||
+      item.key.toLocaleLowerCase('zh-Hant').includes(q)
+    );
+  }, [coverLibrary, coverSearch]);
+
+  const coverSearchSuggestions = React.useMemo(
+    () => filteredCoverLibrary.slice(0, 6),
+    [filteredCoverLibrary]
+  );
 
 
   React.useEffect(() => {
@@ -210,8 +242,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       });
       if (res.ok) {
         const addedName = newCatInput.trim();
+        const data = await res.json().catch(() => ({}));
+        if (Array.isArray(data?.categories)) setCategoryList(data.categories);
         setNewCatInput('');
-        await loadCategories();
         // auto select newly created category if under limit (max 3)
         if (selectedCategories.length < 3) {
           setSelectedCategories(prev => [...prev, addedName as CategoryType]);
@@ -237,9 +270,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       });
       if (res.ok) {
         const updated = editingCatNew.trim();
+        const data = await res.json().catch(() => ({}));
+        if (Array.isArray(data?.categories)) setCategoryList(data.categories);
         setSelectedCategories(prev => prev.map(c => (c === oldName ? (updated as CategoryType) : c)));
         setEditingCatOld(null);
-        await loadCategories();
         if (onCategoriesUpdated) onCategoriesUpdated();
       }
     } finally {
@@ -254,11 +288,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         method: 'DELETE'
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (Array.isArray(data?.categories)) setCategoryList(data.categories);
         setSelectedCategories(prev => {
           const next = prev.filter(c => c !== catName);
           return next.length > 0 ? next : (['未分類'] as CategoryType[]);
         });
-        await loadCategories();
         if (onCategoriesUpdated) onCategoriesUpdated();
       }
     } finally {
@@ -285,11 +320,31 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       setSeries(trackToEdit.series || '');
       setSpeechDate(trackToEdit.speechDate || '');
       setSeriesOrder(trackToEdit.seriesOrder || '第 1 集');
-      setRequiredRank(trackToEdit.requiredRank || '無');
+      {
+        const rawRequired = String(trackToEdit.requiredRank || '無');
+        const ranks = RANK_ORDER as readonly string[];
+        const idx = ranks.indexOf(rawRequired);
+        const simplified: Array<{ value: AmwayRank; index: number }> = [
+          { value: '無', index: 0 },
+          { value: '3%', index: ranks.indexOf('3%') },
+          { value: '9%', index: ranks.indexOf('9%') },
+          { value: '15%', index: ranks.indexOf('15%') },
+          { value: '銀章', index: ranks.indexOf('銀章') },
+          { value: '白金', index: ranks.indexOf('白金') },
+          { value: '翡翠', index: ranks.indexOf('翡翠') },
+          { value: '鑽石級以上', index: ranks.indexOf('鑽石級以上') }
+        ];
+        const mapped = simplified.reduce((best, option) =>
+          idx >= option.index && option.index >= best.index ? option : best,
+          simplified[0]
+        );
+        setRequiredRank(mapped.value);
+      }
       setDescription(trackToEdit.description || '');
       setIsPrivateVip(Boolean(trackToEdit.isPrivateVip));
       setVipDurationDays(trackToEdit.vipDurationDays !== undefined ? trackToEdit.vipDurationDays : 0);
       setCoverPreview(trackToEdit.speakerAvatar || '');
+      setCoverSearch('');
       setExternalVideos(trackToEdit.externalVideos && trackToEdit.externalVideos.length > 0 ? trackToEdit.externalVideos : [{ name: '', url: '' }]);
       setExternalPpts(trackToEdit.externalPpts && trackToEdit.externalPpts.length > 0 ? trackToEdit.externalPpts : [{ name: '', url: '' }]);
       setExternalFiles(trackToEdit.externalFiles && trackToEdit.externalFiles.length > 0 ? trackToEdit.externalFiles : [{ name: '', url: '' }]);
@@ -310,6 +365,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       setIsPrivateVip(false);
       setVipDurationDays(0);
       setCoverPreview('');
+      setCoverSearch('');
       setExternalVideos([{ name: '', url: '' }]);
       setExternalPpts([{ name: '', url: '' }]);
       setExternalFiles([{ name: '', url: '' }]);
@@ -435,7 +491,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     setErrorMessage(null);
     setCoverFile(null);
     setCoverPreview(item.url);
-    setSpeaker(item.name);
+    if (!speaker.trim()) setSpeaker(item.name);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -503,6 +559,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           const uploadCoverData = await uploadCoverRes.json();
           if (uploadCoverData.url) {
             finalCoverUrl = uploadCoverData.url;
+            const nextItem: CoverLibraryItem = {
+              key: uploadCoverData.key || '',
+              name: speaker.trim() || '未命名講者',
+              url: uploadCoverData.url
+            };
+            setCoverLibrary(prev => [nextItem, ...prev.filter(item => item.url !== nextItem.url)]);
+            try { sessionStorage.removeItem('echostars_cover_library_v3_5'); } catch {}
           }
         }
       } else if (coverPreview && !coverPreview.startsWith('blob:')) {
@@ -687,7 +750,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             <div className="flex items-center gap-3">
               <div
                 onClick={() => coverInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+                onDrop={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.dataTransfer.files?.[0]) handleCoverSelected(e.dataTransfer.files[0]);
+                }}
                 className="w-16 h-16 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden cursor-pointer hover:border-rose-400 bg-slate-50 dark:bg-slate-800 shrink-0"
+                title="點擊選擇或拖曳照片到此"
               >
                 <input
                   ref={coverInputRef}
@@ -709,7 +779,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   {coverFile ? coverFile.name : (coverPreview ? '已選用 R2 現有封面' : '未選擇照片 (使用預設精美頭像)')}
                 </p>
                 <p className="text-slate-400">
-                  新上傳封面會以 cover-演講者名稱.副檔名 儲存至 Cloudflare R2 cover/ 空間
+                  可點擊或拖曳上傳；R2 檔名使用「演講人名字.副檔名」，同名自動加數字編號
                 </p>
               </div>
             </div>
@@ -723,18 +793,42 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   {isCoverLibraryLoading ? '讀取中…' : `${coverLibrary.length} 張・點照片可快速套用姓名與封面`}
                 </span>
               </div>
+              <div className="relative mb-2">
+                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={coverSearch}
+                  onChange={e => setCoverSearch(e.target.value)}
+                  placeholder="搜尋演講者照片..."
+                  className="w-full pl-8 pr-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-hidden focus:border-rose-400 text-xs"
+                />
+                {coverSearch && coverSearchSuggestions.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {coverSearchSuggestions.map(item => (
+                      <button
+                        key={`suggest-${item.key}`}
+                        type="button"
+                        onClick={() => setCoverSearch(item.name)}
+                        className="px-2 py-0.5 rounded-lg text-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                      >
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               {isCoverLibraryLoading ? (
                 <div className="py-4 text-center text-slate-400 text-[11px]">正在讀取 R2 cover/ 圖庫…</div>
-              ) : coverLibrary.length > 0 ? (
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-44 overflow-y-auto pr-1">
-                  {coverLibrary.map(item => {
+              ) : filteredCoverLibrary.length > 0 ? (
+                <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5 max-h-40 overflow-y-auto pr-1">
+                  {filteredCoverLibrary.map(item => {
                     const selected = coverPreview === item.url;
                     return (
                       <button
                         key={item.key}
                         type="button"
                         onClick={() => handleSelectCoverFromLibrary(item)}
-                        className={`p-1.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        className={`p-1 rounded-lg border text-left transition-all cursor-pointer ${
                           selected
                             ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/40 ring-1 ring-rose-400'
                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-rose-300'
@@ -745,9 +839,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                           src={item.url}
                           alt={item.name}
                           loading="lazy"
-                          className="w-full aspect-square rounded-lg object-cover bg-slate-100 dark:bg-slate-800"
+                          className="w-full aspect-square rounded-md object-cover bg-slate-100 dark:bg-slate-800"
                         />
-                        <span className="block mt-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">
+                        <span className="block mt-0.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 truncate">
                           {selected ? '✓ ' : ''}{item.name}
                         </span>
                       </button>
@@ -1109,11 +1203,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 onChange={e => setRequiredRank(e.target.value as AmwayRank)}
                 className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-hidden focus:border-rose-400"
               >
-                {RANK_ORDER.map(r => (
-                  <option key={r} value={r}>
-                    {r === '無' ? '無 (公開，訪客也能收聽)' : `${r} 以上`}
-                  </option>
-                ))}
+                <option value="無">公開</option>
+                <option value="3%">3%</option>
+                <option value="9%">9%</option>
+                <option value="15%">15%</option>
+                <option value="銀章">銀章</option>
+                <option value="白金">白金級</option>
+                <option value="翡翠">翡翠級</option>
+                <option value="鑽石級以上">鑽石級</option>
               </ThemedSelect>
             </div>
 
