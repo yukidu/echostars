@@ -53,8 +53,6 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   input:not([type="range"]), textarea, select { font-size: 16px; }
   .audio-card { padding: .75rem; }
   .audio-card h3 { font-size: 1rem; line-height: 1.5; }
-  .sort-toolbar { flex-wrap: wrap; gap: .5rem; }
-  .sort-toolbar .sort-options { flex-basis: 100%; flex-wrap: wrap; overflow: visible; }
   .sort-toolbar button { min-height: 44px; }
   .audio-card .track-actions { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; gap: .125rem; }
   .audio-card .track-actions > span { display: none; }
@@ -279,28 +277,31 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
 .app-modal-overlay { z-index: 100 !important; }
 
 /* v3.7: five controls remain equal-width in one row.
-   All five controls are direct grid children so portrait phones cannot lose sort buttons. */
+   Every control is a real grid cell; no display:contents and no direct-button special case. */
 .sort-toolbar {
   display: grid !important;
   grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  grid-auto-flow: column !important;
   gap: 4px !important;
 }
-.sort-toolbar > button,
-.sort-toolbar > div {
-  min-width: 0;
-  width: 100%;
+.sort-toolbar > .sort-toolbar-item {
+  display: block !important;
+  visibility: visible !important;
+  min-width: 0 !important;
+  width: 100% !important;
 }
-.sort-toolbar > button,
-.sort-toolbar > div > button {
-  width: 100%;
-  min-width: 0;
+.sort-toolbar > .sort-toolbar-item > button {
+  display: flex !important;
+  visibility: visible !important;
+  width: 100% !important;
+  min-width: 0 !important;
   justify-content: center;
   padding: 8px 2px;
   font-size: 12px;
   white-space: nowrap;
 }
 @media (max-width: 480px) {
-  .sort-toolbar > button .inline-flex { display: none; }
+  .sort-toolbar .sort-direction-icon { display: none !important; }
 }
 
 @media (max-width: 639px) and (orientation: portrait) {
