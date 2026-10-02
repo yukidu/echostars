@@ -41,6 +41,7 @@ interface DetailViewProps {
   currentUser: UserProfile | null;
   isAdmin: boolean;
   userRating?: number;
+  canRate?: boolean;
   hasLiked: boolean;
   progressMemory?: AudioMemory | null;
   playerMode?: PlayerDisplayMode;
@@ -79,6 +80,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
   currentUser,
   isAdmin,
   userRating,
+  canRate = true,
   hasLiked,
   progressMemory,
   playerMode = 'expanded',
@@ -368,7 +370,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
 
   // v3.7: 五星評價只接受 1~5 星；再次點擊同星級不再取消，避免評價被歸零。
   const handleStarClick = async (score: number) => {
-    if (isRatingSubmitting) return;
+    if (!canRate || isRatingSubmitting) return;
     setOptimisticRating(score);
     setIsRatingSubmitting(true);
     try {
@@ -676,11 +678,12 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   <button
                     key={star}
                     type="button"
-                    onMouseEnter={() => setHoverRating(star)}
+                    disabled={!canRate || isRatingSubmitting}
+                    onMouseEnter={() => { if (canRate) setHoverRating(star); }}
                     onMouseLeave={() => setHoverRating(0)}
                     onClick={() => handleStarClick(star)}
-                    title={currentScore === star ? '點擊此星星可取消評價' : `給予 ${star} 星評價`}
-                    className="p-0 sm:p-0.5 hover:scale-125 transition-transform cursor-pointer"
+                    title={canRate ? `給予 ${star} 星評價` : '無閱讀權限，無法評價'}
+                    className={`p-0 sm:p-0.5 transition-transform ${canRate ? 'hover:scale-125 cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
                   >
                     <Star
                       className={`w-4.5 h-4.5 sm:w-5 sm:h-5 ${
