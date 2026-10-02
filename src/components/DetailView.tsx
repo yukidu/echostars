@@ -46,7 +46,7 @@ interface DetailViewProps {
   playerMode?: PlayerDisplayMode;
   onSetPlayerMode?: (mode: PlayerDisplayMode) => void;
   onBack?: () => void;
-  onTogglePlay: () => void;
+  onTogglePlay: (anchor?: HTMLElement) => void;
   onSeek: (seconds: number) => void;
   onSkip: (seconds: number) => void;
   onRate: (score: number) => Promise<void>;
@@ -63,7 +63,7 @@ interface DetailViewProps {
   onEditTrack?: (track: Track) => void;
   isVipUnlocked?: boolean;
   hasVipAccess?: boolean;
-  onVipBlocked?: () => void;
+  onVipBlocked?: (anchor?: HTMLElement) => void;
   allUsers?: UserProfile[];
   tracks?: Track[];
 }
@@ -123,16 +123,16 @@ export const DetailView: React.FC<DetailViewProps> = ({
 
   // Requirement 11 (v2.7): 私秘VIP音檔未解鎖不能播放
   const effectiveVipUnlocked = isVipUnlocked && hasVipAccess;
-  const handlePlayClick = () => {
+  const handlePlayClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (track.isPrivateVip && !effectiveVipUnlocked) {
       if (onVipBlocked) {
-        onVipBlocked();
+        onVipBlocked(e.currentTarget);
       } else {
         alert('此音檔為私秘VIP專屬，請聯絡上傳者給您專屬連結');
       }
       return;
     }
-    onTogglePlay();
+    onTogglePlay(e.currentTarget);
   };
 
   const localLiked = hasLiked;
