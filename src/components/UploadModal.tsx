@@ -21,6 +21,14 @@ import {
 import { Track, CategoryType, AmwayRank, RANK_ORDER, ExternalLinkItem, UserProfile, SPEAKER_RANK_OPTIONS, GAR_ELIGIBLE_RANKS } from '../types';
 import { parseID3Tags } from '../utils/id3Parser';
 
+interface CoverLibraryItem {
+  key: string;
+  name: string;
+  url: string;
+  size?: number;
+  uploaded?: string | null;
+}
+
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -54,6 +62,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string>('');
+  const [coverLibrary, setCoverLibrary] = useState<CoverLibraryItem[]>([]);
+  const [isCoverLibraryLoading, setIsCoverLibraryLoading] = useState(false);
 
   const [title, setTitle] = useState('');
   const [speaker, setSpeaker] = useState('');
@@ -140,10 +150,26 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     }
   };
 
+  const loadCoverLibrary = async () => {
+    setIsCoverLibraryLoading(true);
+    try {
+      const res = await fetch('/api/r2/covers');
+      if (!res.ok) return;
+      const data = await res.json();
+      setCoverLibrary(Array.isArray(data?.covers) ? data.covers : []);
+    } catch {
+      // R2 cover library is optional; manual upload remains available.
+    } finally {
+      setIsCoverLibraryLoading(false);
+    }
+  };
+
+
   React.useEffect(() => {
     if (isOpen) {
       loadCategories();
       loadDbKeywords();
+      loadCoverLibrary();
     }
   }, [isOpen]);
 
@@ -343,9 +369,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       setErrorMessage('封面圖檔不可超過 10MB！');
       return;
     }
+    setErrorMessage(null);
     setCoverFile(file);
     const url = URL.createObjectURL(file);
     setCoverPreview(url);
+  };
+
+  const handleSelectCoverFromLibrary = (item: CoverLibraryItem) => {
+    setErrorMessage(null);
+    setCoverFile(null);
+    setCoverPreview(item.url);
+    setSpeaker(item.name);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -581,7 +615,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           </div>
 
           {/* 2. Cover Photo Area */}
-          <div>
+          <div className="space-y-2">
             <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
               主講者封面照片 (上限 10MB)
             </label>
@@ -607,12 +641,59 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               </div>
               <div className="text-[11px] text-slate-500">
                 <p className="font-semibold text-slate-700 dark:text-slate-300">
-                  {coverFile ? coverFile.name : '未選擇照片 (使用預設精美頭像)'}
+                  {coverFile ? coverFile.name : (coverPreview ? '已選用 R2 現有封面' : '未選擇照片 (使用預設精美頭像)')}
                 </p>
                 <p className="text-slate-400">
-                  直傳 Cloudflare R2 covers/ 空間
+                  新上傳封面會以 cover-演講者名稱.副檔名 儲存至 Cloudflare R2 cover/ 空間
                 </p>
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 p-2.5">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="font-bold text-slate-700 dark:text-slate-200">
+                  R2 已有演講者照片
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {isCoverLibraryLoading ? '讀取中…' : `${coverLibrary.length} 張・點照片可快速套用姓名與封面`}
+                </span>
+              </div>
+              {isCoverLibraryLoading ? (
+                <div className="py-4 text-center text-slate-400 text-[11px]">正在讀取 R2 cover/ 圖庫…</div>
+              ) : coverLibrary.length > 0 ? (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-44 overflow-y-auto pr-1">
+                  {coverLibrary.map(item => {
+                    const selected = coverPreview === item.url;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => handleSelectCoverFromLibrary(item)}
+                        className={`p-1.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          selected
+                            ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/40 ring-1 ring-rose-400'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-rose-300'
+                        }`}
+                        title={`使用 ${item.name} 的照片`}
+                      >
+                        <img
+                          src={item.url}
+                          alt={item.name}
+                          loading="lazy"
+                          className="w-full aspect-square rounded-lg object-cover bg-slate-100 dark:bg-slate-800"
+                        />
+                        <span className="block mt-1 text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">
+                          {selected ? '✓ ' : ''}{item.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-3 text-center text-slate-400 text-[11px]">
+                  R2 cover/ 目前沒有可選照片，可直接點上方方框新增。
+                </div>
+              )}
             </div>
           </div>
 
