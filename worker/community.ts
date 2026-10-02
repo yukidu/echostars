@@ -101,6 +101,7 @@ function cleanCoverSpeakerName(key: string) {
     .replace(/\.[^.]+$/, '')
     .replace(/^cover-/i, '')
     .replace(/-\d{10,14}-[a-z0-9]{4,8}$/i, '')
+    .replace(/\d+$/, '')
     .replace(/-/g, ' ')
     .trim();
 }
@@ -355,17 +356,27 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
           ? Boolean(userEmail && String(row.authorEmail).toLowerCase().trim() === userEmail)
           : Boolean(row.deviceId && body.deviceId && row.deviceId === body.deviceId);
 
-        let canModerate = userEmail === 'yukidu@gmail.com';
-        if (!canModerate && userEmail) {
+        const isVisitorComment = !String(row.authorEmail || '').trim();
+        let isSuperAdminActor = userEmail === 'yukidu@gmail.com';
+        let isAdminActor = isSuperAdminActor;
+
+        if (!isSuperAdminActor && userEmail) {
           const actor: any = await db.prepare(
             'SELECT role, isAdminUser, isBlocked FROM users WHERE LOWER(TRIM(email)) = ? LIMIT 1'
           ).bind(userEmail).first();
-          canModerate = Boolean(
-            actor &&
-            !actor.isBlocked &&
-            (actor.isAdminUser || actor.role === '管理員' || actor.role === '超級管理員')
-          );
+
+          if (actor && !actor.isBlocked) {
+            isSuperAdminActor = actor.role === '超級管理員';
+            isAdminActor =
+              isSuperAdminActor ||
+              Boolean(actor.isAdminUser) ||
+              actor.role === '管理員';
+          }
         }
+
+        // Preserve super-admin moderation for all comments. Regular admins gain
+        // only the requested ability to remove visitor comments.
+        const canModerate = isSuperAdminActor || (isAdminActor && isVisitorComment);
 
         if (!owns && !canModerate) {
           return json({ error: '沒有刪除此心得的權限' }, 403);

@@ -63,11 +63,13 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
 
   const myKeys = identityKeys(currentUser, visitor.deviceId);
   const myId = myKeys[0];
-  const canModerateComments =
+  const isSuperAdminModerator =
     isAdmin ||
-    currentUser?.isAdminUser === true ||
-    currentUser?.role === '管理員' ||
     currentUser?.role === '超級管理員';
+  const isAdminModerator =
+    isSuperAdminModerator ||
+    currentUser?.isAdminUser === true ||
+    currentUser?.role === '管理員';
 
   const pendingLikes = useRef(new Set<string>());
   useEffect(() => { setLikeStats({}); }, [myId]);
@@ -666,7 +668,7 @@ const threads = commentThreads(comments);
                         </button>
                       )}
 
-                      {(canModerateComments || isAuthor) && editingId !== c.id && (
+                      {(isAuthor || isSuperAdminModerator || (isAdminModerator && isVisitor)) && editingId !== c.id && (
                         <button
                           onClick={() => onDeleteComment(c.id)}
                           title="刪除心得"
