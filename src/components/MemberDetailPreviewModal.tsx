@@ -146,7 +146,7 @@ export const MemberDetailPreviewModal: React.FC<MemberDetailPreviewModalProps> =
       ctx.fillStyle = '#222222';
       // Requirement 4 (v2.8): 匯出個人圖卡時，不顯示生日和手機（這二項是個資）
       ctx.fillText(`安麗編號：${user.amwayId || '-'}  •  居住地：${user.residence || '-'}`, padding, 175);
-      ctx.fillText(`繁星中心：${user.center || '-'}  •  上手白金：${user.platinumUpline || '-'}  •  上手鑽石：${user.diamondUpline || '-'}`, padding, 202);
+      ctx.fillText(`直銷商中心：${user.center || '-'}  •  上手白金：${user.platinumUpline || '-'}  •  上手鑽石：${user.diamondUpline || '-'}`, padding, 202);
       ctx.fillText(`初次認識：${user.joinReason || '-'}  •  留在安麗：${(user as any).stayReason || '-'}  •  命數：${user.lifeNumber || '-'}`, padding, 229);
 
       // Section divider for tracks
@@ -367,7 +367,7 @@ export const MemberDetailPreviewModal: React.FC<MemberDetailPreviewModalProps> =
                 <span className="font-bold text-slate-800 dark:text-slate-100">{user.residence || '-'}</span>
               </div>
               <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
-                <span className="text-[10px] text-slate-400 block">所屬繁星中心</span>
+                <span className="text-[10px] text-slate-400 block">所屬直銷商中心</span>
                 <span className="font-bold text-slate-800 dark:text-slate-100">{user.center || '-'}</span>
               </div>
               <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
