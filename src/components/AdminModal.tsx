@@ -276,27 +276,26 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         ? event.clientY > centerY
         : event.clientX > centerX;
 
-    setCategoryList(prev => {
-      const fromIndex = prev.indexOf(dragged);
-      const targetIndex = prev.indexOf(target);
-      if (fromIndex < 0 || targetIndex < 0) return prev;
+    const prev = categoryListRef.current;
+    const fromIndex = prev.indexOf(dragged);
+    const targetIndex = prev.indexOf(target);
+    if (fromIndex < 0 || targetIndex < 0) return;
 
-      const next = prev.filter(item => item !== dragged);
-      const targetIndexAfterRemoval = next.indexOf(target);
-      const insertAt = Math.max(
-        0,
-        Math.min(
-          next.length,
-          targetIndexAfterRemoval + (after ? 1 : 0)
-        )
-      );
-      next.splice(insertAt, 0, dragged);
+    const next = prev.filter(item => item !== dragged);
+    const targetIndexAfterRemoval = next.indexOf(target);
+    const insertAt = Math.max(
+      0,
+      Math.min(
+        next.length,
+        targetIndexAfterRemoval + (after ? 1 : 0)
+      )
+    );
+    next.splice(insertAt, 0, dragged);
 
-      if (next.join('\u0000') === prev.join('\u0000')) return prev;
-      categoryDragOrderRef.current = next;
-      categoryListRef.current = next;
-      return next;
-    });
+    if (next.join('\u0000') === prev.join('\u0000')) return;
+    categoryDragOrderRef.current = next;
+    categoryListRef.current = next;
+    setCategoryList(next);
   };
 
   const finishCategoryDrag = () => {
