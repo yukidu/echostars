@@ -15,7 +15,7 @@ interface AudioCardProps {
   hasLiked?: boolean;
   isVipUnlocked?: boolean;
   onClick: () => void;
-  onTogglePlay?: () => void;
+  onTogglePlay?: (anchor?: HTMLElement) => void;
   onRate?: (score: number) => void;
   onToggleLike?: () => void;
   onSeek?: (seconds: number) => void;
@@ -73,7 +73,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (onTogglePlay) onTogglePlay();
+    if (onTogglePlay) onTogglePlay(e.currentTarget);
   };
 
   return (
