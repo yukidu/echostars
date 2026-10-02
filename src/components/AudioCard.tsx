@@ -166,7 +166,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
             <div
               className="flex items-center flex-nowrap gap-[2px] min-w-0"
               onClick={e => e.stopPropagation()}
-              title="點擊星星評分，點擊同星級可取消"
+              title="點擊星星評分"
             >
               {[1, 2, 3, 4, 5].map(starNum => {
                 const isRated = (userRating || 0) > 0;
@@ -175,7 +175,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
                   <button
                     key={starNum}
                     type="button"
-                    onClick={() => onRate && onRate(userRating === starNum ? 0 : starNum)}
+                    onClick={() => onRate && onRate(starNum)}
                     aria-label={`評分 ${starNum} 星`}
                     aria-pressed={userRating === starNum}
                     className="rating-star p-0.5 hover:scale-125 transition-transform shrink-0"
