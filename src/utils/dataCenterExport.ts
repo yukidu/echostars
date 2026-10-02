@@ -17,7 +17,7 @@ export function exportDataCenterCsv(
 ): Blob {
   const lines: string[] = [];
 
-  lines.push('【繁星的回聲 - 數據中心統計分析報表】');
+  lines.push('【繁星回聲 - 數據中心統計分析報表】');
   lines.push(`報表產生時間,${new Date().toLocaleString('zh-TW')}`);
   lines.push(`符合篩選總人數,${totalCount} 人`);
   lines.push('');
@@ -126,7 +126,7 @@ export async function exportDataCenterPdf(
   // Title
   ctx.font = 'bold 36px "PingFang TC", "Microsoft JhengHei", sans-serif';
   ctx.fillStyle = '#1e293b';
-  ctx.fillText('繁星的回聲 · 數據中心統計分析報告', padding, 95);
+  ctx.fillText('繁星回聲 · 數據中心統計分析報告', padding, 95);
 
   ctx.font = '16px "PingFang TC", "Microsoft JhengHei", sans-serif';
   ctx.fillStyle = '#64748b';
@@ -355,7 +355,7 @@ export async function exportDataCenterPdf(
   // Footer
   ctx.font = '13px "PingFang TC", "Microsoft JhengHei", sans-serif';
   ctx.fillStyle = '#94a3b8';
-  ctx.fillText('繁星的回聲 數據中心 · 僅供白金以上領導人做為團隊輔導與成長規劃使用', padding, totalHeight - 40);
+  ctx.fillText('繁星回聲 數據中心 · 僅供白金以上領導人做為團隊輔導與成長規劃使用', padding, totalHeight - 40);
 
   // Convert canvas to image data and build PDF
   const imgData = canvas.toDataURL('image/jpeg', 0.95);
@@ -386,7 +386,7 @@ export async function shareOrDownloadDataCenterFile(
       await navigator.share({
         files: [file],
         title,
-        text: '來自繁星的回聲數據中心統計分析報告'
+        text: '來自繁星回聲數據中心統計分析報告'
       });
       return;
     } catch {
