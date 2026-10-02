@@ -142,6 +142,10 @@ export function InstallAppButton({
   const [showInstaller, setShowInstaller] = useState(false);
   const [showIOSInstallGuide, setShowIOSInstallGuide] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
+  const [iosVisualViewport, setIOSVisualViewport] = useState(() => ({
+    top: 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 720
+  }));
 
   const readyEvent =
     promptEvent ||
@@ -169,6 +173,39 @@ export function InstallAppButton({
     if (!showInstaller || !installed) return;
     setIsPreparing(false);
   }, [showInstaller]);
+
+  useEffect(() => {
+    if (!showIOSInstallGuide || typeof window === 'undefined') return;
+
+    const syncVisualViewport = () => {
+      const viewport = window.visualViewport;
+      const nextTop = Math.max(0, viewport?.offsetTop ?? 0);
+      const nextHeight = Math.max(
+        280,
+        viewport?.height ?? window.innerHeight
+      );
+
+      setIOSVisualViewport({
+        top: nextTop,
+        height: nextHeight
+      });
+    };
+
+    syncVisualViewport();
+
+    const viewport = window.visualViewport;
+    viewport?.addEventListener('resize', syncVisualViewport);
+    viewport?.addEventListener('scroll', syncVisualViewport);
+    window.addEventListener('resize', syncVisualViewport);
+    window.addEventListener('orientationchange', syncVisualViewport);
+
+    return () => {
+      viewport?.removeEventListener('resize', syncVisualViewport);
+      viewport?.removeEventListener('scroll', syncVisualViewport);
+      window.removeEventListener('resize', syncVisualViewport);
+      window.removeEventListener('orientationchange', syncVisualViewport);
+    };
+  }, [showIOSInstallGuide]);
 
   const runNativePrompt = async (event: InstallEvent) => {
     setIsInstalling(true);
@@ -359,10 +396,13 @@ export function InstallAppButton({
 
       {showIOSInstallGuide && !installed && (
         <div
-          className="fixed inset-0 z-[230] flex items-start justify-center overflow-y-auto bg-black/60 px-3 backdrop-blur-[1px]"
+          className="fixed left-0 right-0 z-[230] flex items-start justify-center overflow-hidden bg-black/60 px-3 backdrop-blur-[1px]"
           style={{
+            top: `${iosVisualViewport.top}px`,
+            height: `${iosVisualViewport.height}px`,
             paddingTop: 'max(12px, env(safe-area-inset-top))',
-            paddingBottom: 'max(12px, env(safe-area-inset-bottom))'
+            paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+            boxSizing: 'border-box'
           }}
           onClick={() => setShowIOSInstallGuide(false)}
         >
@@ -371,7 +411,7 @@ export function InstallAppButton({
             aria-modal="true"
             aria-label="在 iPhone 或 iPad 安裝繁星回聲"
             onClick={event => event.stopPropagation()}
-            className="my-auto flex w-full max-w-md min-h-0 max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+            className="flex h-full min-h-0 w-full max-w-md flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
           >
             <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 dark:border-slate-800 sm:px-5">
               <div>
