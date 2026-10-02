@@ -112,9 +112,16 @@ export default {
             .replace(/[\\/:*?"<>|#&+=]/g, '')
             .replace(/\s+/g, '-')
             .trim() || 'speaker';
-          // Stable cover naming: cover-檔名.副檔名 (no timestamp/random suffix).
-          // Uploading the same speaker/file name intentionally replaces the old cover.
-          finalFileName = `cover-${cleanBaseName}.${ext}`;
+
+          // v3.5: cover object names are exactly 演講人名字.副檔名.
+          // Existing names are never overwritten; append 2, 3, ... only on collision.
+          let suffix = 1;
+          let candidate = `${cleanBaseName}.${ext}`;
+          while (await env.R2_BUCKET.head(`cover/${candidate}`)) {
+            suffix += 1;
+            candidate = `${cleanBaseName}${suffix}.${ext}`;
+          }
+          finalFileName = candidate;
         } else {
           // 命名格式：「ES00001-演講者+獎銜-中文曲目名稱.副檔名」
           // 00001 = 系統自動編號序號，+ 符號不顯示，- 符號保留顯示
@@ -220,7 +227,9 @@ export default {
               .replace(/\.[^.]+$/, '')
               .replace(/^cover-/i, '')
               // Backward compatibility with old cover-姓名-時間戳-亂碼.ext names.
-              .replace(/-\d{10,14}-[a-z0-9]{4,8}$/i, '');
+              .replace(/-\d{10,14}-[a-z0-9]{4,8}$/i, '')
+              // v3.5 collision suffix: 王小明2.jpg should still display 王小明.
+              .replace(/\d+$/, '');
             name = name.replace(/-/g, ' ').trim() || '未命名講者';
             return {
               key: obj.key,
@@ -231,7 +240,13 @@ export default {
             };
           })
           .sort((a: any, b: any) => a.name.localeCompare(b.name, 'zh-Hant'));
-        return jsonResponse({ covers });
+        return new Response(JSON.stringify({ covers }), {
+          headers: {
+            ...CORS_HEADERS,
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'public, max-age=300'
+          }
+        });
       } catch (err: any) {
         return errorResponse(err.message || '無法讀取 R2 封面圖庫', 500);
       }
@@ -332,6 +347,58 @@ export default {
             }
           }
           return jsonResponse({ success: true, categories: ['事業', '心態思維', '營養', '安麗產品', '影集', '未分類', name] });
+        }
+      }
+
+      // 5.1.1 單一分類標籤修改/刪除。僅在實際管理操作時讀寫 D1。
+      if (path.startsWith('/api/categories/') && (method === 'PUT' || method === 'DELETE')) {
+        if (!env.DB) return errorResponse('資料庫尚未連線', 503);
+        const oldName = decodeURIComponent(path.slice('/api/categories/'.length)).trim();
+        if (!oldName) return errorResponse('分類名稱不可為空', 400);
+
+        try {
+          const { results: affectedTracks } = await env.DB.prepare(
+            'SELECT id, categories FROM tracks WHERE categories LIKE ?'
+          ).bind(`%${oldName}%`).all();
+
+          if (method === 'PUT') {
+            const body: any = await request.json().catch(() => ({}));
+            const newName = String(body.newName || '').trim();
+            if (!newName) return errorResponse('新分類名稱不可為空', 400);
+
+            const statements: any[] = [
+              env.DB.prepare('UPDATE categories SET name = ? WHERE name = ?').bind(newName, oldName)
+            ];
+            for (const row of affectedTracks || []) {
+              let categories: string[] = [];
+              try { categories = JSON.parse(String((row as any).categories || '[]')); } catch {}
+              const next = categories.map(cat => cat === oldName ? newName : cat);
+              if (next.join('\u0000') !== categories.join('\u0000')) {
+                statements.push(env.DB.prepare('UPDATE tracks SET categories = ? WHERE id = ?').bind(JSON.stringify(next), (row as any).id));
+              }
+            }
+            await env.DB.batch(statements);
+          } else {
+            const statements: any[] = [
+              env.DB.prepare('DELETE FROM categories WHERE name = ?').bind(oldName)
+            ];
+            for (const row of affectedTracks || []) {
+              let categories: string[] = [];
+              try { categories = JSON.parse(String((row as any).categories || '[]')); } catch {}
+              const next = categories.filter(cat => cat !== oldName);
+              const normalized = next.length > 0 ? next : ['未分類'];
+              if (normalized.join('\u0000') !== categories.join('\u0000')) {
+                statements.push(env.DB.prepare('UPDATE tracks SET categories = ? WHERE id = ?').bind(JSON.stringify(normalized), (row as any).id));
+              }
+            }
+            await env.DB.batch(statements);
+          }
+
+          const { results } = await env.DB.prepare('SELECT name FROM categories ORDER BY createdAt ASC').all();
+          return jsonResponse({ success: true, categories: (results || []).map((r: any) => r.name) });
+        } catch (e: any) {
+          console.error('D1 category mutation error:', e);
+          return errorResponse(e?.message || '分類更新失敗', 500);
         }
       }
 
@@ -732,6 +799,23 @@ export default {
       if (path.startsWith('/api/playback/history/')) {
         const id = decodeURIComponent(path.replace('/api/playback/history/', ''));
         const recordsMap: Record<string, any> = {};
+
+        if (method === 'DELETE') {
+          if (!id) return errorResponse('缺少使用者識別', 400);
+          if (env.DB) {
+            try {
+              await env.DB.prepare(
+                'DELETE FROM playback_memories WHERE userIdentifier = ? OR key LIKE ?'
+              ).bind(id, `${id}_%`).run();
+            } catch (e: any) {
+              console.error('D1 playback history delete error:', e);
+              return errorResponse(e?.message || '清除學習紀錄失敗', 500);
+            }
+          }
+          return jsonResponse({ success: true });
+        }
+
+        if (method !== 'GET') return errorResponse('Method not allowed', 405);
 
         if (env.DB && id) {
           try {
