@@ -1,4 +1,4 @@
--- Cloudflare D1 Database Schema for 繁星的回聲 (Echoes of Stars)
+-- Cloudflare D1 Database Schema for 繁星回聲 (Echoes of Stars)
 -- 執行方式: wrangler d1 execute echoes_db --file=./schema.sql
 
 -- 1. 會員表 (users)
