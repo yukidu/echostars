@@ -22,12 +22,34 @@ type InstallNavigator = Navigator & {
   getInstalledRelatedApps?: () => Promise<RelatedApp[]>;
 };
 
+const INSTALLED_HINT_KEY = 'echostars_pwa_installed_hint_v1';
+
+const readInstalledHint = () => {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem(INSTALLED_HINT_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const writeInstalledHint = (value: boolean) => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (value) localStorage.setItem(INSTALLED_HINT_KEY, '1');
+    else localStorage.removeItem(INSTALLED_HINT_KEY);
+  } catch {
+    // localStorage can be unavailable in restricted browsing modes.
+  }
+};
+
 let promptEvent: InstallEvent | null = null;
 let installed =
   typeof window !== 'undefined' &&
   (
     window.matchMedia('(display-mode: standalone)').matches ||
-    (navigator as InstallNavigator).standalone === true
+    (navigator as InstallNavigator).standalone === true ||
+    readInstalledHint()
   );
 
 let revision = 0;
@@ -67,11 +89,12 @@ async function refreshInstalledState() {
     try {
       const apps = await installNavigator.getInstalledRelatedApps();
       const hasInstalledPwa = apps.some(app => app.platform === 'webapp');
-      if (hasInstalledPwa !== installed) {
-        installed = hasInstalledPwa;
+      if (hasInstalledPwa && !installed) {
+        installed = true;
+        writeInstalledHint(true);
         publish();
       }
-      return hasInstalledPwa;
+      return installed || hasInstalledPwa;
     } catch {
       // This API is optional/experimental; fall back to display-mode + install events.
     }
@@ -122,6 +145,8 @@ function getUnsupportedInstallMessage() {
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeinstallprompt', event => {
     event.preventDefault();
+    installed = false;
+    writeInstalledHint(false);
     promptEvent = event as InstallEvent;
     resolvePromptWaiters(promptEvent);
     publish();
@@ -129,14 +154,18 @@ if (typeof window !== 'undefined') {
 
   window.addEventListener('appinstalled', () => {
     installed = true;
+    writeInstalledHint(true);
     promptEvent = null;
     resolvePromptWaiters(null);
     publish();
   });
 
   window.matchMedia('(display-mode: standalone)').addEventListener?.('change', event => {
-    installed = event.matches;
-    publish();
+    if (event.matches) {
+      installed = true;
+      writeInstalledHint(true);
+      publish();
+    }
   });
 }
 
@@ -187,6 +216,7 @@ export function InstallAppButton({
 
       if (choice.outcome === 'accepted') {
         installed = true;
+        writeInstalledHint(true);
         publish();
       } else {
         await refreshInstalledState();
