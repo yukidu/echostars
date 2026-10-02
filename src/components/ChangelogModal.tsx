@@ -82,6 +82,7 @@ export const DEFAULT_CHANGELOG_DATA: VersionLog[] = [
       '再依 iPad Safari 實機修正教學上緣仍被遮擋：不再使用垂直置中 my-auto／單純 100dvh，改讀取 window.visualViewport 的實際 offsetTop 與 height，教學框固定在 Safari 真正可視區域內；標題、關閉鍵與「知道了」保持可見，只有中間步驟區捲動。',
       'iOS／iPadOS 安裝教學由 6 步精簡為 2 步。Safari 顯示「分享 → 加入主畫面」；另新增 iOS 瀏覽器辨識，若偵測到 Chrome／Edge／Firefox，改顯示「請使用 Safari 安裝」，避免誤導成 Android 式一鍵安裝。',
       '修復詳細音檔「分享錄音」在只開啟詳細頁、尚未開始播放時無反應：分享視窗改用目前詳細音檔優先，不再依賴 currentTrack。新增瀏覽器 History API 站內導覽：桌機上一頁可由詳細頁／排行榜／通知回到前一個站內畫面；手機與 standalone App 在首頁加入安全歷史層，上一頁不再直接退出 App 或離開／關閉分頁。',
+      '音檔上傳新增內嵌封面擷取：支援常見 MP3 ID3 APIC 與 M4A/MP4 covr 封面，瀏覽器本機抽出圖片後沿用既有 cover/ R2 上傳與「演講人名字＋同名數字遞增」命名規則。封面縮圖庫新增「重新整理」按鈕，可手動重新 List R2，同步新增與已刪除圖片。為節省 Cloudflare Free 用量，圖庫採單一瀏覽器 session 快取；成功上傳封面後只在前端／session 快取局部加入，不額外再掃一次 R2。',
       'PWA 安裝與說明流程完全在瀏覽器端完成，不呼叫網站 API，不增加 Workers、D1、KV 或 R2 寫入。'
     ],
     removed: [

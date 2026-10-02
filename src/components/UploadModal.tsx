@@ -17,7 +17,8 @@ import {
   Check,
   Tag,
   Crown,
-  Search
+  Search,
+  RefreshCw
 } from 'lucide-react';
 import { Track, CategoryType, AmwayRank, RANK_ORDER, ExternalLinkItem, UserProfile, SPEAKER_RANK_OPTIONS, GAR_ELIGIBLE_RANKS } from '../types';
 import { parseID3Tags } from '../utils/id3Parser';
@@ -56,6 +57,20 @@ const SUPPORTED_AUDIO_ACCEPT = [
   'audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/wav',
   'audio/ogg', 'audio/opus', 'audio/webm'
 ].join(',');
+
+const COVER_LIBRARY_CACHE_KEY = 'echostars_cover_library_v3_6';
+
+const saveCoverLibraryCache = (covers: CoverLibraryItem[]) => {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.setItem(
+      COVER_LIBRARY_CACHE_KEY,
+      JSON.stringify({ covers, savedAt: Date.now() })
+    );
+  } catch {
+    // Session cache is best-effort only.
+  }
+};
 
 export const UploadModal: React.FC<UploadModalProps> = ({
   isOpen,
@@ -161,12 +176,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   };
 
   const loadCoverLibrary = async (force = false) => {
-    const cacheKey = 'echostars_cover_library_v3_5';
-    const cacheTtl = 10 * 60 * 1000;
+    // Cloudflare-saving strategy:
+    // - First open in a browser session: fetch R2 once.
+    // - Later opens: reuse sessionStorage without a timed re-list.
+    // - Manual refresh: do one fresh R2 ListObjects request.
+    // - Successful uploads update this cache locally, so no extra R2 list is needed.
     if (!force && typeof sessionStorage !== 'undefined') {
       try {
-        const cached = JSON.parse(sessionStorage.getItem(cacheKey) || 'null');
-        if (cached && Array.isArray(cached.covers) && Date.now() - Number(cached.savedAt || 0) < cacheTtl) {
+        const cached = JSON.parse(sessionStorage.getItem(COVER_LIBRARY_CACHE_KEY) || 'null');
+        if (cached && Array.isArray(cached.covers)) {
           setCoverLibrary(cached.covers);
           return;
         }
@@ -175,15 +193,21 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
     setIsCoverLibraryLoading(true);
     try {
-      const res = await fetch('/api/r2/covers');
-      if (!res.ok) return;
+      const url = force
+        ? `/api/r2/covers?refresh=${Date.now()}`
+        : '/api/r2/covers';
+      const res = await fetch(url, force ? { cache: 'no-store' } : undefined);
+      if (!res.ok) {
+        if (force) setErrorMessage('封面圖庫重新整理失敗，請稍後再試。');
+        return;
+      }
       const data = await res.json();
       const covers = Array.isArray(data?.covers) ? data.covers : [];
       setCoverLibrary(covers);
-      if (typeof sessionStorage !== 'undefined') {
-        try { sessionStorage.setItem(cacheKey, JSON.stringify({ covers, savedAt: Date.now() })); } catch {}
-      }
+      saveCoverLibraryCache(covers);
+      if (force) setErrorMessage(null);
     } catch {
+      if (force) setErrorMessage('封面圖庫重新整理失敗，請檢查網路連線。');
       // R2 cover library is optional; manual upload remains available.
     } finally {
       setIsCoverLibraryLoading(false);
@@ -343,6 +367,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       setDescription(trackToEdit.description || '');
       setIsPrivateVip(Boolean(trackToEdit.isPrivateVip));
       setVipDurationDays(trackToEdit.vipDurationDays !== undefined ? trackToEdit.vipDurationDays : 0);
+      setCoverFile(null);
       setCoverPreview(trackToEdit.speakerAvatar || '');
       setCoverSearch('');
       setExternalVideos(trackToEdit.externalVideos && trackToEdit.externalVideos.length > 0 ? trackToEdit.externalVideos : [{ name: '', url: '' }]);
@@ -364,6 +389,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       setDescription('');
       setIsPrivateVip(false);
       setVipDurationDays(0);
+      setCoverFile(null);
       setCoverPreview('');
       setCoverSearch('');
       setExternalVideos([{ name: '', url: '' }]);
@@ -461,7 +487,21 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       if (id3.album && !series) setSeries(id3.album);
       if (id3.year && !speechDate) setSpeechDate(id3.year);
       if (id3.track && !seriesOrder) setSeriesOrder(`第 ${id3.track} 集`);
-      if (id3.pictureUrl && !coverPreview) {
+      if (id3.pictureBlob && !coverPreview) {
+        if (id3.pictureBlob.size <= 10 * 1024 * 1024) {
+          const extension = id3.pictureExtension || 'jpg';
+          const embeddedCoverFile = new File(
+            [id3.pictureBlob],
+            `embedded-cover.${extension}`,
+            { type: id3.pictureMimeType || id3.pictureBlob.type || 'image/jpeg' }
+          );
+          setCoverFile(embeddedCoverFile);
+          setCoverPreview(id3.pictureUrl || URL.createObjectURL(embeddedCoverFile));
+        } else {
+          setErrorMessage('音檔內嵌封面超過 10MB，請另外選擇較小的封面圖。');
+        }
+      } else if (id3.pictureUrl && !coverPreview) {
+        // Backward-compatible preview path if an older parser only returns a URL.
         setCoverPreview(id3.pictureUrl);
       }
     } catch {
@@ -565,8 +605,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               name: resolvedSpeaker,
               url: uploadCoverData.url
             };
-            setCoverLibrary(prev => [nextItem, ...prev.filter(item => item.url !== nextItem.url)]);
-            try { sessionStorage.removeItem('echostars_cover_library_v3_5'); } catch {}
+            setCoverLibrary(prev => {
+              const next = [nextItem, ...prev.filter(item => item.url !== nextItem.url)];
+              saveCoverLibraryCache(next);
+              return next;
+            });
           }
         }
       } else if (coverPreview && !coverPreview.startsWith('blob:')) {
@@ -780,7 +823,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   {coverFile ? coverFile.name : (coverPreview ? '已選用 R2 現有封面' : '未選擇照片 (使用預設精美頭像)')}
                 </p>
                 <p className="text-slate-400">
-                  可點擊或拖曳上傳；R2 檔名使用「演講人名字.副檔名」，同名自動加數字編號
+                  可點擊或拖曳上傳；若音檔內含封面會自動擷取。R2 檔名仍使用「演講人名字.副檔名」，同名自動加數字編號
                 </p>
               </div>
             </div>
@@ -790,9 +833,21 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 <span className="font-bold text-slate-700 dark:text-slate-200">
                   R2 已有演講者照片
                 </span>
-                <span className="text-[10px] text-slate-400">
-                  {isCoverLibraryLoading ? '讀取中…' : `${coverLibrary.length} 張・點照片可快速套用姓名與封面`}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400">
+                    {isCoverLibraryLoading ? '讀取中…' : `${coverLibrary.length} 張・點照片可快速套用`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void loadCoverLibrary(true)}
+                    disabled={isCoverLibraryLoading}
+                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-600 hover:border-rose-300 hover:text-rose-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                    title="重新讀取 R2 cover/，同步已新增或已刪除的封面"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isCoverLibraryLoading ? 'animate-spin' : ''}`} />
+                    重新整理
+                  </button>
+                </div>
               </div>
               <div className="relative mb-2">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
