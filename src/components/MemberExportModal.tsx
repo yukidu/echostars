@@ -82,7 +82,7 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `繁星的回聲_學員名冊名單_${new Date().toISOString().substring(0, 10)}.csv`;
+      a.download = `繁星回聲_學員名冊名單_${new Date().toISOString().substring(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -108,7 +108,7 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
         <!DOCTYPE html>
         <html>
           <head>
-            <title>繁星的回聲 - 學員名冊清單</title>
+            <title>繁星回聲 - 學員名冊清單</title>
             <style>
               body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang TC", "Microsoft JhengHei", sans-serif; padding: 20px; color: #1e293b; }
               h2 { margin: 0 0 4px; font-size: 20px; }
@@ -120,7 +120,7 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
             </style>
           </head>
           <body>
-            <h2>繁星的回聲 (ECHO) 團隊學員名冊總表</h2>
+            <h2>繁星回聲 團隊學員名冊總表</h2>
             <p>匯出日期：${new Date().toLocaleDateString('zh-TW')} • 成員總數：${users.length} 位</p>
             <table>
               <thead><tr>${tableHeaders}</tr></thead>

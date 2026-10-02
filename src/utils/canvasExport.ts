@@ -44,7 +44,7 @@ export async function exportMemberProfileAndListeningImage(
 
   ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#666666';
-  ctx.fillText(`繁星的回聲 • 學習與聆聽檔案  |  匯出日期：${new Date().toLocaleDateString('zh-TW')}`, padding, 82);
+  ctx.fillText(`繁星回聲 • 學習與聆聽檔案  |  匯出日期：${new Date().toLocaleDateString('zh-TW')}`, padding, 82);
 
   // Top Section: Two-column layout (Requirement 13: 九宮格移至頂端右側，與左側基本資料對齊)
   const profileBoxY = 96;
@@ -205,7 +205,7 @@ export async function exportMemberProfileAndListeningImage(
   // Footer
   ctx.font = 'bold 11px sans-serif';
   ctx.fillStyle = '#333333';
-  ctx.fillText('繁星的回聲 • 學員學習檔案卡', padding, totalHeight - 22);
+  ctx.fillText('繁星回聲 • 學員學習檔案卡', padding, totalHeight - 22);
 
   return new Promise(resolve => {
     canvas.toBlob(blob => resolve(blob!), 'image/jpeg', 0.95);
@@ -430,7 +430,7 @@ export async function exportTrackCommentsImage(
   // Footer
   ctx.font = 'bold 16px sans-serif';
   ctx.fillStyle = '#000000';
-  ctx.fillText('繁星的回聲', padding, totalHeight - 65);
+  ctx.fillText('繁星回聲', padding, totalHeight - 65);
 
   ctx.font = '12px sans-serif';
   ctx.fillStyle = '#888888';
@@ -548,7 +548,7 @@ export async function exportTrackFullCardImage(
   // Brand Subtitle & Date
   ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#444444';
-  ctx.fillText('繁星的回聲 • 專屬音訊知識庫  |  資訊圖卡', padding, currentY);
+  ctx.fillText('繁星回聲 • 專屬音訊知識庫  |  資訊圖卡', padding, currentY);
 
   ctx.font = '12px sans-serif';
   ctx.fillStyle = '#666666';
@@ -700,7 +700,7 @@ export async function exportTrackFullCardImage(
 
   ctx.font = 'bold 12px sans-serif';
   ctx.fillStyle = '#000000';
-  ctx.fillText('繁星的回聲 • 專屬音訊知識庫互動平台', padding, totalHeight - 34);
+  ctx.fillText('繁星回聲 • 專屬音訊知識庫互動平台', padding, totalHeight - 34);
 
   ctx.font = '11px sans-serif';
   ctx.fillStyle = '#666666';
@@ -719,7 +719,7 @@ export async function shareOrDownloadImage(blob: Blob, filename: string, title: 
         await navigator.share({
           files: [file],
           title,
-          text: '來自繁星的回聲的演講完整資訊圖卡'
+          text: '來自繁星回聲的演講完整資訊圖卡'
         });
         return;
       }
@@ -766,10 +766,10 @@ export async function exportPersonalProfileCard(user: UserProfile): Promise<Blob
   ctx.fillStyle = '#000000';
   ctx.fillRect(28, 28, width - 56, 4);
 
-  // Title: 繁星的回聲 • 個人學員檔案圖卡
+  // Title: 繁星回聲 • 個人學員檔案圖卡
   ctx.font = 'bold 26px "PingFang TC", "Microsoft JhengHei", sans-serif';
   ctx.fillStyle = '#000000';
-  ctx.fillText('繁星的回聲 • 個人學員檔案圖卡', padding, 64);
+  ctx.fillText('繁星回聲 • 個人學員檔案圖卡', padding, 64);
 
   ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = '#555555';
@@ -1042,7 +1042,7 @@ export async function exportPersonalProfileCard(user: UserProfile): Promise<Blob
 
   ctx.font = 'bold 12px sans-serif';
   ctx.fillStyle = '#000000';
-  ctx.fillText('繁星的回聲 • 團隊專屬學習成長平台', padding, totalHeight - 26);
+  ctx.fillText('繁星回聲 • 團隊專屬學習成長平台', padding, totalHeight - 26);
 
   ctx.font = '11px sans-serif';
   ctx.fillStyle = '#666666';
@@ -1057,15 +1057,15 @@ export async function exportPersonalProfileCard(user: UserProfile): Promise<Blob
  * Requirement 10: 呼叫行動裝置選單匯出個人圖卡 (JPEG 檔案)
  */
 export async function shareOrDownloadProfileCard(blob: Blob, userName: string) {
-  const filename = `繁星的回聲_${userName || '學員'}_個人圖卡.jpg`;
+  const filename = `繁星回聲_${userName || '學員'}_個人圖卡.jpg`;
   const file = new File([blob], filename, { type: 'image/jpeg' });
 
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({
         files: [file],
-        title: '繁星的回聲 - 個人學員檔案圖卡',
-        text: `${userName} 的個人學員檔案圖卡（繁星的回聲）`
+        title: '繁星回聲 - 個人學員檔案圖卡',
+        text: `${userName} 的個人學員檔案圖卡（繁星回聲）`
       });
       return;
     } catch {

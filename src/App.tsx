@@ -662,7 +662,7 @@ export default function App() {
   const handlePlayTrack = async (track: Track, targetMode?: PlayerDisplayMode) => {
     // Requirement 11 (v2.7): 私秘VIP音檔播放守護
     if (track.isPrivateVip && !isTrackVipUnlocked(track)) {
-      alert('此音檔為私秘VIP專屬，請聯絡上傳者給您專屬連結');
+      setPermissionAlert('此錄音檔為【私密VIP】專屬內容，請向上傳者取得專屬授權連結後再播放。');
       return;
     }
 
@@ -1509,6 +1509,7 @@ export default function App() {
         onToggleTheme={handleToggleTheme}
         onRandomPalette={handleRandomPalette}
         currentUser={currentUser}
+        visitor={visitor}
         isAdmin={isAdmin}
         canUpload={canUpload}
         pendingNotificationsCount={pendingNotificationsCount}
@@ -1653,6 +1654,7 @@ export default function App() {
                 onViewMember={user => setPreviewMember(user)}
                 onUpdateTrack={handleUpdateTrack}
                 isVipUnlocked={isTrackVipUnlocked(activeTrack)}
+                onVipBlocked={() => setPermissionAlert('此錄音檔為【私密VIP】專屬內容，請向上傳者取得專屬授權連結後再播放。')}
                 onEditTrack={t => {
                   setTrackToEdit(t);
                   setIsUploadOpen(true);
@@ -1883,7 +1885,7 @@ export default function App() {
             </div>
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
-            <div className="sort-toolbar relative grid grid-cols-6 gap-1 w-full pt-0.5">
+            <div className="sort-toolbar relative left-1/2 -translate-x-1/2 grid grid-cols-6 gap-1 w-screen max-w-[100vw] px-1 sm:px-2 pt-0.5">
               {/* Four sort buttons + two filters share the full row at equal width. */}
               <div className="sort-options contents">
                 {(['時間', '評價', '留言', '演講人'] as SortField[]).map(field => {
@@ -2070,7 +2072,7 @@ export default function App() {
                       }}
                       onTogglePlay={() => {
                         if (track.isPrivateVip && !isVipUnlocked) {
-                          alert('此音檔為私秘VIP專屬，請聯絡上傳者給您專屬連結');
+                          setPermissionAlert('此錄音檔為【私密VIP】專屬內容，請向上傳者取得專屬授權連結後再播放。');
                           return;
                         }
                         if (isCurrent) {
@@ -2102,7 +2104,7 @@ export default function App() {
             >
               !
             </button>
-            <span>繁星的回聲</span>
+            <span>繁星回聲</span>
           </div>
         </footer>
       </main>

@@ -49,14 +49,14 @@ export const Navbar: React.FC<NavbarProps> = ({
   // Requirement 11: 首頁置頂主選單，直接顯示目前名字+身份，分二行顯示，如果名稱太長，自動縮小字體符合4個字的寬度，身份用底色橢圓框區隔
   const displayName = currentUser?.name || visitor?.fullName || '勇敢的獅子';
   const displayRole = !currentUser
-    ? '(訪客)'
+    ? '訪客'
     : isSuperAdmin
-    ? '(超級管理員)'
+    ? '超級管理員'
     : isAdministrator
-    ? '(管理員)'
+    ? '管理員'
     : currentUser.isContributor
-    ? '(貢獻者)'
-    : `(${currentUser.rank || '會員'})`;
+    ? '貢獻者'
+    : (currentUser.rank || '會員');
 
   const nameLen = Array.from(displayName).length;
   // Requirement 11: 名稱如果太長，自動縮小字體以符合 4 個字的寬度
@@ -121,7 +121,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <TwinklingStars density="subtle" className="opacity-75 dark:opacity-90" />
 
       <div className="relative z-10 max-w-4xl mx-auto px-3 sm:px-6 h-16 sm:h-[72px] flex items-center justify-between">
-        {/* Brand Logo - 點擊左上角麥克風圖或繁星的回聲，返回首頁播放清單「全部分類」，清空搜尋條件 */}
+        {/* Brand Logo - 點擊左上角麥克風圖或繁星回聲，返回首頁播放清單「全部分類」，清空搜尋條件 */}
         <button
           type="button"
           onClick={handleLogoClick}
@@ -138,14 +138,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5">
-            {/* Requirement 4: 網站標題改為「繁星的回聲」，第三個字「的」字體小一點 */}
             <span
               className="text-base sm:text-xl font-black tracking-wider echo-wave-text inline-flex items-baseline"
               style={{ color: 'var(--color-primary, #c06c84)' }}
             >
-              <span>繁星</span>
-              <span className="text-[0.68em] mx-[1px] font-bold opacity-85">的</span>
-              <span>回聲</span>
+              <span>繁星回聲</span>
             </span>
 
             {/* Sound wave bars animation - matches active theme palette */}
