@@ -1323,7 +1323,7 @@ export default function App() {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || '清除學習紀錄失敗');
     }
-    clearStoredPlayback(tracks.map(t => t.id));
+    clearStoredPlayback();
     setPlaybackMemories({});
     setAllUsers(prev => prev.map(user =>
       user.id === currentUser.id || user.email === currentUser.email
