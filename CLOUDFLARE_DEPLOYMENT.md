@@ -1,4 +1,4 @@
-# 繁星的回聲 - Cloudflare 全端架構部屬指南
+# 繁星回聲 - Cloudflare 全端架構部屬指南
 
 本專案已完整支援以 **Cloudflare Workers (後端執行環境) + D1 (分散式 SQLite 資料庫) + R2 (音訊與圖檔物件儲存) + KV (極速鍵值快取)** 架構部屬。
 
