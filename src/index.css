@@ -276,11 +276,11 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
 .detail-share-actions svg { color: white !important; width: 21px; height: 21px; }
 .app-modal-overlay { z-index: 100 !important; }
 
-/* v3.7: five controls remain equal-width in one row.
-   Every control is a real grid cell; no display:contents and no direct-button special case. */
+/* v3.7: seven controls on larger/landscape screens; portrait phones hide
+   評價/按讚 and keep the remaining five controls equal-width. */
 .sort-toolbar {
   display: grid !important;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
   grid-auto-flow: column !important;
   gap: 1px !important;
 }
@@ -300,6 +300,14 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
   gap: 0 !important;
   font-size: 12px;
   white-space: nowrap;
+}
+@media (max-width: 639px) and (orientation: portrait) {
+  .sort-toolbar {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+  .sort-toolbar > .sort-toolbar-item.sort-hide-portrait {
+    display: none !important;
+  }
 }
 /* v3.7 real-device fix: toolbar always stays inside its content container.
    Never use 100dvw/left/translate centering, which can clip the left columns on portrait phones. */

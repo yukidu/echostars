@@ -1425,6 +1425,14 @@ export default function App() {
     return match ? Number(match[1]) || 0 : 0;
   };
 
+  const getRequiredRankSortIndex = (track: Track) => {
+    if (track.isPrivateVip) return RANK_ORDER.length + 1;
+    const required = String(track.requiredRank || '無').trim();
+    if (!required || required === '無' || required === '公開') return 0;
+    const index = (RANK_ORDER as readonly string[]).indexOf(required);
+    return index >= 0 ? index : 0;
+  };
+
   // Requirement 19: 時間排序固定以「音檔上傳時間」為準。
   const handleSortClick = (field: SortField) => {
     if (sortField === field) {
@@ -1493,6 +1501,10 @@ export default function App() {
             // Legacy rows only stored YYYY/MM/DD. For same-day uploads, the
             // durable ES sequence in the R2 audio filename preserves upload order.
             if (diff === 0) diff = getUploadSequence(a) - getUploadSequence(b);
+            break;
+          }
+          case '權限': {
+            diff = getRequiredRankSortIndex(a) - getRequiredRankSortIndex(b);
             break;
           }
           case '評價': {
@@ -1989,14 +2001,14 @@ export default function App() {
             </div>
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
-            <div className={`sort-toolbar relative grid grid-cols-5 gap-1 w-full max-w-full px-0 pt-0.5 ${(isSpeakerRankDropdownOpen || isCategoryDropdownOpen) ? 'z-[100]' : 'z-20'}`}>
-              {/* v3.7 portrait hotfix: keep all five controls inside the content container.
-                  Avoid viewport-width + translate centering, which clipped the left side on real phones. */}
-              {(['時間', '評價', '留言'] as SortField[]).map(field => {
+            <div className={`sort-toolbar relative grid gap-1 w-full max-w-full px-0 pt-0.5 ${(isSpeakerRankDropdownOpen || isCategoryDropdownOpen) ? 'z-[100]' : 'z-20'}`}>
+              {/* v3.7: large/landscape shows seven controls; portrait phones hide 評價/按讚 and keep five columns. */}
+              {(['時間', '權限', '評價', '留言', '按讚'] as SortField[]).map(field => {
                 const isActive = sortField === field;
                 const displayField = field === '留言' ? '心得' : field;
+                const hideOnPortraitPhone = field === '評價' || field === '按讚';
                 return (
-                  <div key={field} className="sort-toolbar-item relative min-w-0">
+                  <div key={field} className={`sort-toolbar-item relative min-w-0 ${hideOnPortraitPhone ? 'sort-hide-portrait' : ''}`}>
                     <button
                       type="button"
                       onClick={() => handleSortClick(field)}

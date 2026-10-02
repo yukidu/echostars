@@ -87,7 +87,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
           : 'border-rose-100/70 dark:border-slate-800 hover:border-rose-200 dark:hover:border-slate-700'
       }`}
     >
-      <div className={`flex items-start gap-3 sm:gap-4 transition-opacity ${hasReadAccess ? 'opacity-100' : 'opacity-50'}`}>
+      <div className={`flex items-start gap-3 sm:gap-4 transition-opacity ${hasReadAccess ? 'opacity-100' : 'opacity-25'}`}>
         {/* Left: large portrait + progress + duration + access level */}
         <div className="shrink-0 w-28 sm:w-32">
           <button
