@@ -1401,6 +1401,11 @@ export default function App() {
     return Number.isFinite(parsed) ? parsed : 0;
   };
 
+  const getUploadSequence = (track: Track) => {
+    const match = String(track.audioUrl || '').match(/ES(\d{4,})/i);
+    return match ? Number(match[1]) || 0 : 0;
+  };
+
   // Requirement 19: 時間排序固定以「音檔上傳時間」為準。
   const handleSortClick = (field: SortField) => {
     if (sortField === field) {
@@ -1466,6 +1471,9 @@ export default function App() {
         switch (sortField) {
           case '時間': {
             diff = getUploadTimestamp(a.uploadDate) - getUploadTimestamp(b.uploadDate);
+            // Legacy rows only stored YYYY/MM/DD. For same-day uploads, the
+            // durable ES sequence in the R2 audio filename preserves upload order.
+            if (diff === 0) diff = getUploadSequence(a) - getUploadSequence(b);
             break;
           }
           case '評價': {
