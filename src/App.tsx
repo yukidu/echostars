@@ -1970,13 +1970,15 @@ export default function App() {
 
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
             <div className={`sort-toolbar relative grid grid-cols-5 gap-1 w-[100dvw] max-w-[100dvw] left-1/2 -translate-x-1/2 px-2 pt-0.5 sm:w-full sm:max-w-none sm:left-auto sm:translate-x-0 sm:px-0 ${(isSpeakerRankDropdownOpen || isCategoryDropdownOpen) ? 'z-[100]' : 'z-20'}`}>
-              {/* v3.7 hotfix: all five controls are direct grid children in a fixed five-column row. */}
+              {/* v3.7 portrait hotfix: every control uses the same grid-cell wrapper.
+                  This matches the two dropdowns that render correctly on narrow mobile browsers. */}
               {(['時間', '評價', '留言'] as SortField[]).map(field => {
-                  const isActive = sortField === field;
-                  const displayField = field === '留言' ? '心得' : field;
-                  return (
+                const isActive = sortField === field;
+                const displayField = field === '留言' ? '心得' : field;
+                return (
+                  <div key={field} className="sort-toolbar-item relative min-w-0">
                     <button
-                      key={field}
+                      type="button"
                       onClick={() => handleSortClick(field)}
                       className={`w-full min-w-0 px-1 py-1 rounded-xl text-[10px] sm:text-xs font-bold transition-all flex items-center justify-center gap-0.5 shadow-2xs ${
                         isActive
@@ -1988,7 +1990,7 @@ export default function App() {
                     >
                       <span className="truncate">{displayField}</span>
                       {isActive && (
-                        <span className="inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full bg-white text-[var(--color-primary,#c06c84)] shrink-0 shadow-2xs">
+                        <span className="sort-direction-icon inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full bg-white text-[var(--color-primary,#c06c84)] shrink-0 shadow-2xs">
                           {sortDirection === 'desc' ? (
                             <ArrowDown className="w-2.5 h-2.5 stroke-[3.5]" />
                           ) : (
@@ -1997,13 +1999,15 @@ export default function App() {
                         </span>
                       )}
                     </button>
-                  );
-                })}
+                  </div>
+                );
+              })}
 
               {/* Right: Dropdowns (分類選單與講師獎銜指標篩選) */}
               {/* 1. 講師獎銜篩選下拉選單 */}
-              <div className="relative min-w-0">
+              <div className="sort-toolbar-item relative min-w-0">
                   <button
+                    type="button"
                     onClick={e => {
                       e.stopPropagation();
                       setIsSpeakerRankDropdownOpen(prev => !prev);
@@ -2058,8 +2062,9 @@ export default function App() {
                 </div>
 
               {/* 2. Category Dropdown */}
-              <div className="relative min-w-0">
+              <div className="sort-toolbar-item relative min-w-0">
                   <button
+                    type="button"
                     onClick={e => {
                       e.stopPropagation();
                       setIsCategoryDropdownOpen(prev => !prev);
