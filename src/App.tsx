@@ -232,15 +232,19 @@ export default function App() {
   const [allComments, setAllComments] = useState<Comment[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(() => (readHomeCache()?.tracks || []).length === 0);
+  const hasFetchedAllCommentsRef = useRef(false);
+  const hasFetchedAllUsersRef = useRef(false);
 
-  // Requirement 6 (v2.4): 載入全站所有留言，確保首頁快速預覽留言被 @ 標記時即刻同步顯示於通知頁
-  const fetchAllComments = async () => {
+  // Heavy community datasets are loaded only when a view actually needs them.
+  const fetchAllComments = async (force = false) => {
+    if (hasFetchedAllCommentsRef.current && !force) return;
     try {
       const res = await fetch('/api/comments');
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
           setAllComments(data);
+          hasFetchedAllCommentsRef.current = true;
         }
       }
     } catch (e) {
@@ -248,12 +252,16 @@ export default function App() {
     }
   };
 
-  const fetchAllUsers = async () => {
+  const fetchAllUsers = async (force = false) => {
+    if (hasFetchedAllUsersRef.current && !force) return;
     try {
       const res = await fetch('/api/users');
       if (!res.ok) return;
       const data = await res.json();
-      if (Array.isArray(data)) setAllUsers(data);
+      if (Array.isArray(data)) {
+        setAllUsers(data);
+        hasFetchedAllUsersRef.current = true;
+      }
     } catch (e) {
       console.error('Failed to fetch users:', e);
     }
@@ -447,23 +455,49 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [playerMode, savedPreferredMode, setPlayerMode]);
 
-  // 1. Fetch initial data and purge stale offline tracks (> 2 weeks or finished)
+  // 1. Fast home bootstrap: show local cache immediately, then refresh only when stale.
   useEffect(() => {
     purgeStaleOfflineTracks();
 
-    async function loadData() {
+    const cached = readHomeCache();
+    const cacheFresh = Boolean(
+      cached?.tracks?.length &&
+      Date.now() - cached.savedAt < HOME_CACHE_TTL_MS
+    );
+    const urlParams = new URLSearchParams(window.location.search);
+    const requestedTrackId =
+      urlParams.get('track') ||
+      (window.location.pathname.startsWith('/share/')
+        ? decodeURIComponent(window.location.pathname.slice(7))
+        : null);
+
+    if (cached?.tracks?.length) {
+      const memories: Record<string, AudioMemory> = {};
+      cached.tracks.forEach((t: Track) => {
+        const m = getStoredPlayback(t.id);
+        if (m) memories[t.id] = m;
+      });
+      setPlaybackMemories(memories);
+      setIsLoading(false);
+    }
+
+    async function refreshHomeData() {
+      // Fresh cache avoids a Worker request + full D1 track scan on quick revisits.
+      // A direct/shared track URL always revalidates so a newly uploaded track can open.
+      if (cacheFresh && !requestedTrackId) return;
+
       try {
-        const [tracksRes, usersRes, catRes] = await Promise.all([
+        const [tracksRes, catRes] = await Promise.all([
           fetch('/api/tracks'),
-          fetch('/api/users'),
           fetch('/api/categories')
         ]);
 
+        let nextCategories = cached?.categories?.length ? cached.categories : DEFAULT_CATEGORIES;
         if (catRes.ok) {
           const cData = await catRes.json();
           if (Array.isArray(cData)) {
-            const list = Array.from(new Set(['全部', ...cData]));
-            setCategoryOptions(list);
+            nextCategories = Array.from(new Set(['全部', ...cData]));
+            setCategoryOptions(nextCategories);
           }
         }
 
@@ -471,35 +505,41 @@ export default function App() {
           const tData = await tracksRes.json();
           if (Array.isArray(tData)) {
             setTracks(tData);
+            writeHomeCache(tData, nextCategories);
 
             const memories: Record<string, AudioMemory> = {};
             tData.forEach((t: Track) => {
               const m = getStoredPlayback(t.id);
               if (m) memories[t.id] = m;
             });
-            setPlaybackMemories(memories);
+            setPlaybackMemories(prev => ({ ...memories, ...prev }));
 
-            // Check URL query param ?track=t-1
-            const urlParams = new URLSearchParams(window.location.search);
-            const trackParam = urlParams.get('track') || (window.location.pathname.startsWith('/share/') ? decodeURIComponent(window.location.pathname.slice(7)) : null);
-            if (trackParam) {
-              const found = tData.find((t: Track) => t.id === trackParam);
-              if (found) {
-                handlePlayTrack(found, 'expanded');
-              }
+            if (requestedTrackId) {
+              const found = tData.find((t: Track) => t.id === requestedTrackId);
+              if (found) handlePlayTrack(found, 'expanded');
             }
           }
         }
+      } catch (err) {
+        console.error('Failed to refresh home data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
 
-        if (usersRes.ok) {
-          const uData = await usersRes.json();
-          if (Array.isArray(uData)) {
-            setAllUsers(uData);
+    void refreshHomeData();
 
-            // Sync current user from Cloudflare D1 if logged in
-            if (currentUser && currentUser.email) {
-              const cleanCurrentEmail = currentUser.email.toLowerCase().trim();
-              const matched = uData.find((u: UserProfile) => u.email?.toLowerCase().trim() === cleanCurrentEmail);
+    // Non-critical personalized data loads after first paint and never blocks home.
+    const backgroundTimer = window.setTimeout(async () => {
+      if (currentUser?.email) {
+        try {
+          const profileCheckKey = 'echostars_profile_checked_at_v3_3';
+          const lastProfileCheck = Number(localStorage.getItem(profileCheckKey) || 0);
+          if (Date.now() - lastProfileCheck > 10 * 60 * 1000) {
+            const profileRes = await fetch(`/api/users/profile?email=${encodeURIComponent(currentUser.email)}`);
+            if (profileRes.ok) {
+              const profileData = await profileRes.json();
+              const matched = profileData?.user;
               if (matched) {
                 const isOwner = isSuperAdminEmail(matched.email);
                 const synced: UserProfile = {
@@ -514,45 +554,53 @@ export default function App() {
                 };
                 setCurrentUser(synced);
                 localStorage.setItem('sq_current_user_v1', JSON.stringify(synced));
+                localStorage.setItem(profileCheckKey, String(Date.now()));
               }
             }
           }
+        } catch (e) {
+          console.warn('Failed to refresh current user profile:', e);
         }
 
-        // Fetch permanent playback history from Cloudflare D1 for current user or visitor
-        const activeIdentifier = currentUser?.email || visitor?.deviceId;
-        if (activeIdentifier) {
-          try {
-            const histRes = await fetch(`/api/playback/history/${encodeURIComponent(activeIdentifier)}`);
-            if (histRes.ok) {
-              const histData = await histRes.json();
-              if (histData && typeof histData === 'object') {
-                setPlaybackMemories(prev => ({ ...prev, ...histData }));
-              }
+        // Logged-in members get cross-device playback sync. Visitors rely on
+        // localStorage and therefore cost zero D1 reads for playback history.
+        try {
+          const histRes = await fetch(`/api/playback/history/${encodeURIComponent(currentUser.email)}`);
+          if (histRes.ok) {
+            const histData = await histRes.json();
+            if (histData && typeof histData === 'object') {
+              setPlaybackMemories(prev => ({ ...prev, ...histData }));
             }
-          } catch (e) {
-            console.warn('Failed to load playback memories:', e);
           }
+        } catch (e) {
+          console.warn('Failed to load playback memories:', e);
         }
-
-        // Fetch all comments for mention notifications
-        await fetchAllComments();
-      } catch (err) {
-        console.error('Failed to load data:', err);
-      } finally {
-        setIsLoading(false);
       }
-    }
+    }, 0);
 
-    loadData();
+    return () => window.clearTimeout(backgroundTimer);
   }, []);
 
-  // Sync all comments when switching to notifications tab
+  // Load large users/comments datasets only for screens that use them.
   useEffect(() => {
-    if (currentTab === 'notifications') {
-      fetchAllComments();
+    const needsCommunityData =
+      currentTab === 'notifications' ||
+      currentTab === 'stats' ||
+      isAdminOpen ||
+      isProfileOpen ||
+      Boolean(commentPreviewTrack) ||
+      Boolean(selectedDetailTrack);
+
+    if (!needsCommunityData) return;
+    void fetchAllUsers();
+    if (
+      currentTab === 'notifications' ||
+      currentTab === 'stats' ||
+      Boolean(commentPreviewTrack)
+    ) {
+      void fetchAllComments();
     }
-  }, [currentTab]);
+  }, [currentTab, isAdminOpen, isProfileOpen, commentPreviewTrack, selectedDetailTrack]);
 
   useEffect(() => {
     const trackId = (selectedDetailTrack || currentTrack)?.id;
