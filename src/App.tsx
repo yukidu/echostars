@@ -1853,7 +1853,7 @@ export default function App() {
           /* List View (Home) */
           <div className="space-y-4">
             {/* Search Input Bar & Search Button (Requirement 9: 刪除上傳按鈕, Requirement 10: 增加搜尋按鈕) */}
-            <div className="flex items-center gap-px">
+            <div className="flex items-center gap-2">
               <div ref={searchContainerRef} className="relative flex-1">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/80 pointer-events-none" />
                 <input
