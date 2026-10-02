@@ -120,7 +120,7 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
             </style>
           </head>
           <body>
-            <h2>繁星回聲 (ECHO) 團隊學員名冊總表</h2>
+            <h2>繁星回聲 團隊學員名冊總表</h2>
             <p>匯出日期：${new Date().toLocaleDateString('zh-TW')} • 成員總數：${users.length} 位</p>
             <table>
               <thead><tr>${tableHeaders}</tr></thead>
