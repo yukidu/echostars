@@ -71,6 +71,8 @@ export const AudioCard: React.FC<AudioCardProps> = ({
       ? `約 ${Math.max(1, Math.round(Number(track.durationSeconds) / 60))} 分鐘`
       : (track.duration || '時間待確認');
 
+  const hasReadAccess = canAccess && isVipUnlocked;
+
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onTogglePlay) onTogglePlay(e.currentTarget);
@@ -85,7 +87,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
           : 'border-rose-100/70 dark:border-slate-800 hover:border-rose-200 dark:hover:border-slate-700'
       }`}
     >
-      <div className="flex items-start gap-3 sm:gap-4">
+      <div className={`flex items-start gap-3 sm:gap-4 transition-opacity ${hasReadAccess ? 'opacity-100' : 'opacity-50'}`}>
         {/* Left: large portrait + progress + duration + access level */}
         <div className="shrink-0 w-28 sm:w-32">
           <button
@@ -166,7 +168,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
             <div
               className="flex items-center flex-nowrap gap-[2px] min-w-0"
               onClick={e => e.stopPropagation()}
-              title="點擊星星評分"
+              title={hasReadAccess ? '點擊星星評分' : '無閱讀權限，無法評價'}
             >
               {[1, 2, 3, 4, 5].map(starNum => {
                 const isRated = (userRating || 0) > 0;
@@ -175,10 +177,11 @@ export const AudioCard: React.FC<AudioCardProps> = ({
                   <button
                     key={starNum}
                     type="button"
-                    onClick={() => onRate && onRate(starNum)}
-                    aria-label={`評分 ${starNum} 星`}
+                    disabled={!hasReadAccess}
+                    onClick={() => hasReadAccess && onRate && onRate(starNum)}
+                    aria-label={hasReadAccess ? `評分 ${starNum} 星` : '無閱讀權限，無法評價'}
                     aria-pressed={userRating === starNum}
-                    className="rating-star p-0.5 hover:scale-125 transition-transform shrink-0"
+                    className={`rating-star p-0.5 transition-transform shrink-0 ${hasReadAccess ? 'hover:scale-125 cursor-pointer' : 'cursor-not-allowed'}`}
                   >
                     <Star
                       className={`w-4.5 h-4.5 sm:w-5 sm:h-5 ${
