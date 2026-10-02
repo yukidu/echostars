@@ -93,9 +93,9 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
               {track.title}
             </p>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-              {track.speaker}{track.speakerRank ? ` · ${track.speakerRank}` : ''}
+              {track.speaker}{track.speakerRank || ''}
             </p>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5 whitespace-nowrap">
               {formatTime(currentTime)} / {formatTime(safeDuration)}
             </p>
           </div>
