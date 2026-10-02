@@ -31,11 +31,9 @@ export const ANIMALS = [
 
 export const ADJECTIVES = [
   '爽朗的',
-  '熱血的',
-  '沉思的',
-  '醜陋的',
+  '熱情的',
   '自信的',
-  '溫柔的',
+  '溫暖的',
   '聰慧的',
   '勇敢的',
   '樂觀的',
@@ -45,9 +43,11 @@ export const ADJECTIVES = [
   '幽默的',
   '堅毅的',
   '沉著的',
-  '熱情的',
+  '親切的',
   '謙遜的',
   '睿智的',
+  '開朗的',
+  '真誠的',
   '活力滿滿的',
   '充滿好奇的'
 ];
@@ -91,7 +91,18 @@ export function getOrCreateVisitor(): VisitorIdentity {
   const stored = localStorage.getItem(DEVICE_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored) as VisitorIdentity;
+      if (ADJECTIVES.includes(parsed.adjective)) return parsed;
+
+      // Migrate old/negative visitor adjectives locally while preserving device identity.
+      const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+      const migrated: VisitorIdentity = {
+        ...parsed,
+        adjective: adj,
+        fullName: `${adj}${parsed.animal || '海豚'}`
+      };
+      localStorage.setItem(DEVICE_KEY, JSON.stringify(migrated));
+      return migrated;
     } catch {
       // ignore
     }

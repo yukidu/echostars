@@ -6,7 +6,7 @@ import { baseSpeakerRank } from './utils/ranks';
 
 import { apiJson, identityKeys } from './utils/api';
 import React, { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
-import { Search, ChevronDown, Check, X, ShieldAlert, UploadCloud, Mic, ArrowDown, ArrowUp, Hash } from 'lucide-react';
+import { Search, ChevronDown, Check, X, ShieldAlert, UploadCloud, Mic, ArrowDown, ArrowUp } from 'lucide-react';
 import {
   Track,
   Comment,
@@ -1902,16 +1902,15 @@ export default function App() {
             </div>
 
             {/* Requirement 6 (v2.8): 多組網友關鍵字交叉複合搜尋 (Selected Keywords Chips & Tag Drawer) */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2 px-1">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between gap-1 px-0.5">
                 <button
                   type="button"
                   onClick={() => setShowKeywordsDrawer(prev => !prev)}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 transition-colors cursor-pointer"
                 >
-                  <Hash className="w-3.5 h-3.5 text-amber-500" />
                   <span>網友關鍵字交叉篩選</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 dark:bg-amber-900/60 font-mono">
+                  <span className="text-[10px] px-1 py-0 rounded-full bg-amber-100 dark:bg-amber-900/60 font-mono">
                     {selectedKeywords.length > 0 ? `已選 ${selectedKeywords.length} 組` : ''}
                   </span>
                   <span className="text-[10px] text-slate-400">
@@ -1932,18 +1931,16 @@ export default function App() {
 
               {/* Expandable Keywords Tag Cloud Drawer for Multi-selection */}
               {showKeywordsDrawer && (
-                <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-slate-800/80 border border-amber-200/70 dark:border-slate-700 animate-in fade-in space-y-2">
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                    <span>點選多組標籤可進行「交叉交集」篩選（音檔須同時符合所有勾選標籤）：</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowKeywordsDrawer(false)}
-                      className="text-slate-400 hover:text-slate-600 text-xs"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+                <div className="relative p-1.5 rounded-xl bg-amber-50/80 dark:bg-slate-800/80 border border-amber-200/70 dark:border-slate-700 animate-in fade-in">
+                  <button
+                    type="button"
+                    onClick={() => setShowKeywordsDrawer(false)}
+                    className="absolute top-1 right-1 z-10 text-slate-400 hover:text-slate-600 text-xs px-1"
+                    aria-label="收起網友關鍵字"
+                  >
+                    ✕
+                  </button>
+                  <div className="flex flex-wrap gap-0.5 max-h-40 overflow-y-auto pr-5">
                     {allAvailableKeywords.length === 0 ? (
                       <span className="text-xs text-slate-400 italic">尚無網友關鍵字</span>
                     ) : (
@@ -1958,14 +1955,13 @@ export default function App() {
                                 isSelected ? prev.filter(k => k !== kw) : [...prev, kw]
                               );
                             }}
-                            className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 active:scale-95 ${
+                            className={`px-1.5 py-0.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${
                               isSelected
-                                ? 'bg-amber-600 text-white shadow-2xs font-bold ring-2 ring-amber-400/50'
-                                : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-amber-300'
+                                ? 'bg-amber-600 text-white border-amber-600'
+                                : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-slate-800'
                             }`}
                           >
-                            <span>#{kw}</span>
-                            {isSelected && <span className="text-[10px] font-bold">✓</span>}
+                            <span>{kw}</span>
                           </button>
                         );
                       })
@@ -1976,20 +1972,20 @@ export default function App() {
 
               {/* Selected Keyword Chips Indicator */}
               {selectedKeywords.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 px-1 py-0.5">
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
+                <div className="flex flex-wrap items-center gap-0.5 px-0.5 py-0.5">
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold flex items-center gap-0.5">
                     <span>🎯 交集比對中：</span>
                   </span>
                   {selectedKeywords.map(kw => (
                     <span
                       key={kw}
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700 shadow-2xs"
+                      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border border-amber-300/80 dark:border-amber-700"
                     >
-                      <span>💬 {kw}</span>
+                      <span>{kw}</span>
                       <button
                         type="button"
                         onClick={() => setSelectedKeywords(prev => prev.filter(k => k !== kw))}
-                        className="hover:text-red-500 p-0.5 cursor-pointer"
+                        className="hover:text-red-500 p-0 cursor-pointer"
                         title="移除此關鍵字"
                       >
                         <X className="w-3 h-3" />
@@ -2022,11 +2018,11 @@ export default function App() {
                     >
                       <span className="truncate">{displayField}</span>
                       {isActive && (
-                        <span className="sort-direction-icon inline-flex items-center justify-center w-3 h-3 ml-0 rounded-full bg-white text-[var(--color-primary,#c06c84)] shrink-0 shadow-2xs">
+                        <span className="sort-direction-icon inline-flex items-center justify-center w-5 h-5 ml-0 rounded-full bg-white text-[var(--color-primary,#c06c84)] shrink-0 shadow-2xs">
                           {sortDirection === 'desc' ? (
-                            <ArrowDown className="w-2 h-2 stroke-[3.5]" />
+                            <ArrowDown className="w-4 h-4 stroke-[3.5]" />
                           ) : (
-                            <ArrowUp className="w-2 h-2 stroke-[3.5]" />
+                            <ArrowUp className="w-4 h-4 stroke-[3.5]" />
                           )}
                         </span>
                       )}
