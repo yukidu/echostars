@@ -207,7 +207,7 @@ export const MemberDetailPreviewModal: React.FC<MemberDetailPreviewModalProps> =
       // Footer
       ctx.font = '12px sans-serif';
       ctx.fillStyle = '#777777';
-      ctx.fillText(`製表日期：${new Date().toLocaleDateString('zh-TW')} • 繁星的回聲 (ECHO) 團隊學習知識管理系統`, padding, totalHeight - 40);
+      ctx.fillText(`製表日期：${new Date().toLocaleDateString('zh-TW')} • 繁星回聲 團隊學習知識管理系統`, padding, totalHeight - 40);
 
       // Convert to JPEG Blob
       canvas.toBlob(async (blob) => {
