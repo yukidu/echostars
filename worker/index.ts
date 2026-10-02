@@ -97,6 +97,11 @@ export default {
         const ext = (fileName.split('.').pop()?.toLowerCase() || 'mp3').replace(/^\./, '');
         const fileType = ((formData.get('fileType') as string) || '').toLowerCase();
         const isImage = ext === 'jpg' || ext === 'jpeg' || ext === 'png' || ext === 'webp';
+        const supportedAudioExtensions = new Set(['mp3', 'm4a', 'aac', 'wav', 'ogg', 'opus', 'webm']);
+
+        if (fileType !== 'cover' && !isImage && !supportedAudioExtensions.has(ext)) {
+          return errorResponse('不支援此音訊格式。請使用 MP3、M4A、AAC、WAV、OGG、OPUS 或 WEBM。', 415);
+        }
 
         let finalFileName: string;
 
@@ -174,17 +179,20 @@ export default {
 
         const key = `${fileType === 'cover' || isImage ? 'cover' : 'uploads'}/${finalFileName}`;
         
-        let contentType = file.type;
-        if (!contentType || contentType === 'application/octet-stream') {
-          if (ext === 'mp3') contentType = 'audio/mpeg';
-          else if (ext === 'm4a') contentType = 'audio/mp4';
-          else if (ext === 'wav') contentType = 'audio/wav';
-          else if (ext === 'ogg') contentType = 'audio/ogg';
-          else if (ext === 'jpg' || ext === 'jpeg') contentType = 'image/jpeg';
-          else if (ext === 'png') contentType = 'image/png';
-          else if (ext === 'webp') contentType = 'image/webp';
-          else contentType = 'audio/mpeg';
-        }
+        const mimeByExt: Record<string, string> = {
+          mp3: 'audio/mpeg',
+          m4a: 'audio/mp4',
+          aac: 'audio/aac',
+          wav: 'audio/wav',
+          ogg: 'audio/ogg',
+          opus: 'audio/opus',
+          webm: 'audio/webm',
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          png: 'image/png',
+          webp: 'image/webp'
+        };
+        const contentType = mimeByExt[ext] || file.type || 'application/octet-stream';
 
         await env.R2_BUCKET.put(key, await file.arrayBuffer(), {
           httpMetadata: { contentType }
@@ -253,14 +261,25 @@ export default {
         headers.set('Accept-Ranges', 'bytes');
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');
 
-        const ext = key.split('.').pop()?.toLowerCase();
-        if (!headers.get('Content-Type')) {
-          if (ext === 'mp3') headers.set('Content-Type', 'audio/mpeg');
-          else if (ext === 'm4a') headers.set('Content-Type', 'audio/mp4');
-          else if (ext === 'wav') headers.set('Content-Type', 'audio/wav');
-          else if (ext === 'ogg') headers.set('Content-Type', 'audio/ogg');
-          else if (ext === 'jpg' || ext === 'jpeg') headers.set('Content-Type', 'image/jpeg');
-          else if (ext === 'png') headers.set('Content-Type', 'image/png');
+        const ext = key.split('.').pop()?.toLowerCase() || '';
+        const canonicalMimeByExt: Record<string, string> = {
+          mp3: 'audio/mpeg',
+          m4a: 'audio/mp4',
+          aac: 'audio/aac',
+          wav: 'audio/wav',
+          ogg: 'audio/ogg',
+          opus: 'audio/opus',
+          webm: 'audio/webm',
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          png: 'image/png',
+          webp: 'image/webp'
+        };
+        const canonicalContentType = canonicalMimeByExt[ext];
+        if (canonicalContentType) {
+          // Override stale/incorrect R2 metadata so browsers always receive the
+          // canonical MIME for all officially supported audio extensions.
+          headers.set('Content-Type', canonicalContentType);
         }
 
         if (rangeHeader && object.range) {

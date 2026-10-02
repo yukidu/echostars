@@ -63,6 +63,16 @@ app.post('/api/r2/upload', uploadMiddleware.single('file') as any, async (req, r
   const ext = path.extname(req.file.originalname || req.file.filename || '.mp3').toLowerCase() || '.mp3';
   const fileType = (req.body.fileType || '').toLowerCase();
   const isImage = ext === '.jpg' || ext === '.jpeg' || ext === '.png' || ext === '.webp';
+  const supportedAudioExtensions = new Set(['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.opus', '.webm']);
+
+  if (fileType !== 'cover' && !isImage && !supportedAudioExtensions.has(ext)) {
+    try {
+      if (req.file.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    } catch {}
+    return res.status(415).json({
+      error: '不支援此音訊格式。請使用 MP3、M4A、AAC、WAV、OGG、OPUS 或 WEBM。'
+    });
+  }
 
   let finalFileName: string;
 
@@ -112,17 +122,20 @@ app.post('/api/r2/upload', uploadMiddleware.single('file') as any, async (req, r
   if (CF_ACCOUNT_ID && CF_API_TOKEN) {
     try {
       const fileBuffer = fs.readFileSync(targetFilePath);
-      let contentType = req.file.mimetype;
-      if (!contentType || contentType === 'application/octet-stream') {
-        if (ext === '.mp3') contentType = 'audio/mpeg';
-        else if (ext === '.m4a') contentType = 'audio/mp4';
-        else if (ext === '.wav') contentType = 'audio/wav';
-        else if (ext === '.ogg') contentType = 'audio/ogg';
-        else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-        else if (ext === '.png') contentType = 'image/png';
-        else if (ext === '.webp') contentType = 'image/webp';
-        else contentType = 'audio/mpeg';
-      }
+      const mimeByExt: Record<string, string> = {
+        '.mp3': 'audio/mpeg',
+        '.m4a': 'audio/mp4',
+        '.aac': 'audio/aac',
+        '.wav': 'audio/wav',
+        '.ogg': 'audio/ogg',
+        '.opus': 'audio/opus',
+        '.webm': 'audio/webm',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.webp': 'image/webp'
+      };
+      const contentType = mimeByExt[ext] || req.file.mimetype || 'application/octet-stream';
 
       const r2Url = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/r2/buckets/${R2_BUCKET}/objects/${encodeURIComponent(key)}`;
       const r2Res = await fetch(r2Url, {
@@ -208,13 +221,20 @@ app.get('/api/r2/file/:key', async (req, res) => {
   const range = req.headers.range;
 
   const ext = path.extname(fileName).toLowerCase();
-  let contentType = 'audio/mpeg';
-  if (ext === '.m4a') contentType = 'audio/mp4';
-  else if (ext === '.wav') contentType = 'audio/wav';
-  else if (ext === '.ogg') contentType = 'audio/ogg';
-  else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
-  else if (ext === '.png') contentType = 'image/png';
-  else if (ext === '.webp') contentType = 'image/webp';
+  const mimeByExt: Record<string, string> = {
+    '.mp3': 'audio/mpeg',
+    '.m4a': 'audio/mp4',
+    '.aac': 'audio/aac',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    '.opus': 'audio/opus',
+    '.webm': 'audio/webm',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp'
+  };
+  const contentType = mimeByExt[ext] || 'application/octet-stream';
 
   res.setHeader('Accept-Ranges', 'bytes');
   res.setHeader('Content-Type', contentType);

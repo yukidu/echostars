@@ -49,6 +49,13 @@ const ALL_CATEGORIES: CategoryType[] = [
   '未分類'
 ];
 
+const SUPPORTED_AUDIO_EXTENSIONS = ['mp3', 'm4a', 'aac', 'wav', 'ogg', 'opus', 'webm'] as const;
+const SUPPORTED_AUDIO_ACCEPT = [
+  '.mp3', '.m4a', '.aac', '.wav', '.ogg', '.opus', '.webm',
+  'audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/wav',
+  'audio/ogg', 'audio/opus', 'audio/webm'
+].join(',');
+
 export const UploadModal: React.FC<UploadModalProps> = ({
   isOpen,
   onClose,
@@ -359,6 +366,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   };
 
   const handleAudioSelected = async (file: File) => {
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!SUPPORTED_AUDIO_EXTENSIONS.includes(extension as (typeof SUPPORTED_AUDIO_EXTENSIONS)[number])) {
+      setAudioFile(null);
+      setAudioDurationSeconds(null);
+      setErrorMessage('不支援此音訊格式。請使用 MP3、M4A、AAC、WAV、OGG、OPUS 或 WEBM。');
+      return;
+    }
     if (file.size === 0) {
       setErrorMessage('無效檔案：檔案大小為 0 byte，已被系統阻擋！');
       return;
@@ -629,7 +643,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               <input
                 ref={audioInputRef}
                 type="file"
-                accept="audio/mp3,audio/m4a,audio/*"
+                accept={SUPPORTED_AUDIO_ACCEPT}
                 className="hidden"
                 onChange={e => {
                   if (e.target.files?.[0]) handleAudioSelected(e.target.files[0]);
@@ -652,7 +666,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                     點擊選取或拖曳音訊檔至此
                   </p>
                   <p className="text-slate-400 text-[10px]">
-                    支援 MP3、M4A 格式 (自動抓取 ID3 標籤)
+                    支援 MP3、M4A、AAC、WAV、OGG、OPUS、WEBM（可用時自動抓取 ID3 標籤）
                   </p>
                 </div>
               )}
