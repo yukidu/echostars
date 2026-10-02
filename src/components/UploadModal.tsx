@@ -60,6 +60,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   tracks = []
 }) => {
   const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioDurationSeconds, setAudioDurationSeconds] = useState<number | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string>('');
   const [coverLibrary, setCoverLibrary] = useState<CoverLibraryItem[]>([]);
@@ -286,6 +287,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       setExternalPpts(trackToEdit.externalPpts && trackToEdit.externalPpts.length > 0 ? trackToEdit.externalPpts : [{ name: '', url: '' }]);
       setExternalFiles(trackToEdit.externalFiles && trackToEdit.externalFiles.length > 0 ? trackToEdit.externalFiles : [{ name: '', url: '' }]);
       setAudioFile(null);
+      setAudioDurationSeconds(null);
     } else {
       setTitle('');
       setSpeaker('');
@@ -305,6 +307,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       setExternalPpts([{ name: '', url: '' }]);
       setExternalFiles([{ name: '', url: '' }]);
       setAudioFile(null);
+      setAudioDurationSeconds(null);
     }
   }, [trackToEdit, isOpen]);
 
@@ -329,6 +332,32 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     }
   };
 
+  const readAudioDurationSeconds = (file: File): Promise<number> =>
+    new Promise((resolve, reject) => {
+      const audio = document.createElement('audio');
+      const objectUrl = URL.createObjectURL(file);
+      audio.preload = 'metadata';
+      const cleanup = () => {
+        audio.removeAttribute('src');
+        URL.revokeObjectURL(objectUrl);
+      };
+      audio.onloadedmetadata = () => {
+        const seconds = Number.isFinite(audio.duration) ? Math.round(audio.duration) : 0;
+        cleanup();
+        seconds > 0 ? resolve(seconds) : reject(new Error('無法讀取音檔長度'));
+      };
+      audio.onerror = () => {
+        cleanup();
+        reject(new Error('無法讀取音檔長度'));
+      };
+      audio.src = objectUrl;
+    });
+
+  const formatDurationLabel = (seconds?: number | null) => {
+    if (!seconds || !Number.isFinite(seconds) || seconds <= 0) return '時間待確認';
+    return `約 ${Math.max(1, Math.round(seconds / 60))} 分鐘`;
+  };
+
   const handleAudioSelected = async (file: File) => {
     if (file.size === 0) {
       setErrorMessage('無效檔案：檔案大小為 0 byte，已被系統阻擋！');
@@ -341,6 +370,18 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
     setErrorMessage(null);
     setAudioFile(file);
+
+    // Duration is read locally in the browser. This costs zero Cloudflare requests
+    // and lets us persist the real duration instead of the old 10-minute placeholder.
+    const durationPromise = readAudioDurationSeconds(file)
+      .then(seconds => {
+        setAudioDurationSeconds(seconds);
+        return seconds;
+      })
+      .catch(() => {
+        setAudioDurationSeconds(null);
+        return 0;
+      });
 
     setIsParsingId3(true);
     try {
@@ -356,6 +397,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     } catch {
       // ignore
     } finally {
+      await durationPromise;
       setIsParsingId3(false);
     }
   };
@@ -459,6 +501,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       const cleanPpts = externalPpts.filter(p => p.url.trim());
       const cleanFiles = externalFiles.filter(f => f.url.trim());
 
+      let resolvedDurationSeconds = trackToEdit?.durationSeconds || 0;
+      if (audioFile) {
+        resolvedDurationSeconds = audioDurationSeconds || await readAudioDurationSeconds(audioFile).catch(() => 0);
+      }
+      const resolvedDurationLabel = audioFile
+        ? formatDurationLabel(resolvedDurationSeconds)
+        : (trackToEdit?.duration || formatDurationLabel(resolvedDurationSeconds));
+
       const payload = {
         title: title.trim(),
         speaker: speaker.trim() || '特邀講師',
@@ -478,7 +528,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         externalVideos: cleanVideos,
         externalPpts: cleanPpts,
         externalFiles: cleanFiles,
-        durationSeconds: trackToEdit?.durationSeconds || 600,
+        duration: resolvedDurationLabel,
+        durationSeconds: resolvedDurationSeconds,
         isPrivateVip,
         vipDurationDays: isPrivateVip ? vipDurationDays : 0,
         vipToken: trackToEdit?.vipToken
@@ -590,7 +641,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   <div className="text-left">
                     <p className="font-bold text-xs">{audioFile.name}</p>
                     <p className="text-[11px] opacity-75">
-                      {(audioFile.size / 1024 / 1024).toFixed(2)} MB • 直傳 Cloudflare R2
+                      {(audioFile.size / 1024 / 1024).toFixed(2)} MB • ${audioDurationSeconds ? formatDurationLabel(audioDurationSeconds) : '讀取長度中…'} • 直傳 Cloudflare R2
                     </p>
                   </div>
                 </div>
