@@ -44,7 +44,7 @@ import {
   UserListeningRecord
 } from '../types';
 import { calculateNumerology } from '../utils/numerology';
-import { exportMemberProfileAndListeningImage, shareOrDownloadProfileCard } from '../utils/canvasExport';
+import { exportMemberProfileAndListeningImage, shareOrDownloadImage } from '../utils/canvasExport';
 import { GOOGLE_CLIENT_ID } from '../config/auth';
 import { NumerologyGrid } from './NumerologyGrid';
 import { AvatarCropModal } from './AvatarCropModal';
@@ -263,7 +263,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         return [{ track, record: { ...record, rating, comment } }];
       });
       const blob = await exportMemberProfileAndListeningImage(currentUser, records);
-      await shareOrDownloadProfileCard(blob, currentUser.name);
+      await shareOrDownloadImage(blob, `繁星回聲_${currentUser.name}_學習檔案.jpg`, `${currentUser.name} 的學習與聆聽檔案`);
     } catch (err) {
       console.error('Failed to export personal profile card:', err);
     } finally {
