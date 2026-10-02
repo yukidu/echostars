@@ -1599,7 +1599,7 @@ export default function App() {
                   前往登入
                 </button>
                 <button
-                  onClick={() => setPermissionAlert(null)}
+                  onClick={() => { setPermissionAlert(null); setPermissionAlertPosition(null); }}
                   className="px-2.5 py-1 text-slate-500 hover:text-slate-800 text-xs"
                 >
                   關閉
@@ -1607,7 +1607,7 @@ export default function App() {
               </div>
             </div>
             <button
-              onClick={() => setPermissionAlert(null)}
+              onClick={() => { setPermissionAlert(null); setPermissionAlertPosition(null); }}
               className="p-1 text-amber-700 hover:text-amber-900"
             >
               <X className="w-4 h-4" />
