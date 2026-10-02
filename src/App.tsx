@@ -376,7 +376,7 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const [sortField, setSortField] = useState<SortField>('時間');
+  const [sortField, setSortField] = useState<SortField>('權限');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [trackToEdit, setTrackToEdit] = useState<Track | null>(null);
 
@@ -1505,6 +1505,11 @@ export default function App() {
           }
           case '權限': {
             diff = getRequiredRankSortIndex(a) - getRequiredRankSortIndex(b);
+            // Default secondary priority: within the same permission level, sort by upload time.
+            if (diff === 0) {
+              diff = getUploadTimestamp(a.uploadDate) - getUploadTimestamp(b.uploadDate);
+              if (diff === 0) diff = getUploadSequence(a) - getUploadSequence(b);
+            }
             break;
           }
           case '評價': {
@@ -1909,10 +1914,7 @@ export default function App() {
                   onClick={() => setShowKeywordsDrawer(prev => !prev)}
                   className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 transition-colors cursor-pointer"
                 >
-                  <span>網友關鍵字交叉篩選</span>
-                  <span className="text-[10px] px-1 py-0 rounded-full bg-amber-100 dark:bg-amber-900/60 font-mono">
-                    {selectedKeywords.length > 0 ? `已選 ${selectedKeywords.length} 組` : ''}
-                  </span>
+                  <span>網友關鍵字</span>
                   <span className="text-[10px] text-slate-400">
                     {showKeywordsDrawer ? '▲ 收起' : '▼ 展開'}
                   </span>
@@ -1924,7 +1926,7 @@ export default function App() {
                     onClick={() => setSelectedKeywords([])}
                     className="text-[11px] text-slate-400 hover:text-rose-500 underline cursor-pointer"
                   >
-                    一鍵清除篩選 ({selectedKeywords.length})
+                    清除條件
                   </button>
                 )}
               </div>
@@ -1973,9 +1975,6 @@ export default function App() {
               {/* Selected Keyword Chips Indicator */}
               {selectedKeywords.length > 0 && (
                 <div className="flex flex-wrap items-center gap-0.5 px-0.5 py-0.5">
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold flex items-center gap-0.5">
-                    <span>🎯 交集比對中：</span>
-                  </span>
                   {selectedKeywords.map(kw => (
                     <span
                       key={kw}
@@ -1999,7 +1998,7 @@ export default function App() {
             {/* Requirement 18, 19 & 20: 排序選項排成一列緊密排序，分類改成下拉式選單排在最右側，底色統一 */}
             <div className={`sort-toolbar relative grid gap-1 w-full max-w-full px-0 pt-0.5 ${(isSpeakerRankDropdownOpen || isCategoryDropdownOpen) ? 'z-[100]' : 'z-20'}`}>
               {/* v3.7: large/landscape shows seven controls; portrait phones hide 評價/按讚 and keep five columns. */}
-              {(['時間', '權限', '評價', '留言', '按讚'] as SortField[]).map(field => {
+              {(['權限', '時間', '評價', '留言', '按讚'] as SortField[]).map(field => {
                 const isActive = sortField === field;
                 const displayField = field === '留言' ? '心得' : field;
                 const hideOnPortraitPhone = field === '評價' || field === '按讚';
