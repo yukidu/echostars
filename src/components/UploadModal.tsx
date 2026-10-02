@@ -37,7 +37,7 @@ interface UploadModalProps {
   currentUser: UserProfile | null;
   isAdmin: boolean;
   trackToEdit?: Track | null;
-  onCategoriesUpdated?: () => void;
+  onCategoriesUpdated?: (categories?: string[]) => void;
   tracks?: Track[];
 }
 
@@ -249,7 +249,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         if (selectedCategories.length < 3) {
           setSelectedCategories(prev => [...prev, addedName as CategoryType]);
         }
-        if (onCategoriesUpdated) onCategoriesUpdated();
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
       }
     } finally {
       setIsCatLoading(false);
@@ -274,7 +274,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         if (Array.isArray(data?.categories)) setCategoryList(data.categories);
         setSelectedCategories(prev => prev.map(c => (c === oldName ? (updated as CategoryType) : c)));
         setEditingCatOld(null);
-        if (onCategoriesUpdated) onCategoriesUpdated();
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
       }
     } finally {
       setIsCatLoading(false);
@@ -294,7 +294,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           const next = prev.filter(c => c !== catName);
           return next.length > 0 ? next : (['未分類'] as CategoryType[]);
         });
-        if (onCategoriesUpdated) onCategoriesUpdated();
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
       }
     } finally {
       setIsCatLoading(false);
