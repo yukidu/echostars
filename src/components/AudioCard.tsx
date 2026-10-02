@@ -14,6 +14,7 @@ interface AudioCardProps {
   userRating?: number;
   hasLiked?: boolean;
   isVipUnlocked?: boolean;
+  tutorialTarget?: boolean;
   onClick: () => void;
   onTogglePlay?: (anchor?: HTMLElement) => void;
   onRate?: (score: number) => void;
@@ -33,6 +34,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
   userRating = 0,
   hasLiked = false,
   isVipUnlocked = true,
+  tutorialTarget = false,
   onClick,
   onTogglePlay,
   onRate,
@@ -92,6 +94,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
         <div className="shrink-0 w-28 sm:w-32">
           <button
             type="button"
+            data-tutorial-target={tutorialTarget ? 'first-track-photo' : undefined}
             onClick={handlePlayClick}
             className="relative block w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden bg-black/20 dark:bg-slate-800 shadow-sm text-left"
             title={isPlaying ? '點擊照片暫停' : '點擊照片播放'}

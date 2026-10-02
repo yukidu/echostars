@@ -53,6 +53,7 @@ import { CommentPreviewModal } from './components/CommentPreviewModal';
 const MemberPreviewModal = lazy(() => import('./components/MemberPreviewModal').then(module => ({ default: module.MemberPreviewModal })));
 import { NotificationsView } from './components/NotificationsView';
 import { TwinklingStars } from './components/TwinklingStars';
+import { TutorialSpotlight } from './components/TutorialSpotlight';
 const ChangelogModal = lazy(() => import('./components/ChangelogModal').then(module => ({ default: module.ChangelogModal })));
 
 const DEFAULT_CATEGORIES: string[] = [
@@ -326,6 +327,7 @@ export default function App() {
     return localStorage.getItem(PHOTO_PLAY_TUTORIAL_NEVER_REMIND_KEY) !== '1';
   });
   const [neverRemindPhotoPlayTutorial, setNeverRemindPhotoPlayTutorial] = useState(false);
+  const [isLogoTutorialActive, setIsLogoTutorialActive] = useState(true);
   const handlePhotoPlayTutorialNeverRemind = (checked: boolean) => {
     setNeverRemindPhotoPlayTutorial(checked);
     if (typeof window === 'undefined') return;
@@ -1642,6 +1644,7 @@ export default function App() {
         isAdmin={isAdmin}
         canUpload={canUpload}
         pendingNotificationsCount={pendingNotificationsCount}
+        onTutorialVisibilityChange={setIsLogoTutorialActive}
       />
 
       {/* Permission Alert Toast */}
@@ -2188,6 +2191,7 @@ export default function App() {
                       isCurrentTrack={isCurrent}
                       canAccess={canAccess}
                       isVipUnlocked={isVipUnlocked}
+                      tutorialTarget={trackIndex === 0}
                       progressMemory={playbackMemories[track.id]}
                       userRating={trackRating}
                       hasLiked={hasLiked}
@@ -2212,7 +2216,14 @@ export default function App() {
                       onSeek={seconds => handleSeekCard(track, seconds)}
                       onOpenCommentPreview={() => setCommentPreviewTrack(track)}
                     />
-                    {trackIndex === 0 && showPhotoPlayTutorial && (
+                    <TutorialSpotlight
+                      active={trackIndex === 0 && showPhotoPlayTutorial && !isLogoTutorialActive}
+                      targetSelector='[data-tutorial-target="first-track-photo"]'
+                      padding={6}
+                      opacity={0.76}
+                      zIndex={70}
+                    />
+                    {trackIndex === 0 && showPhotoPlayTutorial && !isLogoTutorialActive && (
                       <div
                         role="status"
                         onClick={e => e.stopPropagation()}
@@ -2227,7 +2238,7 @@ export default function App() {
                             onChange={e => handlePhotoPlayTutorialNeverRemind(e.target.checked)}
                             className="w-4 h-4 rounded border-white/70 accent-white cursor-pointer"
                           />
-                          <span className="font-bold text-sm">永遠不再顯示此提示</span>
+                          <span className="font-bold text-sm">永遠不再提醒</span>
                         </label>
                         <button
                           type="button"
