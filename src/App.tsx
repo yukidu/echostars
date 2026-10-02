@@ -67,6 +67,7 @@ const DEFAULT_CATEGORIES: string[] = [
 
 const HOME_CACHE_KEY = 'echostars_home_cache_v3_3';
 const HOME_CACHE_TTL_MS = 5 * 60 * 1000;
+const PHOTO_PLAY_TUTORIAL_NEVER_REMIND_KEY = 'echostars_photo_play_tutorial_never_remind_v1';
 
 type HomeCache = {
   tracks: Track[];
@@ -319,6 +320,18 @@ export default function App() {
   // Requirement 6 (v2.8): 多組網友關鍵字交叉複合搜尋 (Selected Keywords Chips)
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [showKeywordsDrawer, setShowKeywordsDrawer] = useState(false);
+
+  const [showPhotoPlayTutorial, setShowPhotoPlayTutorial] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem(PHOTO_PLAY_TUTORIAL_NEVER_REMIND_KEY) !== '1';
+  });
+  const [neverRemindPhotoPlayTutorial, setNeverRemindPhotoPlayTutorial] = useState(false);
+  const handlePhotoPlayTutorialNeverRemind = (checked: boolean) => {
+    setNeverRemindPhotoPlayTutorial(checked);
+    if (typeof window === 'undefined') return;
+    if (checked) localStorage.setItem(PHOTO_PLAY_TUTORIAL_NEVER_REMIND_KEY, '1');
+    else localStorage.removeItem(PHOTO_PLAY_TUTORIAL_NEVER_REMIND_KEY);
+  };
 
   // Collect all unique keywords across all tracks
   const allAvailableKeywords = useMemo(() => {
@@ -2155,7 +2168,7 @@ export default function App() {
                   </p>
                 </div>
               ) : (
-                filteredTracks.map(track => {
+                filteredTracks.map((track, trackIndex) => {
                   const isCurrent = currentTrack?.id === track.id;
                   const canAccess = checkCanAccess(track);
                   const isVipUnlocked = isTrackVipUnlocked(track);
@@ -2168,8 +2181,8 @@ export default function App() {
                   const hasLiked = Boolean(track?.likedBy && Array.isArray(track.likedBy) && track.likedBy.some(k => currentIdentityKeys.includes(k)));
 
                   return (
+                    <div key={track.id} className="relative">
                     <AudioCard
-                      key={track.id}
                       track={track}
                       isPlaying={isPlaying && isCurrent}
                       isCurrentTrack={isCurrent}
@@ -2199,6 +2212,33 @@ export default function App() {
                       onSeek={seconds => handleSeekCard(track, seconds)}
                       onOpenCommentPreview={() => setCommentPreviewTrack(track)}
                     />
+                    {trackIndex === 0 && showPhotoPlayTutorial && (
+                      <div
+                        role="status"
+                        onClick={e => e.stopPropagation()}
+                        className="absolute left-0 top-[132px] sm:top-[148px] z-[90] w-[min(280px,calc(100vw-32px))] rounded-2xl bg-[var(--color-primary)] text-white p-4 shadow-xl border-2 border-white"
+                      >
+                        <div className="absolute -top-8 left-10 text-4xl font-black text-[var(--color-primary)]" aria-hidden="true">↑</div>
+                        <p className="font-bold text-lg">按照片可播放或暫停</p>
+                        <label className="mt-3 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={neverRemindPhotoPlayTutorial}
+                            onChange={e => handlePhotoPlayTutorialNeverRemind(e.target.checked)}
+                            className="w-4 h-4 rounded border-white/70 accent-white cursor-pointer"
+                          />
+                          <span className="font-bold text-sm">永遠不再顯示此提示</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowPhotoPlayTutorial(false)}
+                          className="mt-2 rounded-lg bg-white/20 px-3 py-2"
+                        >
+                          知道了
+                        </button>
+                      </div>
+                    )}
+                    </div>
                   );
                 })
               )}
