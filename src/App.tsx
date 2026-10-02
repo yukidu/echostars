@@ -90,13 +90,13 @@ function readHomeCache(): HomeCache | null {
   }
 }
 
-function writeHomeCache(tracks: Track[], categories: string[]) {
+function writeHomeCache(tracks: Track[], categories: string[], savedAt = Date.now()) {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(HOME_CACHE_KEY, JSON.stringify({
       tracks,
       categories,
-      savedAt: Date.now()
+      savedAt
     }));
   } catch {
     // localStorage quota/full is non-fatal.
@@ -232,6 +232,7 @@ export default function App() {
   const [allComments, setAllComments] = useState<Comment[]>([]);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(() => (readHomeCache()?.tracks || []).length === 0);
+  const homeCacheValidatedAtRef = useRef(readHomeCache()?.savedAt || 0);
   const hasFetchedAllCommentsRef = useRef(false);
   const hasFetchedAllUsersRef = useRef(false);
 
@@ -422,7 +423,7 @@ export default function App() {
           const list = Array.from(new Set(['全部', ...cData]));
           setCategoryOptions(list);
           setSelectedCategory(prev => (list.includes(prev) ? prev : '全部'));
-          writeHomeCache(tracks, list);
+          writeHomeCache(tracks, list, homeCacheValidatedAtRef.current || Date.now());
         }
       }
     } catch (e) {
@@ -505,8 +506,9 @@ export default function App() {
         if (tracksRes.ok) {
           const tData = await tracksRes.json();
           if (Array.isArray(tData)) {
+            homeCacheValidatedAtRef.current = Date.now();
             setTracks(tData);
-            writeHomeCache(tData, nextCategories);
+            writeHomeCache(tData, nextCategories, homeCacheValidatedAtRef.current);
 
             const memories: Record<string, AudioMemory> = {};
             tData.forEach((t: Track) => {
@@ -604,7 +606,13 @@ export default function App() {
   }, [currentTab, isAdminOpen, isProfileOpen, commentPreviewTrack, selectedDetailTrack]);
 
   useEffect(() => {
-    if (tracks.length > 0) writeHomeCache(tracks, categoryOptions);
+    if (tracks.length > 0) {
+      writeHomeCache(
+        tracks,
+        categoryOptions,
+        homeCacheValidatedAtRef.current || readHomeCache()?.savedAt || Date.now()
+      );
+    }
   }, [tracks, categoryOptions]);
 
   useEffect(() => {
@@ -671,6 +679,10 @@ export default function App() {
     if (currentTrack?.id === track.id) {
       setPlayerMode(effectiveMode);
       return;
+    }
+
+    if (currentTrack && currentTrack.id !== track.id) {
+      syncPlaybackToCloud(true);
     }
 
     setCurrentTrack(track);
@@ -2136,6 +2148,7 @@ export default function App() {
         tracks={tracks}
         onViewMember={user => setPreviewMember(user)}
         onCommentAdded={async () => {
+          hasFetchedAllCommentsRef.current = false;
           if (commentPreviewTrack) {
             setTracks(prev =>
               prev.map(t =>
