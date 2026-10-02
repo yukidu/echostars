@@ -313,7 +313,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
         : selectedCenters.join('、');
 
     return {
-      '所選繁星中心': centersText,
+      '所選直銷商中心': centersText,
       '初次如何認識安麗？': selectedJoinReason,
       '什麼原因留在安麗？': selectedStayReason,
       '推薦人': sponsorInput.trim() || '不限',
@@ -357,15 +357,15 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
         const blob = exportDataCenterCsv(filterSummary, totalCount, currentStats);
         await shareOrDownloadDataCenterFile(
           blob,
-          `繁星的回聲_數據中心分析_${dateStr}.csv`,
-          '繁星的回聲數據中心統計分析 Excel 檔'
+          `繁星回聲_數據中心分析_${dateStr}.csv`,
+          '繁星回聲數據中心統計分析 Excel 檔'
         );
       } else {
         const blob = await exportDataCenterPdf(filterSummary, totalCount, currentStats);
         await shareOrDownloadDataCenterFile(
           blob,
-          `繁星的回聲_數據中心分析_${dateStr}.pdf`,
-          '繁星的回聲數據中心統計分析 PDF 檔'
+          `繁星回聲_數據中心分析_${dateStr}.pdf`,
+          '繁星回聲數據中心統計分析 PDF 檔'
         );
       }
       setShowExportModal(false);
@@ -393,9 +393,7 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
                   白金以上專屬
                 </span>
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                可單獨或複選繁星中心與多維度指標，統計總人數（不顯示個別姓名）
-              </p>
+
             </div>
           </div>
         </div>
@@ -440,11 +438,11 @@ export const DataCenterTab: React.FC<DataCenterTabProps> = ({ users }) => {
           </div>
         </div>
 
-        {/* 1. 繁星中心單選/複選/全選 */}
+        {/* 1. 直銷商中心單選/複選/全選 */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-              <span>繁星中心篩選</span>
+              <span>直銷商中心篩選</span>
               <span className="text-[10px] font-normal text-slate-400">
                 (已選 {selectedCenters.length} / {CENTER_OPTIONS.length} 個中心)
               </span>
