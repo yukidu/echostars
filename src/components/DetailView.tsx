@@ -366,15 +366,13 @@ export const DetailView: React.FC<DetailViewProps> = ({
 
   const safeDuration = duration > 0 ? duration : (track.durationSeconds || 600);
 
-  // Requirement 11 & Requirement 4 (v2.8): 五星評價功能修復，點擊即時響應，原地再點一次取消評價
+  // v3.7: 五星評價只接受 1~5 星；再次點擊同星級不再取消，避免評價被歸零。
   const handleStarClick = async (score: number) => {
-    const currentScore = effectiveUserRating;
-    const finalScore = currentScore === score ? 0 : score;
     if (isRatingSubmitting) return;
-    setOptimisticRating(finalScore);
+    setOptimisticRating(score);
     setIsRatingSubmitting(true);
     try {
-      await onRate(finalScore);
+      await onRate(score);
     } catch (e) {
       console.error('Star rating error:', e);
       setOptimisticRating(null); // revert on error
