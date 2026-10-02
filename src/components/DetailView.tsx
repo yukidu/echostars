@@ -355,7 +355,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
     setIsExportingCard(true);
     try {
       const blob = await exportTrackFullCardImage(track, comments.map(c => { const author = allUsers.find(u=>u.email?.toLowerCase().trim()===c.authorEmail?.toLowerCase().trim()); return author ? {...c,authorName:author.name,authorAvatar:author.avatar,authorRank:author.rank} : c; }));
-      const filename = `繁星的回聲_${track.title}_完整資訊圖卡.jpg`;
+      const filename = `繁星回聲_${track.title}_完整資訊圖卡.jpg`;
       await shareOrDownloadImage(blob, filename, `《${track.title}》演講完整資訊圖卡`);
     } catch (err) {
       console.error('Failed to export track card image', err);
@@ -391,6 +391,19 @@ export const DetailView: React.FC<DetailViewProps> = ({
   const categories = track.categories && track.categories.length > 0
     ? track.categories
     : track.category ? [track.category] : ['未分類'];
+
+  const displayField = (value?: string | null) => {
+    const text = String(value || '').trim();
+    return text || '未填寫';
+  };
+
+  const formatChineseDate = (value?: string | null) => {
+    const raw = String(value || '').trim();
+    if (!raw) return '未填寫';
+    const match = raw.match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+    if (!match) return raw;
+    return `${Number(match[1])}年${Number(match[2])}月${Number(match[3])}日`;
+  };
 
   return (
     <div className="max-w-2xl mx-auto px-3.5 py-3 sm:px-6 space-y-4 pb-28">
@@ -728,56 +741,91 @@ export const DetailView: React.FC<DetailViewProps> = ({
         </div>
       </div>
 
-      {/* Description & Metadata Card */}
-      <div className="relative bg-white/80 dark:bg-slate-900/80 rounded-2xl p-4 border border-rose-100/60 dark:border-slate-800 shadow-xs space-y-2.5 text-xs overflow-hidden">
-        <TwinklingStars density="subtle" className="opacity-40 dark:opacity-60" />
-        <div className="relative z-10 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
-              演講資訊與備註
-            </h3>
-            {/* Requirement 5.13: 按下編輯按鈕時，非原地編輯，改成跳轉「後台管理」 > 「編輯音檔」的相同視窗介面 */}
-            {canEditTrack && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (onEditTrack) {
-                    onEditTrack(track);
-                  } else {
-                    handleStartEditTrack();
-                  }
-                }}
-                className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800 transition-all cursor-pointer shadow-2xs"
-                title="跳轉編輯音檔視窗介面"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-rose-500" />
-                <span>編輯演講資訊與連結</span>
-              </button>
-            )}
+      {/* Audio Player Card - Requirement 4 (v2.8): 播放器高度、上下行距更緊密，倍速字體縮小 */}
+      <div id="audio-timeline" className="scroll-mt-24 bg-white/90 dark:bg-slate-900/90 rounded-3xl p-3 sm:p-4 border border-rose-100/70 dark:border-slate-800 shadow-md space-y-2">
+        {/* Progress Bar & Time */}
+        <div className="space-y-1">
+          <input
+            type="range"
+            min={0}
+            max={safeDuration}
+            step={0.5}
+            value={currentTime}
+            onChange={e => onSeek(Number(e.target.value))}
+            className="audio-scrubber w-full h-1.5 cursor-pointer"
+          />
+          <div className="flex justify-between items-center text-xs font-mono text-slate-500 dark:text-slate-400 px-0.5">
+            <span>{formatTime(currentTime)} / {formatTime(safeDuration)}</span>
+            <span className="text-[11px] text-slate-400">
+              {Math.round((currentTime / safeDuration) * 100)}%
+            </span>
           </div>
-          <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-            {track.description || ''}
-          </p>
+        </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500">
-            {/* Requirement 5.9 (v2.7): 演講資訊與備註新增：上傳者的名字 */}
-            <div>
-              <span className="text-slate-400">上傳者：</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">{uploaderName}</span>
-            </div>
-            <div className="col-start-1 row-start-2 break-words">
-              <span className="text-slate-400">系列：</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">{track.series || '單曲'}</span>
-            </div>
-            <div className="col-start-2 row-start-1 text-right whitespace-nowrap">
-              <span className="text-slate-400">演講日期：</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">{track.speechDate || '-'}</span>
-            </div>
-            <div className="col-start-2 row-start-2 text-right whitespace-nowrap">
-              <span className="text-slate-400">上傳日期：</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">{track.uploadDate?.slice(0, 10)}</span>
-            </div>
-          </div>
+        {/* Controls: 倒退30/10秒、播放/暫停、快轉10/30秒 */}
+        <div className="flex items-center justify-center gap-2 sm:gap-4 py-0.5">
+          {[
+            { seconds: -30, label: '30', title: '倒退 30 秒', Icon: RotateCcw },
+            { seconds: -10, label: '10', title: '倒退 10 秒', Icon: RotateCcw }
+          ].map(({ seconds, label, title, Icon }) => (
+            <button
+              key={seconds}
+              type="button"
+              onClick={() => onSkip(seconds)}
+              title={title}
+              className="w-11 h-12 sm:w-12 sm:h-13 rounded-full flex flex-col items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 transition-all border border-slate-200/80 dark:border-slate-700 shadow-2xs cursor-pointer group"
+            >
+              <Icon className="w-4 h-4 text-slate-700 dark:text-slate-200 group-hover:scale-110 transition-transform" />
+              <span className="text-sm sm:text-base leading-none font-black font-mono">{label}</span>
+            </button>
+          ))}
+
+          <button
+            type="button"
+            onClick={handlePlayClick}
+            title={isPlaying ? '暫停' : '播放'}
+            className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0"
+            style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+          >
+            {isPlaying ? (
+              <Pause className="w-6 h-6 fill-white text-white" />
+            ) : (
+              <Play className="w-6 h-6 fill-white text-white ml-0.5" />
+            )}
+          </button>
+
+          {[
+            { seconds: 10, label: '10', title: '快轉 10 秒', Icon: RotateCw },
+            { seconds: 30, label: '30', title: '快轉 30 秒', Icon: RotateCw }
+          ].map(({ seconds, label, title, Icon }) => (
+            <button
+              key={seconds}
+              type="button"
+              onClick={() => onSkip(seconds)}
+              title={title}
+              className="w-11 h-12 sm:w-12 sm:h-13 rounded-full flex flex-col items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 transition-all border border-slate-200/80 dark:border-slate-700 shadow-2xs cursor-pointer group"
+            >
+              <Icon className="w-4 h-4 text-slate-700 dark:text-slate-200 group-hover:scale-110 transition-transform" />
+              <span className="text-sm sm:text-base leading-none font-black font-mono">{label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Speed Control Row (0.7x ~ 2.0x) - Requirement 4 (v2.8): 倍速調整字體縮小 */}
+        <div className="flex items-center justify-center gap-1 pt-0">
+          {[0.7, 1.0, 1.25, 1.5, 2.0].map(rate => (
+            <button
+              key={rate}
+              onClick={() => onChangeSpeed(rate)}
+              className={`px-1.5 py-0.5 rounded-md text-[9px] font-mono font-medium transition-all cursor-pointer ${
+                playbackRate === rate
+                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 shadow-2xs font-bold'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              {rate}x
+            </button>
+          ))}
         </div>
       </div>
 
@@ -819,79 +867,56 @@ export const DetailView: React.FC<DetailViewProps> = ({
         </div>
       )}
 
-      {/* Audio Player Card - Requirement 4 (v2.8): 播放器高度、上下行距更緊密，倍速字體縮小 */}
-      <div id="audio-timeline" className="scroll-mt-24 bg-white/90 dark:bg-slate-900/90 rounded-3xl p-3 sm:p-4 border border-rose-100/70 dark:border-slate-800 shadow-md space-y-2">
-        {/* Progress Bar & Time */}
-        <div className="space-y-1">
-          <input
-            type="range"
-            min={0}
-            max={safeDuration}
-            step={0.5}
-            value={currentTime}
-            onChange={e => onSeek(Number(e.target.value))}
-            className="audio-scrubber w-full h-1.5 cursor-pointer"
-          />
-          <div className="flex justify-between items-center text-xs font-mono text-slate-500 dark:text-slate-400 px-0.5">
-            <span>{formatTime(currentTime)} / {formatTime(safeDuration)}</span>
-            <span className="text-[11px] text-slate-400">
-              {Math.round((currentTime / safeDuration) * 100)}%
-            </span>
-          </div>
-        </div>
-
-        {/* Controls: 倒退10秒、播放/暫停、快轉10秒 (緊湊高度) */}
-        <div className="flex items-center justify-center gap-5 sm:gap-7 py-0.5">
-          <button
-            type="button"
-            onClick={() => onSkip(-10)}
-            title="倒退 10 秒"
-            className="w-10 h-10 rounded-full flex flex-col items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 transition-all border border-slate-200/80 dark:border-slate-700 shadow-2xs cursor-pointer group"
-          >
-            <RotateCcw className="w-4.5 h-4.5 text-slate-700 dark:text-slate-200 group-hover:scale-110 transition-transform" />
-            <span className="text-[8px] font-black -mt-0.5 font-mono">10</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handlePlayClick}
-            title={isPlaying ? '暫停' : '播放'}
-            className="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer"
-            style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
-          >
-            {isPlaying ? (
-              <Pause className="w-6 h-6 fill-white text-white" />
-            ) : (
-              <Play className="w-6 h-6 fill-white text-white ml-0.5" />
+      {/* Description & Metadata Card */}
+      <div className="relative bg-white/80 dark:bg-slate-900/80 rounded-2xl p-4 border border-rose-100/60 dark:border-slate-800 shadow-xs space-y-2.5 text-xs overflow-hidden">
+        <TwinklingStars density="subtle" className="opacity-40 dark:opacity-60" />
+        <div className="relative z-10 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">
+              演講資訊與備註
+            </h3>
+            {/* Requirement 5.13: 按下編輯按鈕時，非原地編輯，改成跳轉「後台管理」 > 「編輯音檔」的相同視窗介面 */}
+            {canEditTrack && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onEditTrack) {
+                    onEditTrack(track);
+                  } else {
+                    handleStartEditTrack();
+                  }
+                }}
+                className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold border border-rose-200 dark:border-rose-800 transition-all cursor-pointer shadow-2xs"
+                title="跳轉編輯音檔視窗介面"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-rose-500" />
+                <span>編輯演講資訊與連結</span>
+              </button>
             )}
-          </button>
+          </div>
+          <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+            {displayField(track.description)}
+          </p>
 
-          <button
-            type="button"
-            onClick={() => onSkip(10)}
-            title="快轉 10 秒"
-            className="w-10 h-10 rounded-full flex flex-col items-center justify-center text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-90 transition-all border border-slate-200/80 dark:border-slate-700 shadow-2xs cursor-pointer group"
-          >
-            <RotateCw className="w-4.5 h-4.5 text-slate-700 dark:text-slate-200 group-hover:scale-110 transition-transform" />
-            <span className="text-[8px] font-black -mt-0.5 font-mono">10</span>
-          </button>
-        </div>
-
-        {/* Speed Control Row (0.7x ~ 2.0x) - Requirement 4 (v2.8): 倍速調整字體縮小 */}
-        <div className="flex items-center justify-center gap-1 pt-0">
-          {[0.7, 1.0, 1.25, 1.5, 2.0].map(rate => (
-            <button
-              key={rate}
-              onClick={() => onChangeSpeed(rate)}
-              className={`px-1.5 py-0.5 rounded-md text-[9px] font-mono font-medium transition-all cursor-pointer ${
-                playbackRate === rate
-                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 shadow-2xs font-bold'
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-            >
-              {rate}x
-            </button>
-          ))}
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500">
+            {/* Requirement 5.9 (v2.7): 演講資訊與備註新增：上傳者的名字 */}
+            <div>
+              <span className="text-slate-400">上傳者：</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{uploaderName}</span>
+            </div>
+            <div className="col-start-1 row-start-2 break-words">
+              <span className="text-slate-400">系列：</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{displayField(track.series)}</span>
+            </div>
+            <div className="col-start-2 row-start-1 text-right whitespace-nowrap">
+              <span className="text-slate-400">演講日期：</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{formatChineseDate(track.speechDate)}</span>
+            </div>
+            <div className="col-start-2 row-start-2 text-right whitespace-nowrap">
+              <span className="text-slate-400">上傳日期：</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">{formatChineseDate(track.uploadDate)}</span>
+            </div>
+          </div>
         </div>
       </div>
 
