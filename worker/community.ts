@@ -51,6 +51,12 @@ async function ensureSchema(db: any) {
         ];
         await db.batch(statements);
       }
+      if (!await db.prepare("SELECT name FROM app_migrations WHERE name = 'rename-center-v3-5'").first()) {
+        await db.batch([
+          db.prepare("UPDATE users SET center = '非寰宇體系' WHERE center = '非繁星體系'"),
+          db.prepare("INSERT OR IGNORE INTO app_migrations(name) VALUES ('rename-center-v3-5')")
+        ]);
+      }
     })();
     initialized.set(db, promise);
     promise.catch(() => initialized.delete(db));
@@ -60,6 +66,7 @@ async function ensureSchema(db: any) {
 
 function normalizeUser(row: any) {
   const user = { ...row, birthday: row.birthday ?? row.birthDate ?? '' };
+  if (user.center === '非繁星體系') user.center = '非寰宇體系';
   boolFields.forEach(k => user[k] = Boolean(user[k]));
   user.canUpload = Boolean(row.canUpload || row.isContributor);
   if (user.email?.toLowerCase().trim() === 'yukidu@gmail.com') Object.assign(user, { role: '超級管理員', isAdminUser: true, isContributor: true, canUpload: true });
