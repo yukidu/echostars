@@ -1,12 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Home, BarChart3, Bell, User, UploadCloud, Settings, Palette, Moon, Sun, Mic, Menu, X, ShieldAlert } from 'lucide-react';
 import { UserProfile, RANK_ORDER } from '../types';
 import { VisitorIdentity } from '../utils/visitor';
 import { TwinklingStars } from './TwinklingStars';
 import { InstallAppButton } from './InstallAppButton';
-import { TutorialSpotlight } from './TutorialSpotlight';
-
-const HOME_TUTORIAL_NEVER_REMIND_KEY = 'echostars_home_tutorial_never_remind_v1';
 
 export type NavTab = 'home' | 'stats' | 'notifications' | 'profile' | 'upload' | 'admin';
 
@@ -22,7 +19,6 @@ interface NavbarProps {
   canUpload?: boolean;
   pendingNotificationsCount?: number;
   visitor?: VisitorIdentity;
-  onTutorialVisibilityChange?: (visible: boolean) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -36,8 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isAdmin,
   canUpload = true,
   pendingNotificationsCount = 0,
-  visitor,
-  onTutorialVisibilityChange
+  visitor
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -91,29 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     setIsMobileMenuOpen(false);
   };
 
-  const [showTutorial, setShowTutorial] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem(HOME_TUTORIAL_NEVER_REMIND_KEY) !== '1';
-  });
-  const [neverRemindTutorial, setNeverRemindTutorial] = useState(false);
-
-  useEffect(() => {
-    onTutorialVisibilityChange?.(showTutorial);
-  }, [showTutorial, onTutorialVisibilityChange]);
-
-  const handleNeverRemindTutorialChange = (checked: boolean) => {
-    setNeverRemindTutorial(checked);
-    if (typeof window === 'undefined') return;
-    if (checked) {
-      localStorage.setItem(HOME_TUTORIAL_NEVER_REMIND_KEY, '1');
-    } else {
-      localStorage.removeItem(HOME_TUTORIAL_NEVER_REMIND_KEY);
-    }
-  };
-
-  const dismissTutorial = () => { setShowTutorial(false); };
   const handleLogoClick = () => {
-    dismissTutorial();
     if (onLogoClick) {
       onLogoClick();
     } else {
@@ -163,35 +136,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </button>
 
-        <TutorialSpotlight
-          active={showTutorial}
-          targetSelector='[data-tutorial-target="home-logo"]'
-          padding={6}
-          opacity={0.76}
-          zIndex={70}
-        />
-
-        {showTutorial && (
-          <div
-            role="status"
-            className="absolute top-full left-3 z-[90] max-w-[calc(100vw-24px)] rounded-2xl bg-[var(--color-primary)] text-white p-4 shadow-xl border-2 border-white"
-          >
-            <div className="absolute -top-8 left-10 text-4xl font-black text-[var(--color-primary)]" aria-hidden="true">↑</div>
-            <p className="font-bold text-lg">按這裡回首頁播放清單</p>
-            <label className="mt-3 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={neverRemindTutorial}
-                onChange={e => handleNeverRemindTutorialChange(e.target.checked)}
-                className="w-4 h-4 rounded border-white/70 accent-white cursor-pointer"
-              />
-              <span className="font-bold text-sm">永遠不再提醒</span>
-            </label>
-            <button type="button" onClick={dismissTutorial} className="mt-2 rounded-lg bg-white/20 px-3 py-2">
-              知道了
-            </button>
-          </div>
-        )}
         {/* Desktop Navigation Controls (Hidden on small mobile screens) */}
         <div className="hidden md:flex items-center gap-1 sm:gap-2">
           {/* Home */}
@@ -264,6 +208,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Requirement 11: 首頁置頂主選單，直接顯示目前名字+身份，分二行顯示，名稱長自動縮小字體符合4個字寬度，身份用底色橢圓框區隔 */}
           <button
+            data-tutorial-target="visitor-profile"
             onClick={() => onSelectTab('profile')}
             title="個人中心"
             className={`px-2 py-1 rounded-2xl transition-all relative flex flex-col items-center justify-center text-center cursor-pointer min-w-[58px] max-w-[96px] sm:max-w-[120px] ${
@@ -285,6 +230,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-slate-900" />
             )}
           </button>
+
+          {/* PWA install is shown directly whenever desktop/landscape navigation replaces the hamburger menu. */}
+          <InstallAppButton
+            compact
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap"
+          />
 
           {/* Admin Management */}
           {canAccessSettings && (
@@ -333,6 +284,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Requirement 11: 2-line name + identity badge on mobile */}
           <button
             type="button"
+            data-tutorial-target="visitor-profile"
             onClick={() => handleMobileNav('profile')}
             className={`px-1 py-0.5 rounded-xl transition-colors flex flex-col items-center justify-center text-center min-w-[50px] max-w-[68px] shrink-0 ${
               currentTab === 'profile'
