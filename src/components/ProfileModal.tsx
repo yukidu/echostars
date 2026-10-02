@@ -257,7 +257,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       }
       const records = Object.values(recordsMap || {}).flatMap(record => {
         const track = tracks.find(item => item.id === record.trackId);
-        return track ? [{ track, record }] : [];
+        if (!track) return [];
+        const rating = (track.ratings || {})[currentUser.email] || (track.ratings || {})[currentUser.id] || record.rating || 0;
+        const comment = comments.find(item => item.trackId === record.trackId && item.authorEmail === currentUser.email)?.content || record.comment || '';
+        return [{ track, record: { ...record, rating, comment } }];
       });
       const blob = await exportMemberProfileAndListeningImage(currentUser, records);
       await shareOrDownloadProfileCard(blob, currentUser.name);
