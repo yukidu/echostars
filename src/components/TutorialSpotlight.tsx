@@ -324,6 +324,13 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
           y2: targetY
         };
     }
+
+    return {
+      x1: position.left + position.width / 2,
+      y1: position.top + position.height / 2,
+      x2: targetX,
+      y2: targetY
+    };
   };
 
   return (
