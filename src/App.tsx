@@ -68,7 +68,9 @@ const DEFAULT_CATEGORIES: string[] = [
 
 const HOME_CACHE_KEY = 'echostars_home_cache_v3_3';
 const HOME_CACHE_TTL_MS = 5 * 60 * 1000;
-const PHOTO_PLAY_TUTORIAL_NEVER_REMIND_KEY = 'echostars_photo_play_tutorial_never_remind_v1';
+const HOME_TUTORIAL_GROUP_NEVER_REMIND_KEY = 'echostars_home_tutorial_group_never_remind_v2';
+const LEGACY_HOME_TUTORIAL_NEVER_REMIND_KEY = 'echostars_home_tutorial_never_remind_v1';
+const LEGACY_PHOTO_TUTORIAL_NEVER_REMIND_KEY = 'echostars_photo_play_tutorial_never_remind_v1';
 
 type HomeCache = {
   tracks: Track[];
@@ -322,17 +324,27 @@ export default function App() {
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
   const [showKeywordsDrawer, setShowKeywordsDrawer] = useState(false);
 
-  const [showPhotoPlayTutorial, setShowPhotoPlayTutorial] = useState(() => {
+  const [showHomeTutorial, setShowHomeTutorial] = useState(() => {
     if (typeof window === 'undefined') return true;
-    return localStorage.getItem(PHOTO_PLAY_TUTORIAL_NEVER_REMIND_KEY) !== '1';
+    return !(
+      localStorage.getItem(HOME_TUTORIAL_GROUP_NEVER_REMIND_KEY) === '1' ||
+      localStorage.getItem(LEGACY_HOME_TUTORIAL_NEVER_REMIND_KEY) === '1' ||
+      localStorage.getItem(LEGACY_PHOTO_TUTORIAL_NEVER_REMIND_KEY) === '1'
+    );
   });
-  const [neverRemindPhotoPlayTutorial, setNeverRemindPhotoPlayTutorial] = useState(false);
-  const [isLogoTutorialActive, setIsLogoTutorialActive] = useState(true);
-  const handlePhotoPlayTutorialNeverRemind = (checked: boolean) => {
-    setNeverRemindPhotoPlayTutorial(checked);
+  const [neverRemindHomeTutorial, setNeverRemindHomeTutorial] = useState(false);
+  const handleHomeTutorialNeverRemind = (checked: boolean) => {
+    setNeverRemindHomeTutorial(checked);
     if (typeof window === 'undefined') return;
-    if (checked) localStorage.setItem(PHOTO_PLAY_TUTORIAL_NEVER_REMIND_KEY, '1');
-    else localStorage.removeItem(PHOTO_PLAY_TUTORIAL_NEVER_REMIND_KEY);
+    const keys = [
+      HOME_TUTORIAL_GROUP_NEVER_REMIND_KEY,
+      LEGACY_HOME_TUTORIAL_NEVER_REMIND_KEY,
+      LEGACY_PHOTO_TUTORIAL_NEVER_REMIND_KEY
+    ];
+    keys.forEach(key => {
+      if (checked) localStorage.setItem(key, '1');
+      else localStorage.removeItem(key);
+    });
   };
 
   // Collect all unique keywords across all tracks
@@ -1644,7 +1656,36 @@ export default function App() {
         isAdmin={isAdmin}
         canUpload={canUpload}
         pendingNotificationsCount={pendingNotificationsCount}
-        onTutorialVisibilityChange={setIsLogoTutorialActive}
+      />
+
+      <TutorialSpotlight
+        active={
+          showHomeTutorial &&
+          currentTab === 'home' &&
+          !selectedDetailTrack &&
+          filteredTracks.length > 0
+        }
+        opacity={0.92}
+        targets={[
+          {
+            key: 'logo',
+            selector: '[data-tutorial-target="home-logo"]',
+            text: '按這裡回首頁播放清單'
+          },
+          {
+            key: 'visitor',
+            selector: '[data-tutorial-target="visitor-profile"]',
+            text: '註冊會員紀錄學習進度'
+          },
+          {
+            key: 'photo',
+            selector: '[data-tutorial-target="first-track-photo"]',
+            text: '按照片可播放或暫停'
+          }
+        ]}
+        neverRemind={neverRemindHomeTutorial}
+        onNeverRemindChange={handleHomeTutorialNeverRemind}
+        onDismiss={() => setShowHomeTutorial(false)}
       />
 
       {/* Permission Alert Toast */}
@@ -2216,39 +2257,6 @@ export default function App() {
                       onSeek={seconds => handleSeekCard(track, seconds)}
                       onOpenCommentPreview={() => setCommentPreviewTrack(track)}
                     />
-                    <TutorialSpotlight
-                      active={trackIndex === 0 && showPhotoPlayTutorial && !isLogoTutorialActive}
-                      targetSelector='[data-tutorial-target="first-track-photo"]'
-                      padding={6}
-                      opacity={0.76}
-                      zIndex={70}
-                    />
-                    {trackIndex === 0 && showPhotoPlayTutorial && !isLogoTutorialActive && (
-                      <div
-                        role="status"
-                        onClick={e => e.stopPropagation()}
-                        className="absolute left-0 top-[132px] sm:top-[148px] z-[90] w-[min(280px,calc(100vw-32px))] rounded-2xl bg-[var(--color-primary)] text-white p-4 shadow-xl border-2 border-white"
-                      >
-                        <div className="absolute -top-8 left-10 text-4xl font-black text-[var(--color-primary)]" aria-hidden="true">↑</div>
-                        <p className="font-bold text-lg">按照片可播放或暫停</p>
-                        <label className="mt-3 flex items-center gap-2 rounded-lg bg-black/10 px-3 py-2 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={neverRemindPhotoPlayTutorial}
-                            onChange={e => handlePhotoPlayTutorialNeverRemind(e.target.checked)}
-                            className="w-4 h-4 rounded border-white/70 accent-white cursor-pointer"
-                          />
-                          <span className="font-bold text-sm">永遠不再提醒</span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setShowPhotoPlayTutorial(false)}
-                          className="mt-2 rounded-lg bg-white/20 px-3 py-2"
-                        >
-                          知道了
-                        </button>
-                      </div>
-                    )}
                     </div>
                   );
                 })
