@@ -67,8 +67,13 @@ app.post('/api/r2/upload', uploadMiddleware.single('file') as any, async (req, r
   let finalFileName: string;
 
   if (fileType === 'cover' || isImage) {
-    const cleanSpeaker = (req.body.speaker || '').replace(/[\\/:*?"<>|#&+=\s]/g, '').trim() || 'speaker';
-    finalFileName = `cover-${cleanSpeaker}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}${ext}`;
+    const originalBaseName = path.basename(req.file.originalname || req.file.filename || 'speaker', ext).replace(/^cover-/i, '');
+    const speakerName = String(req.body.speaker || '').trim();
+    const cleanBaseName = (speakerName || originalBaseName)
+      .replace(/[\\/:*?"<>|#&+=]/g, '')
+      .replace(/\s+/g, '-')
+      .trim() || 'speaker';
+    finalFileName = `cover-${cleanBaseName}${ext}`;
   } else {
     // 命名格式：「ES00001-演講者+獎銜-中文曲目名稱.副檔名」
     // 00001 = 系統自動編號的五位數/四位數序號，+ 符號不顯示，- 符號保留顯示
@@ -141,6 +146,32 @@ app.post('/api/r2/upload', uploadMiddleware.single('file') as any, async (req, r
   }
 
   res.json({ success: true, key, url: fileUrl });
+});
+
+// GET /api/r2/covers - local-development mirror of the production R2 cover library
+app.get('/api/r2/covers', (_req, res) => {
+  try {
+    const files = fs.readdirSync(uploadDir)
+      .filter(name => /^cover-.*\.(jpe?g|png|webp)$/i.test(name))
+      .map(fileName => {
+        let name = fileName
+          .replace(/\.[^.]+$/, '')
+          .replace(/^cover-/i, '')
+          .replace(/-\d{10,14}-[a-z0-9]{4,8}$/i, '')
+          .replace(/-/g, ' ')
+          .trim() || '未命名講者';
+        const key = `cover/${fileName}`;
+        return {
+          key,
+          name,
+          url: `/api/r2/file/${encodeURIComponent(key)}`
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+    res.json({ covers: files });
+  } catch {
+    res.json({ covers: [] });
+  }
 });
 
 // GET /api/r2/file/:key (With Range streaming support & R2 remote fetch fallback)
