@@ -276,19 +276,32 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
 .app-modal-overlay > div:first-child > .overflow-y-auto { min-height: 0; }
 .detail-share-actions > button { background: var(--color-primary) !important; color: white !important; border: 0; padding: 12px 21px; font-size: 18px; }
 .detail-share-actions svg { color: white !important; width: 21px; height: 21px; }
-.sort-toolbar .filter-dropdowns { justify-content: center; flex: 1 0 100%; }
-
 .app-modal-overlay { z-index: 100 !important; }
 
-/* v3.6: six controls remain equal-width in one row.
-   Portrait phones use the full viewport; landscape/desktop align to the audio-card container. */
-.sort-toolbar { display: grid !important; grid-template-columns: repeat(6,minmax(0,1fr)); gap: 4px !important; flex-wrap: nowrap !important; }
-.sort-toolbar .sort-options, .sort-toolbar .filter-dropdowns { display: contents !important; }
-.sort-toolbar > .filter-dropdowns > div { min-width: 0; }
-.sort-toolbar button { min-width: 0; }
-.sort-toolbar .sort-options > button,
-.sort-toolbar .filter-dropdowns > div > button { width: 100%; justify-content: center; padding: 8px 2px; font-size: 12px; white-space: nowrap; }
-@media(max-width:480px) { .sort-toolbar .sort-options > button > .inline-flex { display: none; } }
+/* v3.7: five controls remain equal-width in one row.
+   All five controls are direct grid children so portrait phones cannot lose sort buttons. */
+.sort-toolbar {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 4px !important;
+}
+.sort-toolbar > button,
+.sort-toolbar > div {
+  min-width: 0;
+  width: 100%;
+}
+.sort-toolbar > button,
+.sort-toolbar > div > button {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+  padding: 8px 2px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .sort-toolbar > button .inline-flex { display: none; }
+}
 
 @media (max-width: 639px) and (orientation: portrait) {
   .sort-toolbar {
