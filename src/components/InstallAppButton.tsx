@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
-import { CheckCircle2, Download, LoaderCircle, X } from 'lucide-react';
+import { CheckCircle2, CircleChevronDown, Download, LoaderCircle, Share, SquarePlus, X } from 'lucide-react';
 
 interface InstallEvent extends Event {
   prompt(): Promise<void>;
@@ -421,19 +421,19 @@ export function InstallAppButton({
             aria-modal="true"
             aria-label="在 iPhone 或 iPad 安裝繁星回聲"
             onClick={event => event.stopPropagation()}
-            className="flex h-full min-h-0 w-full max-w-md flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+            className="flex max-h-full min-h-0 w-full max-w-md flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
           >
-            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5 dark:border-slate-800 sm:px-5">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 dark:border-slate-800 sm:px-5">
               <div>
-                <h3 className="font-black text-base text-slate-900 dark:text-slate-100 sm:text-lg">
+                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">
                   {getIOSBrowserKind() === 'safari'
-                    ? 'iPhone／iPad 安裝繁星回聲'
-                    : '請使用 Safari 安裝繁星回聲'}
+                    ? '安裝繁星回聲'
+                    : '請用 Safari 安裝'}
                 </h3>
-                <p className="mt-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:text-xs">
+                <p className="mt-0.5 text-sm font-semibold text-slate-500 dark:text-slate-400">
                   {getIOSBrowserKind() === 'safari'
-                    ? '只要 2 步驟即可加入主畫面。'
-                    : 'iOS 上的 Chrome／Edge 無法一鍵安裝，請改用 Safari。'}
+                    ? '2 步驟完成'
+                    : 'iOS Chrome／Edge 無法一鍵安裝'}
                 </p>
               </div>
               <button
@@ -442,65 +442,88 @@ export function InstallAppButton({
                 className="shrink-0 rounded-xl p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
                 aria-label="關閉"
               >
-                <X className="w-5 h-5" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5">
-              <div className="space-y-2.5">
-                {(getIOSBrowserKind() === 'safari'
-                  ? [
-                      {
-                        n: '1',
-                        title: '點「分享」',
-                        detail: '點 Safari 工具列的分享圖示（方框上方有向上箭頭：□↑）。'
-                      },
-                      {
-                        n: '2',
-                        title: '加入主畫面',
-                        detail: '選「加入主畫面」，再按右上角「加入」即可完成。'
-                      }
-                    ]
-                  : [
-                      {
-                        n: '1',
-                        title: '改用 Safari 開啟',
-                        detail: '複製目前網址，改用 Safari 開啟「繁星回聲」。'
-                      },
-                      {
-                        n: '2',
-                        title: '加入主畫面',
-                        detail: '在 Safari 點「分享」→「加入主畫面」→右上角「加入」。'
-                      }
-                    ]
-                ).map(step => (
-                  <div
-                    key={step.n}
-                    className="rounded-2xl bg-slate-100 px-3.5 py-3 dark:bg-slate-800"
-                  >
+            <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5">
+              {getIOSBrowserKind() === 'safari' ? (
+                <div className="space-y-3">
+                  <div className="rounded-2xl bg-slate-100 p-3.5 dark:bg-slate-800">
                     <div className="flex items-start gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary,#c06c84)] text-sm font-black text-white">
-                        {step.n}
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary,#c06c84)] text-base font-black text-white">
+                        1
                       </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-black text-slate-800 dark:text-slate-100">
-                          {step.title}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-black text-slate-900 dark:text-slate-100">
+                          點「分享」
                         </p>
-                        <p className="mt-1 text-xs font-medium leading-relaxed text-slate-600 dark:text-slate-300 sm:text-[13px]">
-                          {step.detail}
+                        <p className="mt-1 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">
+                          點 Safari 的分享按鈕。
+                        </p>
+                        <div className="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-800 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                          <Share className="h-5 w-5" />
+                          分享
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl bg-slate-100 p-3.5 dark:bg-slate-800">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--color-primary,#c06c84)] text-base font-black text-white">
+                        2
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-black text-slate-900 dark:text-slate-100">
+                          點「檢視較多」
+                        </p>
+                        <p className="mt-1 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">
+                          再選「加入主畫面」→「加入」。
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs font-black text-slate-800 dark:text-slate-100">
+                          <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-900">
+                            <CircleChevronDown className="h-4 w-4" />
+                            檢視較多
+                          </span>
+                          <span aria-hidden="true">→</span>
+                          <span className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-900">
+                            <SquarePlus className="h-4 w-4" />
+                            加入主畫面
+                          </span>
+                          <span aria-hidden="true">→</span>
+                          <span className="rounded-lg bg-[var(--color-primary,#c06c84)] px-2 py-1.5 text-white">
+                            加入
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                          若已直接看到「加入主畫面」，可直接點。
                         </p>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="rounded-2xl bg-slate-100 p-3.5 dark:bg-slate-800">
+                    <p className="text-base font-black text-slate-900 dark:text-slate-100">
+                      1. 改用 Safari 開啟
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-100 p-3.5 dark:bg-slate-800">
+                    <p className="text-base font-black text-slate-900 dark:text-slate-100">
+                      2. 分享 → 檢視較多 → 加入主畫面
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="shrink-0 border-t border-slate-100 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 sm:px-5">
               <button
                 type="button"
                 onClick={() => setShowIOSInstallGuide(false)}
-                className="w-full rounded-2xl px-4 py-3 text-sm font-black text-white"
+                className="w-full rounded-2xl px-4 py-2.5 text-base font-black text-white"
                 style={{ backgroundColor: 'var(--color-primary,#c06c84)' }}
               >
                 知道了
