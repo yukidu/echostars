@@ -1028,7 +1028,6 @@ export default function App() {
     const newComment = commentData.comment || commentData;
     setComments(prev => [newComment, ...prev]);
     setAllComments(prev => [newComment, ...prev]);
-    fetchAllComments();
 
     setTracks(prev =>
       prev.map(t =>
@@ -1048,7 +1047,6 @@ export default function App() {
     if (res.ok) {
       setComments(prev => prev.filter(c => c.id !== commentId));
       setAllComments(prev => prev.filter(c => c.id !== commentId));
-      fetchAllComments();
       if (targetTrack) {
         setTracks(prev =>
           prev.map(t =>
@@ -1078,7 +1076,6 @@ export default function App() {
       setAllComments(prev =>
         prev.map(c => (c.id === commentId ? { ...c, content: newContent } : c))
       );
-      fetchAllComments();
     }
   };
 
@@ -2154,7 +2151,6 @@ export default function App() {
               if (res.ok) setComments(await res.json());
             } catch {}
           }
-          await fetchAllComments();
         }}
       />
 
