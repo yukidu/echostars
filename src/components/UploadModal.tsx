@@ -436,7 +436,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         speechDate: speechDate.trim() || todayUploadDate,
         requiredRank,
         seriesOrder: seriesOrder.trim() || '第 1 集',
-        description: description.trim() || '豐富心智、啟發事業行動的講師音檔分享。',
+        description: description.trim(),
         audioUrl: finalAudioUrl,
         uploaderId: trackToEdit ? trackToEdit.uploaderId : currentUser?.id,
         uploaderEmail: trackToEdit ? trackToEdit.uploaderEmail : (currentUser?.email || (isAdmin ? 'yukidu@gmail.com' : 'contributor')),

@@ -1,3 +1,4 @@
+import { uploadedAudioKey } from '../shared/r2Files';
 import { shareMetadata } from '../shared/shareMetadata';
 /**
  * Cloudflare Workers Entry Point for 繁星的回聲 (Echoes of Stars)
@@ -137,7 +138,7 @@ export default {
           finalFileName = `ES${seqStr}-${speakerPart}-${cleanTitle}.${ext}`;
         }
 
-        const key = `uploads/${finalFileName}`;
+        const key = `${fileType === 'cover' || isImage ? 'cover' : 'uploads'}/${finalFileName}`;
         
         let contentType = file.type;
         if (!contentType || contentType === 'application/octet-stream') {
@@ -406,14 +407,25 @@ export default {
 
         if (/^\/api\/tracks\/[^/]+$/.test(path) && method === 'DELETE') {
           const trackId = path.split('/api/tracks/')[1];
-          if (env.DB && trackId) {
-            try {
-              await env.DB.prepare('DELETE FROM tracks WHERE id = ?').bind(trackId).run();
-            } catch (e) {
-              console.error('D1 delete track error:', e);
+          if (!env.DB) return errorResponse('資料庫尚未連線',503);
+          try {
+            const track = await env.DB.prepare('SELECT * FROM tracks WHERE id = ?').bind(decodeURIComponent(trackId)).first();
+            if (!track) return errorResponse('音檔不存在',404);
+            const key = uploadedAudioKey(track.audioUrl || '', url.origin);
+            const shared = await env.DB.prepare('SELECT id FROM tracks WHERE audioUrl = ? AND id != ? LIMIT 1').bind(track.audioUrl,track.id).first();
+            if (key && !shared) {
+              if (!env.R2_BUCKET) return errorResponse('R2 尚未連線，未刪除音檔',503);
+              await env.R2_BUCKET.delete(key);
             }
+            await env.DB.batch([
+              env.DB.prepare('DELETE FROM comments WHERE trackId = ?').bind(track.id),
+              env.DB.prepare('DELETE FROM tracks WHERE id = ?').bind(track.id)
+            ]);
+            return jsonResponse({success:true,deletedId:track.id});
+          } catch (error) {
+            console.error('Delete audio failed:', error);
+            return errorResponse('刪除失敗，請重試；封面圖片會保留',500);
           }
-          return jsonResponse({ success: true, deletedId: trackId });
         }
       }
 

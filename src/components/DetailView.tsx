@@ -756,7 +756,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
             )}
           </div>
           <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-            {track.description || '無詳細說明'}
+            {track.description || ''}
           </p>
 
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500">

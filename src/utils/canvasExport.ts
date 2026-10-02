@@ -483,7 +483,7 @@ export async function exportTrackFullCardImage(
   const titleLines = wrapText(track.title, 'bold 24px "PingFang TC", "Microsoft JhengHei", sans-serif', contentWidth - 20);
 
   // 2. Description wrapped lines
-  const descText = track.description?.trim() || '尚無演講簡介說明。';
+  const descText = track.description?.trim() || '';
   const descLines = wrapText(descText, '14px "PingFang TC", "Microsoft JhengHei", sans-serif', contentWidth - 30);
 
   // 3. External resources

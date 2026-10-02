@@ -278,3 +278,12 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
 .sort-toolbar .filter-dropdowns { justify-content: center; flex: 1 0 100%; }
 
 .app-modal-overlay { z-index: 100 !important; }
+
+/* Seven controls remain in one row at every viewport width. */
+.sort-toolbar { display: grid !important; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 4px !important; flex-wrap: nowrap !important; }
+.sort-toolbar .sort-options, .sort-toolbar .filter-dropdowns { display: contents !important; }
+.sort-toolbar > .filter-dropdowns > div { min-width: 0; }
+.sort-toolbar button { min-width: 0; }
+.sort-toolbar .sort-options > button,
+.sort-toolbar .filter-dropdowns > div > button { width: 100%; justify-content: center; padding: 8px 2px; font-size: 12px; white-space: nowrap; }
+@media(max-width:480px) { .sort-toolbar .sort-options > button > .inline-flex { display: none; } }

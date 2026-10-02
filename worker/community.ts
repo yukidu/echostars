@@ -100,7 +100,8 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
   const auditAction = path.match(/^\/api\/users\/([^/]+)\/audit-rank$/);
   const keywordAction = path.match(/^\/api\/tracks\/([^/]+)\/keywords(?:\/(.+))?$/);
   const keywordAdmin = ['/api/keywords/rename', '/api/keywords/delete'].includes(path);
-  const handled = (auditAction && method === 'PUT') || keywordAction || keywordAdmin || (path === '/api/tracks' && method === 'GET') || (trackAction && method === 'POST') ||
+  const permissionAction = path.match(/^\/api\/users\/([^/]+)\/(contributor|admin-role|block)$/);
+  const handled = (permissionAction && method === 'PUT') || (auditAction && method === 'PUT') || keywordAction || keywordAdmin || (path === '/api/tracks' && method === 'GET') || (trackAction && method === 'POST') ||
     ((path === '/api/comments' || commentList) && ['GET', 'POST'].includes(method)) ||
     (commentAction && ['POST', 'PUT', 'DELETE'].includes(method)) ||
     (['/api/users', '/api/users/profile', '/api/users/google-sync'].includes(path) && ['GET', 'POST'].includes(method)) || (userUpdate && method === 'PUT');
@@ -110,6 +111,27 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
   try {
     await ensureSchema(db);
     if (path.startsWith('/api/tracks')) await seedTracks(db, defaults);
+    if (permissionAction) {
+      const body: any = await request.json();
+      const actor = await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').bind(String(body.actorEmail||'').trim().toLowerCase()).first();
+      if (!actor || actor.email.toLowerCase().trim() !== 'yukidu@gmail.com' || actor.isBlocked) return json({error:'只有超級管理員可調整會員權限'},403);
+      const id = decodeURIComponent(permissionAction[1]);
+      const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+      if (!user) return json({error:'會員不存在'},404);
+      if (user.email?.toLowerCase().trim()==='yukidu@gmail.com') return json({error:'超級管理員不可被封鎖或變更權限'},400);
+      const action = permissionAction[2];
+      if (action==='contributor') {
+        const value=typeof body.isContributor==='boolean'?body.isContributor:!user.isContributor;
+        await db.prepare('UPDATE users SET isContributor = ?, canUpload = ? WHERE id = ?').bind(Number(value),Number(value),id).run();
+      } else if (action==='admin-role') {
+        const value=typeof body.isAdminUser==='boolean'?body.isAdminUser:!user.isAdminUser;
+        await db.prepare('UPDATE users SET isAdminUser = ?, role = ? WHERE id = ?').bind(Number(value),value?'獎銜審核員':'繁星家人',id).run();
+      } else {
+        const value=typeof body.isBlocked==='boolean'?body.isBlocked:!user.isBlocked;
+        await db.prepare('UPDATE users SET isBlocked = ? WHERE id = ?').bind(Number(value),id).run();
+      }
+      return json(normalizeUser(await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first()));
+    }
     if (auditAction) {
       const body: any = await request.json();
       const auditor = await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').bind((body.auditorEmail || '').toLowerCase().trim()).first();

@@ -904,22 +904,23 @@ export default function App() {
   };
 
   // Requirement 11: 超級管理員指定或取消「管理員」身分
-  const handleToggleAdminUser = async (userId: string) => {
+  const pendingMemberActions = useRef(new Set<string>());
+  const updateMemberPermission = async (userId: string, action: 'admin-role'|'block'|'contributor') => {
+    if (pendingMemberActions.current.has(userId)) return;
+    const user=allUsers.find(u=>u.id===userId);
+    if(!user)return;
+    pendingMemberActions.current.add(userId);
     try {
-      const res = await fetch(`/api/users/${userId}/admin-role`, { method: 'PUT' });
-      if (!res.ok) throw new Error('儲存失敗');
-      if (res.ok) {
-        const updated = await res.json();
-        setAllUsers(prev => prev.map(u => (u.id === userId ? updated : u)));
-        if (currentUser?.id === userId) {
-          setCurrentUser(updated);
-          localStorage.setItem('sq_current_user_v1', JSON.stringify(updated));
-        }
-      }
-    } catch (e) {
-      console.error('Failed to toggle admin role:', e);
-    }
+      const updated=await apiJson<UserProfile>(`/api/users/${encodeURIComponent(userId)}/${action}`,{
+        method:'PUT',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({actorEmail:currentUser?.email,isAdminUser:!user.isAdminUser,isContributor:!user.isContributor,isBlocked:!user.isBlocked})
+      });
+      setAllUsers(prev=>prev.map(u=>u.id===userId?updated:u));
+      if(currentUser?.id===userId){setCurrentUser(updated);localStorage.setItem('sq_current_user_v1',JSON.stringify(updated));}
+    } catch(error) { alert(error instanceof Error?error.message:'儲存失敗，請重試'); }
+    finally {pendingMemberActions.current.delete(userId);}
   };
+  const handleToggleAdminUser = (id: string) => updateMemberPermission(id,'admin-role');
 
   // Requirement 9, 11, 12, 3: 審核或修改獎銜 (獎銜審核員 / 超級管理員)
   const handleApproveRank = async (userId: string, rank?: AmwayRank) => {
@@ -1044,31 +1045,8 @@ export default function App() {
   };
 
   // Admin Actions
-  const handleToggleBlockUser = async (userId: string) => {
-    const res = await fetch(`/api/users/${userId}/block`, { method: 'PUT' });
-    if (res.ok) {
-      const updated = await res.json();
-      setAllUsers(prev => prev.map(u => (u.id === userId ? updated : u)));
-    }
-  };
-
-  const handleToggleContributor = async (userId: string) => {
-    const targetUser = allUsers.find(u => u.id === userId);
-    if (!targetUser) return;
-    const nextVal = !targetUser.isContributor;
-    const res = await fetch(`/api/users/${userId}/contributor`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isContributor: nextVal, canUpload: nextVal })
-    });
-    if (res.ok) {
-      const updated = await res.json();
-      setAllUsers(prev => prev.map(u => (u.id === userId ? updated : u)));
-      if (currentUser?.id === userId) {
-        setCurrentUser(prev => (prev ? { ...prev, isContributor: nextVal, canUpload: nextVal } : null));
-      }
-    }
-  };
+  const handleToggleBlockUser = (id: string) => updateMemberPermission(id,'block');
+  const handleToggleContributor = (id: string) => updateMemberPermission(id,'contributor');
 
   const handleAdminUpdateUser = async (userId: string, profileData: Partial<UserProfile>) => {
     const res = await fetch(`/api/users/${userId}`, {
@@ -1692,7 +1670,7 @@ export default function App() {
                       style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                       title={`依${field}排序，重複點擊切換遞增/遞減`}
                     >
-                      <span>{field}</span>
+                      <span>{field === '演講人' ? '講者' : field}</span>
                       {isActive && (
                         <span className="inline-flex items-center justify-center w-3.5 h-3.5 ml-1 rounded-full bg-white text-[var(--color-primary,#c06c84)] shrink-0 shadow-2xs">
                           {sortDirection === 'desc' ? (
@@ -1724,7 +1702,7 @@ export default function App() {
                     title="點擊依講師獎銜篩選"
                   >
                     <span className="truncate max-w-[70px] sm:max-w-none">
-                      {selectedSpeakerRank === '全部' ? '全部獎銜' : selectedSpeakerRank}
+                      獎銜
                     </span>
                     <ChevronDown className="w-3.5 h-3.5 text-white/90 shrink-0" />
                   </button>
@@ -1736,7 +1714,7 @@ export default function App() {
                         onClick={() => setIsSpeakerRankDropdownOpen(false)}
                       />
                       <div
-                        className="absolute left-0 top-full mt-1.5 z-40 w-44 max-h-64 overflow-y-auto rounded-2xl shadow-xl py-1 border border-white/20 animate-in fade-in zoom-in-95 text-white scrollbar-thin"
+                        className="absolute right-0 top-full mt-1.5 z-40 w-44 max-h-64 overflow-y-auto rounded-2xl shadow-xl py-1 border border-white/20 animate-in fade-in zoom-in-95 text-white scrollbar-thin"
                         style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
                         onClick={e => e.stopPropagation()}
                       >
@@ -1778,7 +1756,7 @@ export default function App() {
                     title="點擊展開分類選單"
                   >
                     <span className="truncate max-w-[70px] sm:max-w-none">
-                      {selectedCategory === '全部' ? '全部分類' : selectedCategory}
+                      分類
                     </span>
                     <ChevronDown className="w-3.5 h-3.5 text-white/90 shrink-0" />
                   </button>
@@ -1993,7 +1971,7 @@ export default function App() {
             requiredRank: trackData?.requiredRank || '無',
             seriesOrder: trackData?.seriesOrder || '第 1 集',
             uploadDate: trackData?.uploadDate || new Date().toISOString().split('T')[0],
-            description: trackData?.description || '暫無簡介',
+            description: trackData?.description || '',
             audioUrl: trackData?.audioUrl || '',
             likedBy: Array.isArray(trackData?.likedBy) ? trackData.likedBy : [],
             ratings: typeof trackData?.ratings === 'object' && trackData.ratings !== null ? trackData.ratings : {},

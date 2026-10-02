@@ -1,3 +1,4 @@
+import { uploadedAudioKey } from './shared/r2Files';
 import { shareMetadata } from './shared/shareMetadata';
 import express from 'express';
 import path from 'path';
@@ -99,7 +100,7 @@ app.post('/api/r2/upload', uploadMiddleware.single('file') as any, async (req, r
     console.warn('[Upload] Local copy warning:', copyErr);
   }
 
-  const key = `uploads/${finalFileName}`;
+  const key = `${fileType === 'cover' || isImage ? 'cover' : 'uploads'}/${finalFileName}`;
   const fileUrl = `/api/r2/file/${encodeURIComponent(key)}`;
 
   // Direct sync to Cloudflare R2 bucket when credentials are provided
@@ -288,6 +289,7 @@ interface UserProfile {
   lifeNumber?: number;
   avatar: string;
   isContributor?: boolean;
+  canUpload?: boolean;
   isAdminUser?: boolean;
   approvedRank?: AmwayRank;
   rankApproved?: boolean;
@@ -579,7 +581,7 @@ app.post('/api/tracks', (req, res) => {
     requiredRank: requiredRank || '無',
     seriesOrder: seriesOrder?.trim() || '第 1 集',
     uploadDate: uploadDate,
-    description: description?.trim() || '暫無簡介',
+    description: description?.trim() || '',
     audioUrl,
     uploaderId,
     uploaderEmail,
@@ -774,7 +776,7 @@ app.put('/api/tracks/:id', (req, res) => {
 });
 
 // DELETE /api/tracks/:id
-app.delete('/api/tracks/:id', (req, res) => {
+app.delete('/api/tracks/:id', async (req, res) => {
   const index = tracks.findIndex(t => t.id === req.params.id);
   if (index === -1) return res.status(404).json({ error: '音檔不存在' });
 
@@ -787,6 +789,18 @@ app.delete('/api/tracks/:id', (req, res) => {
     return res.status(403).json({ error: '貢獻者只能刪除自己上傳的音檔！' });
   }
 
+  const key = uploadedAudioKey(track.audioUrl || '', req.protocol+'://'+req.get('host'));
+  if (key && !tracks.some(t=>t.id!==track.id && t.audioUrl===track.audioUrl)) {
+    try {
+      if (CF_ACCOUNT_ID && CF_API_TOKEN) {
+        const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/r2/buckets/${R2_BUCKET}/objects/${encodeURIComponent(key)}`,{method:'DELETE',headers:{Authorization:`Bearer ${CF_API_TOKEN}`}});
+        if (!response.ok && response.status!==404) throw new Error('R2 delete failed');
+      }
+      const localFile = path.join(uploadDir,path.basename(key));
+      if (!CF_ACCOUNT_ID && !fs.existsSync(localFile)) return res.status(503).json({error:'R2 尚未連線，無法刪除雲端音檔'});
+      if (fs.existsSync(localFile)) fs.unlinkSync(localFile);
+    } catch { return res.status(500).json({error:'音檔刪除失敗，請重試'}); }
+  }
   const deletedTrack = tracks[index];
   // Requirement 8: 刪除音檔時，保留已聆聽紀錄之標題、講員並標記已刪除
   for (const rec of Object.values(playbackRecords)) {
@@ -1203,23 +1217,34 @@ app.put('/api/admin/users/batch', (req, res) => {
 
 // PUT /api/users/:id/contributor (Admin designates contributor)
 app.put('/api/users/:id/contributor', (req, res) => {
+  const actor=users.find(u=>u.email?.toLowerCase().trim()===String(req.body.actorEmail||'').toLowerCase().trim());
+  if(!actor || !isSuperAdminEmail(actor.email) || actor.isBlocked) return res.status(403).json({error:'只有超級管理員可調整會員權限'});
+  const target=users.find(u=>u.id===req.params.id);
+  if(target && isSuperAdminEmail(target.email)) return res.status(400).json({error:'超級管理員不可被封鎖或變更權限'});
+
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: '使用者不存在' });
 
-  user.isContributor = !user.isContributor;
+  user.isContributor = typeof req.body.isContributor === 'boolean' ? req.body.isContributor : !user.isContributor;
+  user.canUpload = user.isContributor;
   saveStoreToDisk();
   res.json(user);
 });
 
 // PUT /api/users/:id/admin-role (Requirement 11 & 3: Super Admin designates 獎銜審核員 role)
 app.put('/api/users/:id/admin-role', (req, res) => {
+  const actor=users.find(u=>u.email?.toLowerCase().trim()===String(req.body.actorEmail||'').toLowerCase().trim());
+  if(!actor || !isSuperAdminEmail(actor.email) || actor.isBlocked) return res.status(403).json({error:'只有超級管理員可調整會員權限'});
+  const target=users.find(u=>u.id===req.params.id);
+  if(target && isSuperAdminEmail(target.email)) return res.status(400).json({error:'超級管理員不可被封鎖或變更權限'});
+
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: '使用者不存在' });
   if (isSuperAdminEmail(user.email)) {
     return res.status(400).json({ error: '超級管理員身分不可修改' });
   }
 
-  user.isAdminUser = !user.isAdminUser;
+  user.isAdminUser = typeof req.body.isAdminUser === 'boolean' ? req.body.isAdminUser : !user.isAdminUser;
   user.role = user.isAdminUser ? '獎銜審核員' : '繁星家人';
   saveStoreToDisk();
   res.json(user);
@@ -1259,10 +1284,15 @@ app.put('/api/users/:id/audit-rank', (req, res) => {
 
 // PUT /api/users/:id/block
 app.put('/api/users/:id/block', (req, res) => {
+  const actor=users.find(u=>u.email?.toLowerCase().trim()===String(req.body.actorEmail||'').toLowerCase().trim());
+  if(!actor || !isSuperAdminEmail(actor.email) || actor.isBlocked) return res.status(403).json({error:'只有超級管理員可調整會員權限'});
+  const target=users.find(u=>u.id===req.params.id);
+  if(target && isSuperAdminEmail(target.email)) return res.status(400).json({error:'超級管理員不可被封鎖或變更權限'});
+
   const user = users.find(u => u.id === req.params.id);
   if (!user) return res.status(404).json({ error: '使用者不存在' });
 
-  user.isBlocked = !user.isBlocked;
+  user.isBlocked = typeof req.body.isBlocked === 'boolean' ? req.body.isBlocked : !user.isBlocked;
   saveStoreToDisk();
   res.json(user);
 });

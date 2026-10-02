@@ -86,8 +86,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     setIsMobileMenuOpen(false);
   };
 
-  const [showTutorial, setShowTutorial] = useState(() => !localStorage.getItem('echostars-home-tutorial-v3'));
-  const dismissTutorial = () => { localStorage.setItem('echostars-home-tutorial-v3', 'seen'); setShowTutorial(false); };
+  const [showTutorial, setShowTutorial] = useState(true);
+  const dismissTutorial = () => { setShowTutorial(false); };
   const handleLogoClick = () => {
     dismissTutorial();
     if (onLogoClick) {

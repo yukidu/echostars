@@ -29,7 +29,7 @@ export interface VersionLog {
 }
 
 export const DEFAULT_CHANGELOG_DATA: VersionLog[] = [
-{"version":"v3.0","date":"2026/10/02","isLatest":true,"summary":"依 33 項回饋修正介面、會員管理、分享與離線播放。","added":["浮動播放器可拖曳移動；置頂箭頭位於左側，點擊音檔資訊直達詳細頁時間軸；新增首頁教學。","真正保存離線音檔，完成超過95%或15天未聽自動清除。","分享連結提供音檔封面預覽。"],"modified":["統一視窗頂端標題與儲存操作、配色下拉選單，縮短會員分頁。","修復正式站關鍵字與獎銜審核；留言僅作者可修改，姓名與獎銜同步。","學習卡同步評分、留言與生命靈數資料。","調整首頁密度、搜尋建議、評價人數、篩選選單及排行日期。","九宮格天賦圈亮綠，星座與命數排版一致。"],"removed":["底部長條播放器與三態控制、工具列安裝按鈕、安裝說明彈窗。","AI Studio 範例資料與未使用預設關鍵字；分享重複網址。"]},
+{"version":"v3.0","date":"2026/10/02","isLatest":true,"summary":"彙整 v3.0 與追加更新：R2 檔案管理、會員權限、首頁單列篩選與空白簡介。","added":["浮動播放器可拖曳移動；置頂箭頭位於左側，點擊音檔資訊直達詳細頁時間軸；新增首頁教學。","真正保存離線音檔，完成超過95%或15天未聽自動清除。","分享連結提供音檔封面預覽。"],"modified":["新上傳封面存放 R2 cover/；刪除錄音同步刪除專屬音訊物件，保留封面。","修復會員貢獻者、獎銜審核員與封鎖設定；加入失敗提示。","首頁固定單列：時間、評價、留言、按讚、講者、獎銜、分類。","每次進入網站顯示教學；簡介未填寫時維持空白。","統一視窗頂端標題與儲存操作、配色下拉選單，縮短會員分頁。","修復正式站關鍵字與獎銜審核；留言僅作者可修改，姓名與獎銜同步。","學習卡同步評分、留言與生命靈數資料。","調整首頁密度、搜尋建議、評價人數、篩選選單及排行日期。","九宮格天賦圈亮綠，星座與命數排版一致。"],"removed":["底部長條播放器與三態控制、工具列安裝按鈕、安裝說明彈窗。","AI Studio 範例資料與未使用預設關鍵字；分享重複網址。"]},
 {"version":"v2.9","date":"2026/10/01","summary":"正式站資料持久化與手機版修復。","added":["PWA 安裝基礎、會員資料保存與 Google 頭像同步。"],"modified":["正式站按讚、評價、留言 API；愛心狀態同步。","手機字體、觸控按鈕與 SVG 九宮格圈線。","延遲載入大型管理與匯出功能。"],"removed":["主選單三倍字體按鈕；網頁翻譯提示。"]},
   {
     version: 'v2.8',
@@ -300,7 +300,10 @@ export const ChangelogModal: React.FC<ChangelogModalProps> = ({
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             const hasV28 = data.some((v: any) => v.version === 'v2.8');
-            const finalData = [...DEFAULT_CHANGELOG_DATA.filter(v => !data.some((d: VersionLog) => d.version === v.version)), ...data].map(v=>({...v,isLatest:v.version==='v3.0'})).sort((a,b)=>b.version.localeCompare(a.version,undefined,{numeric:true}));
+            const finalData = [...DEFAULT_CHANGELOG_DATA.filter(v => !data.some((d: VersionLog) => d.version === v.version)), ...data].map(v=>{
+              const shipped=DEFAULT_CHANGELOG_DATA.find(d=>d.version===v.version);
+              return shipped ? {...v,summary:v.version==='v3.0'?shipped.summary:v.summary,added:[...new Set([...shipped.added,...(v.added||[])])],modified:[...new Set([...shipped.modified,...(v.modified||[])])],removed:[...new Set([...shipped.removed,...(v.removed||[])])],isLatest:v.version==='v3.0'} : {...v,isLatest:false};
+            }).sort((a,b)=>b.version.localeCompare(a.version,undefined,{numeric:true}));
             setChangelogList(finalData);
             setSelectedVersion(finalData[0].version);
             return;
