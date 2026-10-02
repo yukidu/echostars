@@ -391,7 +391,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
             placeholder={
               replyingTo
                 ? `回覆 @${replyingTo.authorName}...`
-                : '寫下您的心得或心得...'
+                : '寫下您的心得收穫...'
             }
             className="w-full bg-transparent resize-none outline-hidden text-sm sm:text-base text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
           />
