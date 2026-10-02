@@ -147,12 +147,12 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
   const edge = isPhone ? 8 : 12;
 
   const widthFor = (key: string) => {
-    if (key === 'visitor') return isPhone ? 166 : isTablet ? 190 : 214;
+    if (key === 'visitor') return isPhone ? 190 : isTablet ? 238 : 286;
     return isPhone ? 134 : isTablet ? 154 : 170;
   };
 
   const heightFor = (key: string) => {
-    if (key === 'visitor') return isPhone ? 66 : 64;
+    if (key === 'visitor') return isPhone ? 94 : isTablet ? 82 : 78;
     return isPhone ? 54 : 56;
   };
 
@@ -163,17 +163,27 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
     const width = Math.min(widthFor(target.key), viewport.width - edge * 2);
     const height = heightFor(target.key);
 
+    const targetCenterX = (rect.left + rect.right) / 2;
+
     return {
       target,
       rect,
       position: {
-        left: clamp(
-          rect.right - width * 0.22,
-          edge,
-          viewport.width - width - edge
-        ),
+        // The logo instruction is centered directly under 「繁星回聲」.
+        // Other instructions keep the requested lower-right placement.
+        left: target.key === 'logo'
+          ? clamp(
+              targetCenterX - width / 2,
+              edge,
+              viewport.width - width - edge
+            )
+          : clamp(
+              rect.right - width * 0.22,
+              edge,
+              viewport.width - width - edge
+            ),
         top: clamp(
-          rect.bottom + 34,
+          rect.bottom + (target.key === 'logo' ? 42 : 34),
           edge,
           viewport.height - height - edge
         ),
@@ -217,7 +227,23 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
     }
   }
 
-  const arrowPoints = (rect: SpotlightRect, position: CalloutPlacement) => {
+  const arrowPoints = (
+    targetKey: string,
+    rect: SpotlightRect,
+    position: CalloutPlacement
+  ) => {
+    if (targetKey === 'logo') {
+      const centerX = (rect.left + rect.right) / 2;
+      const startY = rect.bottom + 7;
+      // Logo arrow is always a short, perfectly vertical downward arrow.
+      return {
+        x1: centerX,
+        y1: startY,
+        x2: centerX,
+        y2: Math.min(position.top - 5, startY + 30)
+      };
+    }
+
     const targetX = clamp(rect.right - 10, 10, viewport.width - 10);
     const targetY = clamp(rect.bottom - 4, 10, viewport.height - 10);
     const boxX = clamp(
@@ -233,7 +259,6 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
     const ux = dx / distance;
     const uy = dy / distance;
 
-    // Fixed short arrow, independent of screen size.
     return {
       x1: targetX + ux * 34,
       y1: targetY + uy * 34,
@@ -309,7 +334,7 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
         })}
 
         {positions.map(({ target, rect, position }) => {
-          const points = arrowPoints(rect, position);
+          const points = arrowPoints(target.key, rect, position);
           return (
             <line
               key={`arrow-${target.key}`}
