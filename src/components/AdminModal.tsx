@@ -28,7 +28,8 @@ import {
   BarChart3,
   Crown,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  GripVertical
 } from 'lucide-react';
 import {
   Track,
@@ -164,6 +165,165 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [editingCatOld, setEditingCatOld] = useState<string | null>(null);
   const [editingCatNew, setEditingCatNew] = useState('');
   const [isCatSubmitting, setIsCatSubmitting] = useState(false);
+
+  // v3.7: category order is shared with the homepage category dropdown.
+  // Mobile requires a long-press before dragging so normal page scrolling is not
+  // accidentally converted into a reorder gesture. Only pointer-up persists to D1.
+  const [draggingCategory, setDraggingCategory] = useState<string | null>(null);
+  const [isCategoryOrderSaving, setIsCategoryOrderSaving] = useState(false);
+  const categoryListRef = useRef<string[]>([]);
+  const categoryDragTimerRef = useRef<number | null>(null);
+  const categoryDragNameRef = useRef<string | null>(null);
+  const categoryDragActiveRef = useRef(false);
+  const categoryDragStartPointRef = useRef<{ x: number; y: number } | null>(null);
+  const categoryOrderBeforeDragRef = useRef<string[]>([]);
+  const categoryDragOrderRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    categoryListRef.current = categoryList;
+  }, [categoryList]);
+
+  const clearCategoryDragTimer = () => {
+    if (categoryDragTimerRef.current !== null) {
+      window.clearTimeout(categoryDragTimerRef.current);
+      categoryDragTimerRef.current = null;
+    }
+  };
+
+  const persistCategoryOrder = async (order: string[], fallbackOrder: string[]) => {
+    setIsCategoryOrderSaving(true);
+    try {
+      const res = await fetch('/api/categories/order', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order })
+      });
+      if (!res.ok) throw new Error(`分類排序儲存失敗：${res.status}`);
+
+      const data = await res.json().catch(() => ({}));
+      const savedOrder = Array.isArray(data?.categories) ? data.categories : order;
+      categoryListRef.current = savedOrder;
+      setCategoryList(savedOrder);
+      onCategoriesUpdated?.(savedOrder);
+    } catch (error) {
+      console.error(error);
+      categoryListRef.current = fallbackOrder;
+      setCategoryList(fallbackOrder);
+      onCategoriesUpdated?.(fallbackOrder);
+    } finally {
+      setIsCategoryOrderSaving(false);
+    }
+  };
+
+  const handleCategoryDragPointerDown = (
+    cat: string,
+    event: React.PointerEvent<HTMLButtonElement>
+  ) => {
+    if (isCategoryOrderSaving || editingCatOld === cat) return;
+
+    clearCategoryDragTimer();
+    categoryDragNameRef.current = cat;
+    categoryDragStartPointRef.current = { x: event.clientX, y: event.clientY };
+    categoryOrderBeforeDragRef.current = [...categoryListRef.current];
+    categoryDragOrderRef.current = [...categoryListRef.current];
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture is best-effort; elementFromPoint still handles the move.
+    }
+
+    const delay = event.pointerType === 'touch' ? 420 : 0;
+    categoryDragTimerRef.current = window.setTimeout(() => {
+      categoryDragTimerRef.current = null;
+      categoryDragActiveRef.current = true;
+      setDraggingCategory(cat);
+      if (event.pointerType === 'touch') {
+        navigator.vibrate?.(18);
+      }
+    }, delay);
+  };
+
+  const handleCategoryDragPointerMove = (
+    event: React.PointerEvent<HTMLButtonElement>
+  ) => {
+    const start = categoryDragStartPointRef.current;
+    if (!categoryDragActiveRef.current) {
+      if (
+        start &&
+        Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10
+      ) {
+        clearCategoryDragTimer();
+      }
+      return;
+    }
+
+    event.preventDefault();
+    const dragged = categoryDragNameRef.current;
+    if (!dragged) return;
+
+    const targetElement = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>('[data-category-name]');
+    const target = targetElement?.dataset.categoryName;
+    if (!target || target === dragged) return;
+
+    const targetRect = targetElement.getBoundingClientRect();
+    const centerX = targetRect.left + targetRect.width / 2;
+    const centerY = targetRect.top + targetRect.height / 2;
+    const after =
+      Math.abs(event.clientY - centerY) > targetRect.height * 0.3
+        ? event.clientY > centerY
+        : event.clientX > centerX;
+
+    const prev = categoryListRef.current;
+    const fromIndex = prev.indexOf(dragged);
+    const targetIndex = prev.indexOf(target);
+    if (fromIndex < 0 || targetIndex < 0) return;
+
+    const next = prev.filter(item => item !== dragged);
+    const targetIndexAfterRemoval = next.indexOf(target);
+    const insertAt = Math.max(
+      0,
+      Math.min(
+        next.length,
+        targetIndexAfterRemoval + (after ? 1 : 0)
+      )
+    );
+    next.splice(insertAt, 0, dragged);
+
+    if (next.join('\u0000') === prev.join('\u0000')) return;
+    categoryDragOrderRef.current = next;
+    categoryListRef.current = next;
+    setCategoryList(next);
+  };
+
+  const finishCategoryDrag = () => {
+    clearCategoryDragTimer();
+    categoryDragStartPointRef.current = null;
+
+    const wasActive = categoryDragActiveRef.current;
+    categoryDragActiveRef.current = false;
+    setDraggingCategory(null);
+
+    if (!wasActive) {
+      categoryDragNameRef.current = null;
+      return;
+    }
+
+    const before = categoryOrderBeforeDragRef.current;
+    const next = categoryDragOrderRef.current;
+    categoryDragNameRef.current = null;
+
+    if (
+      before.length === next.length &&
+      before.join('\u0000') === next.join('\u0000')
+    ) {
+      return;
+    }
+
+    void persistCategoryOrder(next, before);
+  };
 
   const loadCategories = async () => {
     try {
@@ -1253,9 +1413,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
                     </div>
                   </div>
-                  <span className="text-xs font-mono font-bold text-slate-500">
-                    目前共 {categoryList.length} 個分類
-                  </span>
+                  <div className="text-right">
+                    <span className="block text-xs font-mono font-bold text-slate-500">
+                      目前共 {categoryList.length} 個分類
+                    </span>
+                    <span className="block text-[10px] font-semibold text-slate-400">
+                      {isCategoryOrderSaving ? '排序同步中…' : '長按拖曳排序・首頁同步'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Add new category input */}
@@ -1328,8 +1493,27 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                     return (
                       <div
                         key={cat}
-                        className="inline-flex items-center gap-2 py-1.5 px-3 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-800 transition-all shadow-2xs group"
+                        data-category-name={cat}
+                        className={`inline-flex items-center gap-1.5 py-1.5 px-2 rounded-xl bg-slate-50 dark:bg-slate-900/80 border transition-all shadow-2xs group select-none ${
+                          draggingCategory === cat
+                            ? 'border-[var(--color-primary,#c06c84)] ring-2 ring-[var(--color-primary,#c06c84)]/25 scale-[1.03] opacity-90'
+                            : 'border-slate-200/80 dark:border-slate-800 hover:border-rose-300 dark:hover:border-rose-800'
+                        }`}
                       >
+                        <button
+                          type="button"
+                          aria-label={`拖曳「${cat}」調整排序`}
+                          title="手機長按後拖曳；桌機按住即可拖曳"
+                          disabled={isCategoryOrderSaving}
+                          onPointerDown={event => handleCategoryDragPointerDown(cat, event)}
+                          onPointerMove={handleCategoryDragPointerMove}
+                          onPointerUp={finishCategoryDrag}
+                          onPointerCancel={finishCategoryDrag}
+                          className="p-1 -ml-0.5 rounded-md text-slate-400 hover:text-[var(--color-primary,#c06c84)] hover:bg-white dark:hover:bg-slate-800 disabled:opacity-40 cursor-grab active:cursor-grabbing shrink-0"
+                          style={{ touchAction: 'none' }}
+                        >
+                          <GripVertical className="w-4 h-4" />
+                        </button>
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0" />
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
