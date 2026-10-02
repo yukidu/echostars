@@ -1,7 +1,7 @@
 {
-  "name": "繁星的回聲",
+  "name": "繁星回聲",
   "short_name": "繁星回聲",
-  "description": "繁星的回聲音頻知識管理與互動平台",
+  "description": "繁星回聲音頻知識管理與互動平台",
   "lang": "zh-Hant-TW",
   "start_url": "/",
   "display": "standalone",
