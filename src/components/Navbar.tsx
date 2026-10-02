@@ -106,7 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           type="button"
           data-tutorial-target="home-logo"
           onClick={handleLogoClick}
-          className="flex items-center gap-2 sm:gap-2.5 text-left group focus:outline-hidden cursor-pointer"
+          className="brand-logo-glow relative isolate flex items-center gap-2 sm:gap-2.5 text-left group focus:outline-hidden cursor-pointer"
           title="返回首頁播放清單（全部分類）"
         >
           <div
@@ -137,7 +137,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
 
         {/* Desktop Navigation Controls (Hidden on small mobile screens) */}
-        <div className="hidden md:flex items-center gap-1.5 sm:gap-2.5">
+        <div className="hidden md:flex items-center gap-0.5 sm:gap-1">
           {/* Home */}
           <button
             onClick={handleLogoClick}
@@ -211,10 +211,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             data-tutorial-target="visitor-profile"
             onClick={() => onSelectTab('profile')}
             title="個人中心"
-            className={`px-3 py-1.5 rounded-2xl transition-all relative flex flex-col items-center justify-center text-center cursor-pointer min-w-[64px] max-w-[104px] sm:max-w-[128px] ${
+            className={`px-3 py-1.5 rounded-2xl transition-all relative flex flex-col items-center justify-center text-center cursor-pointer min-w-[64px] max-w-[104px] sm:max-w-[128px] bg-transparent ${
               currentTab === 'profile'
-                ? 'bg-rose-100/90 dark:bg-slate-800 text-rose-700 dark:text-rose-300 shadow-xs'
-                : 'hover:bg-slate-100 dark:hover:bg-slate-800/60'
+                ? 'text-[var(--color-primary,#c06c84)]'
+                : 'hover:text-[var(--color-primary,#c06c84)]'
             }`}
           >
             <span
@@ -223,7 +223,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               {displayName}
             </span>
-            <span className="text-[9px] px-2 py-[1px] mt-0.5 rounded-full font-bold bg-[var(--color-light-pill,#fae8ed)] text-[var(--color-primary,#c06c84)] border border-[var(--theme-border-subtle,#f1e7ea)] dark:bg-slate-800 dark:text-rose-300 dark:border-slate-700 leading-none whitespace-nowrap shadow-2xs">
+            <span className="text-[9px] px-2 py-[1px] mt-0.5 rounded-full font-bold bg-transparent text-[var(--color-primary,#c06c84)] border border-transparent leading-none whitespace-nowrap">
               {displayRole}
             </span>
             {currentUser && (
@@ -256,7 +256,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
 
           {/* Divider */}
-          <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
+          <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-0.5" />
 
 
 
@@ -280,16 +280,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Mobile Action Buttons - Requirement 11 & Requirement 7 */}
-        <div className="flex items-center gap-1 md:hidden">
+        <div className="flex items-center gap-0.5 md:hidden">
           {/* Requirement 11: 2-line name + identity badge on mobile */}
           <button
             type="button"
             data-tutorial-target="visitor-profile"
             onClick={() => handleMobileNav('profile')}
-            className={`px-1.5 py-1 rounded-xl transition-colors flex flex-col items-center justify-center text-center min-w-[54px] max-w-[72px] shrink-0 ${
+            className={`px-1.5 py-1 rounded-xl transition-colors flex flex-col items-center justify-center text-center min-w-[54px] max-w-[72px] shrink-0 bg-transparent ${
               currentTab === 'profile'
-                ? 'bg-rose-100 text-rose-700 dark:bg-slate-800 dark:text-rose-300'
-                : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                ? 'text-[var(--color-primary,#c06c84)]'
+                : 'hover:text-[var(--color-primary,#c06c84)]'
             }`}
             title={currentUser ? `個人檔案 (${currentUser.name})` : `目前身分：${displayName} (訪客)`}
           >
@@ -299,7 +299,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               {displayName}
             </span>
-            <span className="text-[8.5px] px-1.5 py-[0.5px] mt-0.5 rounded-full font-bold bg-[var(--color-light-pill,#fae8ed)] text-[var(--color-primary,#c06c84)] border border-[var(--theme-border-subtle,#f1e7ea)] dark:bg-slate-800 dark:text-rose-300 dark:border-slate-700 leading-none whitespace-nowrap shadow-2xs">
+            <span className="text-[8.5px] px-1.5 py-[0.5px] mt-0.5 rounded-full font-bold bg-transparent text-[var(--color-primary,#c06c84)] border border-transparent leading-none whitespace-nowrap">
               {displayRole}
             </span>
           </button>
