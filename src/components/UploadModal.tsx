@@ -641,7 +641,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   <div className="text-left">
                     <p className="font-bold text-xs">{audioFile.name}</p>
                     <p className="text-[11px] opacity-75">
-                      {(audioFile.size / 1024 / 1024).toFixed(2)} MB • ${audioDurationSeconds ? formatDurationLabel(audioDurationSeconds) : '讀取長度中…'} • 直傳 Cloudflare R2
+                      {(audioFile.size / 1024 / 1024).toFixed(2)} MB • {audioDurationSeconds ? formatDurationLabel(audioDurationSeconds) : '讀取長度中…'} • 直傳 Cloudflare R2
                     </p>
                   </div>
                 </div>
