@@ -46,9 +46,28 @@ const sanitizeVersionLog = (log: VersionLog): VersionLog => ({
 
 export const DEFAULT_CHANGELOG_DATA: VersionLog[] = [
   {
-    version: 'v3.6',
+    version: 'v3.7',
     date: '2026/10/02',
     isLatest: true,
+    summary: '修復跨平台 PWA 安裝入口並固定顯示，精簡首頁排序列且確保直式小螢幕完整顯示所有排序／篩選按鈕；本次修改只使用瀏覽器本機能力，不新增 Cloudflare D1、KV、R2 寫入。',
+    added: [
+      '漢堡選單中的「安裝到桌面」改為永久固定顯示，不論裝置是否已安裝、瀏覽器是否提供 beforeinstallprompt 都不再隱藏。',
+      'iPhone／iPad、Android、Windows、Mac 與其他瀏覽器新增本機平台安裝說明；支援原生 PWA 安裝提示時仍優先直接叫出瀏覽器安裝視窗。'
+    ],
+    modified: [
+      '已安裝的裝置仍保留「安裝到桌面」入口，並顯示已安裝狀態與重新加入桌面的操作說明。',
+      '首頁排序與篩選列由六欄改為五欄：時間、評價、心得、獎銜、分類；直式小螢幕同樣全部顯示，不隱藏任何按鈕。',
+      'PWA 安裝與說明流程完全在瀏覽器端完成，不呼叫網站 API，不增加 Workers、D1、KV 或 R2 寫入。'
+    ],
+    removed: [
+      '移除首頁「講者」排序按鈕。',
+      '移除「只有瀏覽器提供原生安裝事件才顯示安裝按鈕」的限制。'
+    ]
+  },
+  {
+    version: 'v3.6',
+    date: '2026/10/02',
+    isLatest: false,
     summary: '以零新增 Cloudflare 寫入為原則完成首頁播放卡、迷你播放器、詳細頁照片框、排序篩選列、後台音檔編輯層級與 PWA 安裝入口優化。',
     added: [
       '迷你播放器照片中央新增常駐半透明播放／暫停圖示，照片本身仍可直接控制播放。',
