@@ -29,7 +29,52 @@ export interface VersionLog {
 }
 
 export const DEFAULT_CHANGELOG_DATA: VersionLog[] = [
-{"version":"v3.0","date":"2026/10/02","isLatest":true,"summary":"彙整 v3.0 與追加更新：R2 檔案管理、會員權限、首頁單列篩選與空白簡介。","added":["浮動播放器可拖曳移動；置頂箭頭位於左側，點擊音檔資訊直達詳細頁時間軸；新增首頁教學。","真正保存離線音檔，完成超過95%或15天未聽自動清除。","分享連結提供音檔封面預覽。"],"modified":["手機首頁評價、心得、按讚固定單列，縮減星星按鈕寬度並保留44px觸控高度。","首頁獎銜篩選隱藏GAR與創辦人選項；選擇一般獎銜會包含同級創辦人獎銜，GAR音檔依原本規則納入對應獎銜。","新上傳封面存放 R2 cover/；刪除錄音同步刪除專屬音訊物件，保留封面。","修復會員貢獻者、獎銜審核員與封鎖設定；加入失敗提示。","首頁固定單列：時間、評價、心得、按讚、講者、獎銜、分類。","每次進入網站顯示教學；簡介未填寫時維持空白。","統一視窗頂端標題與儲存操作、配色下拉選單，縮短會員分頁。","修復正式站關鍵字與獎銜審核；心得僅作者可修改，姓名與獎銜同步。","學習卡同步評分、心得與生命靈數資料。","調整首頁密度、搜尋建議、評價人數、篩選選單及排行日期。","九宮格天賦圈亮綠，星座與命數排版一致。"],"removed":["底部長條播放器與三態控制、工具列安裝按鈕、安裝說明彈窗。","AI Studio 範例資料與未使用預設關鍵字；分享重複網址。"]},
+  {
+    version: 'v3.2',
+    date: '2026/10/02',
+    isLatest: true,
+    summary: '首頁播放清單版面再優化，播放操作回歸人物封面中央，權限與時長資訊移至封面下方，互動按鈕全面放大；並將歷次改版完整彙整於網頁底部驚嘆號頁面。',
+    added: [
+      '人物照片頭像正中央新增半透明播放／暫停按鈕，保留點擊照片中央即可直接控制播放的直覺操作。',
+      '人物照片下方新增錄音檔權限文字；非公開權限顯示鎖頭圖示＋黃色權限文字與陰影，公開音檔則以低調文字顯示。'
+    ],
+    modified: [
+      '「約 X 分鐘」錄音長度移到人物照片下方顯示，與權限資訊集中於左側照片區。',
+      '已聽進度維持在人物照片頂端，字體自動縮小並強制單行顯示。',
+      '首頁播放清單中的評價、心得、按讚三組互動控制全面放大，提高手機與桌機點擊辨識度。',
+      '音檔資訊卡右側內容取消額外右內距，文字與操作區可完整利用卡片寬度。',
+      '驚嘆號改版頁改為自動依版本號判斷最新版本，不再寫死特定版本；伺服器已保存的歷史紀錄與程式內建紀錄會安全合併並保留。'
+    ],
+    removed: [
+      '刪除音檔資訊區右側獨立的播放按鈕。',
+      '刪除音檔資訊區內獨立的瀏覽權限標籤，改由人物照片下方統一顯示。'
+    ]
+  },
+  {
+    version: 'v3.1',
+    date: '2026/10/02',
+    isLatest: false,
+    summary: '雲端儲存與資料安全修復、R2 封面圖庫、新手教學偏好、關鍵字資料防毀損，以及首頁卡片與全站「心得」用詞統一。',
+    added: [
+      'R2 cover/ 封面圖庫快速選擇：上傳音檔時可直接選用既有演講者照片並自動帶入姓名。',
+      '首頁新手教學新增「永遠不再提醒！」選項，同一瀏覽器可永久記住偏好。',
+      '針對舊版關鍵字更新造成的「無標題／未知講者／封面消失」受損資料，加入依 R2 音檔檔名與 cover/ 圖庫自動回補機制。'
+    ],
+    modified: [
+      '播放進度改由 D1 保存，不再重複寫入 Workers KV；前端每 15 秒 checkpoint 最多同步一次，避免 KV Writes 大量消耗。',
+      'KV 額度耗盡時不再阻斷音檔 R2 上傳，音檔流水號改以 D1 與 KV 現有值共同判斷。',
+      '新上傳封面固定使用 cover-演講者名稱.副檔名，不再附加 timestamp 與亂碼；同名封面可直接更新。',
+      '音檔通用更新 API 改成真正 partial update，只更新實際傳入欄位，並回傳資料庫完整音檔資料。',
+      '關鍵字新增／修改／刪除後不再重複呼叫通用 PUT；前端同步改為合併資料，避免不完整回應覆蓋整筆音檔。',
+      '首頁錄音卡改成左側大封面、右側文字與操作；評價人數格式統一為「評分 (人數)」。',
+      '全站「留言板」顯示文字統一為「心得收穫」，「留言」統一為「心得」。'
+    ],
+    removed: [
+      '移除首頁「按讚排序」按鈕。',
+      '移除播放進度對 Workers KV 的重複寫入。'
+    ]
+  },
+{"version":"v3.0","date":"2026/10/02","isLatest":false,"summary":"彙整 v3.0 與追加更新：R2 檔案管理、會員權限、首頁單列篩選與空白簡介。","added":["浮動播放器可拖曳移動；置頂箭頭位於左側，點擊音檔資訊直達詳細頁時間軸；新增首頁教學。","真正保存離線音檔，完成超過95%或15天未聽自動清除。","分享連結提供音檔封面預覽。"],"modified":["手機首頁評價、心得、按讚固定單列，縮減星星按鈕寬度並保留44px觸控高度。","首頁獎銜篩選隱藏GAR與創辦人選項；選擇一般獎銜會包含同級創辦人獎銜，GAR音檔依原本規則納入對應獎銜。","新上傳封面存放 R2 cover/；刪除錄音同步刪除專屬音訊物件，保留封面。","修復會員貢獻者、獎銜審核員與封鎖設定；加入失敗提示。","首頁固定單列：時間、評價、心得、按讚、講者、獎銜、分類。","每次進入網站顯示教學；簡介未填寫時維持空白。","統一視窗頂端標題與儲存操作、配色下拉選單，縮短會員分頁。","修復正式站關鍵字與獎銜審核；心得僅作者可修改，姓名與獎銜同步。","學習卡同步評分、心得與生命靈數資料。","調整首頁密度、搜尋建議、評價人數、篩選選單及排行日期。","九宮格天賦圈亮綠，星座與命數排版一致。"],"removed":["底部長條播放器與三態控制、工具列安裝按鈕、安裝說明彈窗。","AI Studio 範例資料與未使用預設關鍵字；分享重複網址。"]},
 {"version":"v2.9","date":"2026/10/01","summary":"正式站資料持久化與手機版修復。","added":["PWA 安裝基礎、會員資料保存與 Google 頭像同步。"],"modified":["正式站按讚、評價、心得 API；愛心狀態同步。","手機字體、觸控按鈕與 SVG 九宮格圈線。","延遲載入大型管理與匯出功能。"],"removed":["主選單三倍字體按鈕；網頁翻譯提示。"]},
   {
     version: 'v2.8',
@@ -268,7 +313,7 @@ export const ChangelogModal: React.FC<ChangelogModalProps> = ({
   isAdmin
 }) => {
   const [changelogList, setChangelogList] = useState<VersionLog[]>(DEFAULT_CHANGELOG_DATA);
-  const [selectedVersion, setSelectedVersion] = useState<string>('v2.6');
+  const [selectedVersion, setSelectedVersion] = useState<string>(DEFAULT_CHANGELOG_DATA[0]?.version || 'v3.2');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -299,13 +344,43 @@ export const ChangelogModal: React.FC<ChangelogModalProps> = ({
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            const hasV28 = data.some((v: any) => v.version === 'v2.8');
-            const finalData = [...DEFAULT_CHANGELOG_DATA.filter(v => !data.some((d: VersionLog) => d.version === v.version)), ...data].map(v=>{
-              const shipped=DEFAULT_CHANGELOG_DATA.find(d=>d.version===v.version);
-              return shipped ? {...v,summary:v.version==='v3.0'?shipped.summary:v.summary,added:[...new Set([...shipped.added,...(v.added||[])])],modified:[...new Set([...shipped.modified,...(v.modified||[])])],removed:[...new Set([...shipped.removed,...(v.removed||[])])],isLatest:v.version==='v3.0'} : {...v,isLatest:false};
-            }).sort((a,b)=>b.version.localeCompare(a.version,undefined,{numeric:true}));
+            const byVersion = new Map<string, VersionLog>();
+
+            // Start from shipped history so newly released versions are always visible.
+            for (const log of DEFAULT_CHANGELOG_DATA) {
+              byVersion.set(log.version, { ...log, isLatest: false });
+            }
+
+            // Merge server-edited history without losing shipped additions.
+            for (const persisted of data as VersionLog[]) {
+              if (!persisted?.version) continue;
+              const shipped = byVersion.get(persisted.version);
+              if (shipped) {
+                byVersion.set(persisted.version, {
+                  ...shipped,
+                  ...persisted,
+                  added: [...new Set([...(shipped.added || []), ...(persisted.added || [])])],
+                  modified: [...new Set([...(shipped.modified || []), ...(persisted.modified || [])])],
+                  removed: [...new Set([...(shipped.removed || []), ...(persisted.removed || [])])],
+                  isLatest: false
+                });
+              } else {
+                byVersion.set(persisted.version, {
+                  ...persisted,
+                  added: Array.isArray(persisted.added) ? persisted.added : [],
+                  modified: Array.isArray(persisted.modified) ? persisted.modified : [],
+                  removed: Array.isArray(persisted.removed) ? persisted.removed : [],
+                  isLatest: false
+                });
+              }
+            }
+
+            const finalData = Array.from(byVersion.values())
+              .sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }))
+              .map((log, index) => ({ ...log, isLatest: index === 0 }));
+
             setChangelogList(finalData);
-            setSelectedVersion(finalData[0].version);
+            setSelectedVersion(finalData[0]?.version || DEFAULT_CHANGELOG_DATA[0].version);
             return;
           }
         }
