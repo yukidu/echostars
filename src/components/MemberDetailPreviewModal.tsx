@@ -189,7 +189,7 @@ export const MemberDetailPreviewModal: React.FC<MemberDetailPreviewModalProps> =
           ctx.font = '12px sans-serif';
           ctx.fillStyle = '#555555';
           const starStr = item.userRating ? `★ ${item.userRating}分` : '無評分';
-          const commentStr = item.userComment ? `心得：「${item.userComment}」` : '尚無心得留言';
+          const commentStr = item.userComment ? `心得：「${item.userComment}」` : '尚無心得';
           ctx.fillText(`用戶評價：${starStr}  •  ${commentStr}`, padding + 18, y + 68);
 
           // Bottom divider line
@@ -495,7 +495,7 @@ export const MemberDetailPreviewModal: React.FC<MemberDetailPreviewModalProps> =
 
                       <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 truncate max-w-xs">
                         <MessageSquare className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{item.userComment ? `心得：「${item.userComment}」` : '尚未留言'}</span>
+                        <span className="truncate">{item.userComment ? `心得：「${item.userComment}」` : '尚未心得'}</span>
                       </div>
                     </div>
                   </div>
