@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, MessageSquare, Heart, Clock, ChevronRight, Lock, CheckCircle2, Play, Pause } from 'lucide-react';
+import { Star, MessageSquare, Heart, Clock, Lock, CheckCircle2, Play, Pause } from 'lucide-react';
 import { Track } from '../types';
 import { AudioMemory } from '../utils/audio';
 
@@ -77,16 +77,16 @@ export const AudioCard: React.FC<AudioCardProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`audio-card group relative w-full rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs border transition-all duration-200 cursor-pointer overflow-hidden p-1.5 sm:p-2 shadow-2xs hover:shadow-md hover:-translate-y-0.5 ${
+      className={`audio-card group relative w-full rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xs border transition-all duration-200 cursor-pointer overflow-hidden p-2.5 sm:p-3 shadow-2xs hover:shadow-md hover:-translate-y-0.5 ${
         isCurrentTrack
           ? 'border-[var(--color-primary,#c06c84)] dark:border-rose-600 ring-2 ring-rose-200/70 dark:ring-rose-950'
           : 'border-rose-100/70 dark:border-slate-800 hover:border-rose-200 dark:hover:border-slate-700'
       }`}
     >
-      <div className="flex items-start gap-2 sm:gap-2.5">
-        {/* Left Column: Speaker Cover Photo + (Requirement 19) Duration under Photo */}
-        <div className="shrink-0 flex flex-col items-center">
-          <div className="relative w-15 h-15 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-black/20 dark:bg-slate-800 shadow-2xs">
+      <div className="flex items-stretch gap-3 sm:gap-4">
+        {/* Left: enlarged cover photo. Only listening progress stays over the image. */}
+        <div className="shrink-0">
+          <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden bg-black/20 dark:bg-slate-800 shadow-sm">
             <img
               src={track.speakerAvatar}
               alt={track.speaker}
@@ -94,76 +94,40 @@ export const AudioCard: React.FC<AudioCardProps> = ({
               loading="lazy"
             />
 
-            {/* Center Play/Pause Triangle Button (Requirement 11: 必須點擊照片中間三角形按鈕才能播放/暫停) */}
-            <button
-              type="button"
-              onClick={handlePlayClick}
-              className="absolute inset-0 m-auto w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-110 active:scale-95 z-20 group-hover:scale-105"
-              title={isPlaying ? '暫停播放' : '開始播放'}
-            >
-              {isPlaying ? (
-                <Pause className="w-3.5 h-3.5 fill-white text-white" />
-              ) : (
-                <Play className="w-3.5 h-3.5 fill-white text-white ml-0.5" />
-              )}
-            </button>
-
-            {/* Playing wave animation */}
             {isPlaying && (
-              <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
-                <div className="flex items-end gap-0.5 h-4 mb-3">
-                  <span className="w-1 bg-white rounded-full animate-bounce [animation-delay:-0.3s] h-3.5" />
-                  <span className="w-1 bg-white rounded-full animate-bounce [animation-delay:-0.15s] h-4" />
-                  <span className="w-1 bg-white rounded-full animate-bounce h-2.5" />
-                </div>
-              </div>
+              <div className="absolute inset-0 bg-black/20 pointer-events-none" />
             )}
 
-            {/* Requirement 14: 已聽完和已聽進度，顯示位子在專輯封面大頭照的上面，節省空間 */}
+            {/* Listening progress: force one line and shrink text to fit the larger cover. */}
             {isCompleted ? (
-              <div className="absolute top-0 inset-x-0 bg-emerald-600/95 text-white text-[9px] font-bold text-center py-0.5 truncate flex items-center justify-center gap-0.5 z-10 shadow-2xs">
+              <div className="absolute top-0 inset-x-0 bg-emerald-600/95 text-white text-[8px] sm:text-[9px] font-bold text-center px-1 py-1 whitespace-nowrap overflow-hidden flex items-center justify-center gap-0.5 z-10 shadow-2xs leading-none">
                 <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
-                <span>[已聽完]</span>
+                <span className="whitespace-nowrap">[已聽完]</span>
               </div>
             ) : hasListened2Min ? (
-              <div className="absolute top-0 inset-x-0 bg-blue-600/95 text-white text-[9px] font-bold text-center py-0.5 font-mono z-10 shadow-2xs">
+              <div className="absolute top-0 inset-x-0 bg-blue-600/95 text-white text-[8px] sm:text-[9px] font-bold text-center px-1 py-1 font-mono z-10 shadow-2xs whitespace-nowrap overflow-hidden leading-none">
                 [已聽 {Math.round(progressRatio * 100)}%]
               </div>
             ) : null}
-
-            {/* Bottom: Required Permission Badge (Requirement 11 v2.7: 權限顯示鎖頭圖案+私秘VIP) */}
-            <div className="absolute bottom-0 inset-x-0 bg-black/75 backdrop-blur-[1px] text-amber-300 text-[9px] font-bold text-center py-0.5 px-0.5 truncate flex items-center justify-center gap-0.5 z-10">
-              {(!canAccess || track.isPrivateVip) && <Lock className="w-2.5 h-2.5 text-amber-400 shrink-0" />}
-              <span className="truncate">{displayRequiredRank}</span>
-            </div>
-          </div>
-
-          {/* Requirement 19: 小時鐘圖案錄音時間長度顯示功能，位置改在封面頭像的下方顯示 */}
-          <div className="flex items-center justify-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 mt-1 font-mono">
-            <Clock className="w-2.5 h-2.5 text-slate-400" />
-            <span className="truncate">{track.duration}</span>
           </div>
         </div>
 
-        {/* Center: Information */}
-        <div className="flex-1 min-w-0 flex flex-col justify-between self-stretch">
-          {/* Row 1: Title (Requirement 4: 縮小邊框間距，標題顯示更長，太長換行顯示) */}
+        {/* Right: all text and controls. */}
+        <div className="flex-1 min-w-0 flex flex-col">
           <div>
-            <h3 className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug break-words line-clamp-3 group-hover:text-[var(--color-primary,#c06c84)] dark:group-hover:text-rose-400 transition-colors">
+            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 leading-snug break-words line-clamp-3 group-hover:text-[var(--color-primary,#c06c84)] dark:group-hover:text-rose-400 transition-colors">
               {track.title}
             </h3>
 
-            {/* Row 2: Speaker + Rank (Requirement 18: 格式字體顏色一致，不需括弧) */}
-            <p className="font-bold text-xs text-slate-600 dark:text-slate-300 mt-0.5 truncate">
+            <p className="font-bold text-sm sm:text-base text-slate-700 dark:text-slate-200 mt-1 truncate">
               {speakerDisplay}
             </p>
 
-            {/* Row 3: Requirement 19 & 11: 分類標籤顯示位置在演講者下方，顏色連動主色系 */}
-            <div className="flex items-center gap-1 flex-wrap mt-1">
+            <div className="flex items-center gap-1 flex-wrap mt-1.5">
               {categories.map((cat, idx) => (
                 <span
                   key={idx}
-                  className="text-[10px] font-semibold px-1.5 py-0.2 rounded-md border"
+                  className="text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.5 rounded-md border"
                   style={{
                     backgroundColor: 'var(--color-light-pill, #fae8ed)',
                     color: 'var(--color-primary, #c06c84)',
@@ -174,18 +138,40 @@ export const AudioCard: React.FC<AudioCardProps> = ({
                 </span>
               ))}
             </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[10px] sm:text-[11px]">
+              <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 font-mono">
+                <Clock className="w-3 h-3 shrink-0" />
+                {track.duration}
+              </span>
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-bold bg-slate-100 dark:bg-slate-800 text-amber-700 dark:text-amber-300"
+                title="收聽權限"
+              >
+                {(!canAccess || track.isPrivateVip) && <Lock className="w-3 h-3 shrink-0" />}
+                {displayRequiredRank}
+              </span>
+              <button
+                type="button"
+                onClick={handlePlayClick}
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-bold text-white shadow-2xs hover:brightness-105 active:scale-95 transition-all"
+                style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+                title={isPlaying ? '暫停播放' : '開始播放'}
+              >
+                {isPlaying ? (
+                  <Pause className="w-3.5 h-3.5 fill-white text-white" />
+                ) : (
+                  <Play className="w-3.5 h-3.5 fill-white text-white" />
+                )}
+                <span>{isPlaying ? '暫停' : '播放'}</span>
+              </button>
+            </div>
           </div>
 
-
-        </div>
-
-        {/* Requirement 4: 刪除每一張音檔卡右邊的箭頭符號 */}
-      </div>
-          {/* Row 4: Ratings, Comments, Likes - Requirement 15 (v2.7): 嚴格單行排列，避免評分後整列變成二行 */}
-          <div className="track-actions flex items-center flex-nowrap gap-1 sm:gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 pt-1 mt-1 border-t border-slate-100 dark:border-slate-800 whitespace-nowrap overflow-hidden min-w-0 select-none">
-            {/* 5-Star Interactive Rating */}
+          <div className="mt-auto pt-2.5 space-y-1.5 border-t border-slate-100 dark:border-slate-800">
+            {/* Row 1: rating only. Count format matches detail view: (number). */}
             <div
-              className="flex items-center flex-nowrap gap-[1px] shrink-0"
+              className="flex items-center flex-nowrap gap-[1px] min-w-0"
               onClick={e => e.stopPropagation()}
               title="點擊星星評分，點擊同星級可取消"
             >
@@ -199,10 +185,10 @@ export const AudioCard: React.FC<AudioCardProps> = ({
                     onClick={() => onRate && onRate(userRating === starNum ? 0 : starNum)}
                     aria-label={`評分 ${starNum} 星`}
                     aria-pressed={userRating === starNum}
-                    className="rating-star p-0 hover:scale-125 transition-transform shrink-0"
+                    className="rating-star p-0.5 hover:scale-125 transition-transform shrink-0"
                   >
                     <Star
-                      className={`w-3 h-3 ${
+                      className={`w-3.5 h-3.5 ${
                         isFilled
                           ? 'fill-amber-400 text-amber-400'
                           : 'text-slate-300 dark:text-slate-600'
@@ -211,59 +197,59 @@ export const AudioCard: React.FC<AudioCardProps> = ({
                   </button>
                 );
               })}
-              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 ml-0.5 tabular-nums shrink-0">
-                {(track.rating || 0).toFixed(1)} · {track.ratingCount || 0}人
+              <span className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 ml-1 tabular-nums whitespace-nowrap">
+                {(track.rating || 0).toFixed(1)}
+                <span className="text-slate-400 font-normal ml-1">({track.ratingCount || 0})</span>
               </span>
             </div>
 
-            <span className="text-slate-300 dark:text-slate-700 shrink-0 text-[10px]">|</span>
-
-            {/* Comments Popup */}
-            <button
-              type="button"
-              onClick={e => {
-                e.stopPropagation();
-                if (onOpenCommentPreview) onOpenCommentPreview();
-              }}
-              className="reaction-button flex items-center flex-nowrap gap-0.5 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition-colors px-1 py-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0"
-              title="點擊預覽留言"
-            >
-              <MessageSquare className="w-3 h-3 text-slate-400 shrink-0" />
-              <span className="text-[10px] font-medium shrink-0">{track.commentsCount}</span>
-            </button>
-
-            <span className="text-slate-300 dark:text-slate-700 shrink-0 text-[10px]">|</span>
-
-            {/* Likes */}
-            <button
-              type="button"
-              onClick={e => {
-                e.stopPropagation();
-                if (onToggleLike) onToggleLike();
-              }}
-              className="reaction-button flex items-center flex-nowrap gap-0.5 hover:scale-105 transition-transform shrink-0 px-1 py-0.5"
-              title="點擊切換喜愛"
-              aria-label={hasLiked ? '收回按讚' : '按讚'}
-              aria-pressed={hasLiked}
-            >
-              <Heart
-                className="w-3 h-3 transition-colors shrink-0"
-                style={{
-                  color: hasLiked ? 'var(--color-primary, #c06c84)' : undefined,
-                  fill: hasLiked ? 'var(--color-primary, #c06c84)' : 'none'
+            {/* Row 2: feedback + likes. */}
+            <div className="flex items-center gap-2.5 text-[11px] sm:text-xs text-slate-600 dark:text-slate-400">
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  if (onOpenCommentPreview) onOpenCommentPreview();
                 }}
-              />
-              <span
-                className="text-[10px] font-medium shrink-0"
-                style={{
-                  color: hasLiked ? 'var(--color-primary, #c06c84)' : undefined,
-                  fontWeight: hasLiked ? 'bold' : 'normal'
-                }}
+                className="reaction-button inline-flex items-center gap-1 hover:text-rose-600 dark:hover:text-rose-400 transition-colors px-1 py-0.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
+                title="點擊預覽心得"
               >
-                {track.likes}
-              </span>
-            </button>
+                <MessageSquare className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="font-semibold">心得 {track.commentsCount}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={e => {
+                  e.stopPropagation();
+                  if (onToggleLike) onToggleLike();
+                }}
+                className="reaction-button inline-flex items-center gap-1 hover:scale-105 transition-transform px-1 py-0.5"
+                title="點擊切換喜愛"
+                aria-label={hasLiked ? '收回按讚' : '按讚'}
+                aria-pressed={hasLiked}
+              >
+                <Heart
+                  className="w-3.5 h-3.5 transition-colors shrink-0"
+                  style={{
+                    color: hasLiked ? 'var(--color-primary, #c06c84)' : undefined,
+                    fill: hasLiked ? 'var(--color-primary, #c06c84)' : 'none'
+                  }}
+                />
+                <span
+                  className="font-semibold"
+                  style={{
+                    color: hasLiked ? 'var(--color-primary, #c06c84)' : undefined,
+                    fontWeight: hasLiked ? 'bold' : undefined
+                  }}
+                >
+                  按讚 {track.likes}
+                </span>
+              </button>
+            </div>
           </div>
+        </div>
+      </div>
     </div>
   );
 };
