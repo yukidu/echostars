@@ -25,7 +25,8 @@ import {
   Search,
   Download,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from 'lucide-react';
 import {
   UserProfile,
@@ -43,7 +44,7 @@ import {
   UserListeningRecord
 } from '../types';
 import { calculateNumerology } from '../utils/numerology';
-import { exportPersonalProfileCard, shareOrDownloadProfileCard } from '../utils/canvasExport';
+import { exportMemberProfileAndListeningImage, shareOrDownloadProfileCard } from '../utils/canvasExport';
 import { GOOGLE_CLIENT_ID } from '../config/auth';
 import { NumerologyGrid } from './NumerologyGrid';
 import { AvatarCropModal } from './AvatarCropModal';
@@ -60,6 +61,7 @@ interface ProfileModalProps {
   onSelectTrack: (track: Track) => void;
   onSelectCategory?: (category: CategoryType) => void;
   onRateTrack?: (trackId: string, rating: number) => void;
+  onClearListeningHistory?: () => Promise<void>;
   allUsers?: UserProfile[];
 }
 
@@ -91,6 +93,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onSelectTrack,
   onSelectCategory,
   onRateTrack,
+  onClearListeningHistory,
   allUsers = []
 }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'ratings' | 'comments' | 'listening'>('profile');
@@ -107,7 +110,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   useEffect(() => {
-    if (!isOpen || !currentUser) return;
+    if (!isOpen || !currentUser || activeTab !== 'listening') return;
     setIsLoadingRecords(true);
     const idParam = currentUser.email || currentUser.id;
     fetch(`/api/playback/history/${encodeURIComponent(idParam)}`)
@@ -119,7 +122,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       .catch(() => {
         setIsLoadingRecords(false);
       });
-  }, [isOpen, currentUser]);
+  }, [isOpen, currentUser, activeTab]);
 
   // Edit profile states for all fields
   const [isEditing, setIsEditing] = useState(false);
@@ -240,12 +243,29 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     if (!currentUser || isExportingCard) return;
     setIsExportingCard(true);
     try {
-      const blob = await exportPersonalProfileCard(currentUser);
+      const records = userListenedItems.map(({ track, record }) => ({ track, record }));
+      const blob = await exportMemberProfileAndListeningImage(currentUser, records);
       await shareOrDownloadProfileCard(blob, currentUser.name);
     } catch (err) {
       console.error('Failed to export personal profile card:', err);
     } finally {
       setIsExportingCard(false);
+    }
+  };
+
+  const [isClearingHistory, setIsClearingHistory] = useState(false);
+
+  const handleClearHistory = async () => {
+    if (!onClearListeningHistory || isClearingHistory) return;
+    setIsClearingHistory(true);
+    setSaveError(null);
+    try {
+      await onClearListeningHistory();
+      setListeningRecords({});
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '清除學習紀錄失敗');
+    } finally {
+      setIsClearingHistory(false);
     }
   };
 
@@ -756,7 +776,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
                         <div>
                           <label className="block font-bold text-slate-700 dark:text-slate-300 mb-0.5">
-                            繁星中心
+                            直銷商中心
                           </label>
                           <ThemedSelect
                             value={center}
@@ -1140,6 +1160,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               {/* TAB 4: 已聆聽音檔清單 (Requirement 7: 修復此頁空白問題) */}
               {activeTab === 'listening' && (
                 <div className="space-y-2.5">
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={handleClearHistory}
+                      disabled={isClearingHistory || userListenedItems.length === 0}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-300 text-[11px] font-bold hover:bg-rose-50 dark:hover:bg-rose-950/50 disabled:opacity-40"
+                      title="清除雲端與此裝置的聆聽進度紀錄"
+                    >
+                      {isClearingHistory ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      <span>{isClearingHistory ? '清除中…' : '清除紀錄'}</span>
+                    </button>
+                  </div>
                   {isLoadingRecords ? (
                     <div className="text-center py-8 text-slate-400 flex items-center justify-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary,#c06c84)]" />
