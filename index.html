@@ -18,6 +18,19 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
+    <script>
+      // Capture Chromium's native install event before the React bundle loads.
+      // The component consumes this exact browser event later from the user's click.
+      window.__ECHOSTARS_INSTALL_PROMPT__ = null;
+      window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        window.__ECHOSTARS_INSTALL_PROMPT__ = event;
+        window.dispatchEvent(new Event('echostars-install-prompt-ready'));
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__ECHOSTARS_INSTALL_PROMPT__ = null;
+      });
+    </script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
