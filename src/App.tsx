@@ -386,6 +386,7 @@ export default function App() {
     trackId: '',
     second: -1
   });
+  const durationRepairStartedRef = useRef(false);
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [selectedDetailTrack, setSelectedDetailTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -603,6 +604,10 @@ export default function App() {
   }, [currentTab, isAdminOpen, isProfileOpen, commentPreviewTrack, selectedDetailTrack]);
 
   useEffect(() => {
+    if (tracks.length > 0) writeHomeCache(tracks, categoryOptions);
+  }, [tracks, categoryOptions]);
+
+  useEffect(() => {
     const trackId = (selectedDetailTrack || currentTrack)?.id;
     setComments([]);
     if (!trackId) return;
@@ -675,7 +680,13 @@ export default function App() {
     setTracks(prev =>
       prev.map(t => (t.id === track.id ? { ...t, playCount: (t.playCount || 0) + 1 } : t))
     );
-    fetch(`/api/tracks/${track.id}/play`, { method: 'POST' }).catch(() => {});
+    fetch(`/api/tracks/${track.id}/play`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userIdOrDeviceId: currentUser?.email || null
+      })
+    }).catch(() => {});
 
     // Record to offline cache registry
     recordOfflineTrack(track.id, track.audioUrl);
@@ -705,10 +716,81 @@ export default function App() {
     }
   };
 
+  const syncPlaybackToCloud = (force = false) => {
+    // Visitors already have instant localStorage progress; only logged-in members
+    // need D1 for cross-device resume. This avoids needless writes for anonymous use.
+    if (!currentUser?.email || !currentTrack || !audioRef.current) return;
+
+    const cur = audioRef.current.currentTime || 0;
+    const dur = audioRef.current.duration || currentTrack.durationSeconds || 0;
+    if (!dur || !Number.isFinite(dur)) return;
+
+    const wholeSecond = Math.floor(cur);
+    const lastSync = lastPlaybackSyncRef.current;
+    const sameTrack = lastSync.trackId === currentTrack.id;
+    const secondsSinceLast = sameTrack ? wholeSecond - lastSync.second : Number.POSITIVE_INFINITY;
+
+    if (!force) {
+      if (wholeSecond < 1) return;
+      if (sameTrack && secondsSinceLast < 60) return;
+    } else if (sameTrack && Math.abs(secondsSinceLast) < 10) {
+      return;
+    }
+
+    lastPlaybackSyncRef.current = { trackId: currentTrack.id, second: wholeSecond };
+    fetch('/api/playback/record', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: force,
+      body: JSON.stringify({
+        trackId: currentTrack.id,
+        userIdOrDeviceId: currentUser.email,
+        currentTime: cur,
+        duration: dur
+      })
+    }).catch(() => {});
+  };
+
+  const handleLoadedMetadata = () => {
+    if (!audioRef.current || !currentTrack) return;
+    const realDuration = audioRef.current.duration;
+    if (!Number.isFinite(realDuration) || realDuration <= 0) return;
+
+    const seconds = Math.round(realDuration);
+    const label = `約 ${Math.max(1, Math.round(seconds / 60))} 分鐘`;
+    setDuration(realDuration);
+
+    if (
+      Math.abs((currentTrack.durationSeconds || 0) - seconds) > 5 ||
+      currentTrack.duration === '約 10 分鐘'
+    ) {
+      updateTrackCopies(currentTrack.id, t => ({
+        ...t,
+        durationSeconds: seconds,
+        duration: label
+      }));
+
+      // Persist duration repair only for the super admin. New uploads already
+      // store the correct value locally before reaching Cloudflare.
+      if (isSuperAdmin) {
+        fetch(`/api/tracks/${encodeURIComponent(currentTrack.id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            durationSeconds: seconds,
+            duration: label,
+            userEmail: currentUser?.email
+          })
+        }).catch(() => {});
+      }
+    }
+  };
+
   // Toggle Play / Pause
   const handleTogglePlay = () => {
     if (!audioRef.current) return;
     if (isPlaying) {
+      syncPlaybackToCloud(true);
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
@@ -783,29 +865,9 @@ export default function App() {
     // Offline space management: auto purge if >95% completed
     handleTrackProgressOffline(currentTrack.id, cur, dur);
 
-    // Sync to backend at most once for each 15-second checkpoint.
-    // "timeupdate" fires several times per second, so checking only second % 15
-    // would otherwise send duplicate requests throughout the same second.
-    const wholeSecond = Math.floor(cur);
-    const isSyncCheckpoint = wholeSecond > 0 && wholeSecond % 15 === 0;
-    const lastSync = lastPlaybackSyncRef.current;
-    if (
-      isSyncCheckpoint &&
-      (lastSync.trackId !== currentTrack.id || lastSync.second !== wholeSecond)
-    ) {
-      lastPlaybackSyncRef.current = { trackId: currentTrack.id, second: wholeSecond };
-      const idKey = currentUser ? currentUser.email : visitor.deviceId;
-      fetch('/api/playback/record', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          trackId: currentTrack.id,
-          userIdOrDeviceId: idKey,
-          currentTime: cur,
-          duration: dur
-        })
-      }).catch(() => {});
-    }
+    // Cloud sync is intentionally low-frequency to preserve the D1 free tier.
+    // Local progress remains instant on every timeupdate.
+    syncPlaybackToCloud(false);
   };
 
   const pendingInteractions = useRef(new Set<string>());
@@ -1307,8 +1369,12 @@ export default function App() {
       {/* Hidden Native Audio Element */}
       <audio
         ref={audioRef}
+        onLoadedMetadata={handleLoadedMetadata}
         onTimeUpdate={handleTimeUpdate}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => {
+          syncPlaybackToCloud(true);
+          setIsPlaying(false);
+        }}
         onWaiting={() => setIsLoadingAudio(true)}
         onCanPlay={() => setIsLoadingAudio(false)}
         onError={() => {
