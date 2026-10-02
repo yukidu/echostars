@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Home, BarChart3, Bell, User, UploadCloud, Settings, Palette, Moon, Sun, Mic, Menu, X, ShieldAlert } from 'lucide-react';
 import { UserProfile, RANK_ORDER } from '../types';
 import { VisitorIdentity } from '../utils/visitor';
 import { TwinklingStars } from './TwinklingStars';
 import { InstallAppButton } from './InstallAppButton';
+import { TutorialSpotlight } from './TutorialSpotlight';
 
 const HOME_TUTORIAL_NEVER_REMIND_KEY = 'echostars_home_tutorial_never_remind_v1';
 
@@ -21,6 +22,7 @@ interface NavbarProps {
   canUpload?: boolean;
   pendingNotificationsCount?: number;
   visitor?: VisitorIdentity;
+  onTutorialVisibilityChange?: (visible: boolean) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,7 +36,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   isAdmin,
   canUpload = true,
   pendingNotificationsCount = 0,
-  visitor
+  visitor,
+  onTutorialVisibilityChange
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -94,6 +97,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   });
   const [neverRemindTutorial, setNeverRemindTutorial] = useState(false);
 
+  useEffect(() => {
+    onTutorialVisibilityChange?.(showTutorial);
+  }, [showTutorial, onTutorialVisibilityChange]);
+
   const handleNeverRemindTutorialChange = (checked: boolean) => {
     setNeverRemindTutorial(checked);
     if (typeof window === 'undefined') return;
@@ -124,6 +131,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Brand Logo - 點擊左上角麥克風圖或繁星回聲，返回首頁播放清單「全部分類」，清空搜尋條件 */}
         <button
           type="button"
+          data-tutorial-target="home-logo"
           onClick={handleLogoClick}
           className="flex items-center gap-2 sm:gap-2.5 text-left group focus:outline-hidden cursor-pointer"
           title="返回首頁播放清單（全部分類）"
@@ -155,10 +163,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </button>
 
+        <TutorialSpotlight
+          active={showTutorial}
+          targetSelector='[data-tutorial-target="home-logo"]'
+          padding={6}
+          opacity={0.76}
+          zIndex={70}
+        />
+
         {showTutorial && (
           <div
             role="status"
-            className="absolute top-full left-3 z-[80] max-w-[calc(100vw-24px)] rounded-2xl bg-[var(--color-primary)] text-white p-4 shadow-xl border-2 border-white"
+            className="absolute top-full left-3 z-[90] max-w-[calc(100vw-24px)] rounded-2xl bg-[var(--color-primary)] text-white p-4 shadow-xl border-2 border-white"
           >
             <div className="absolute -top-8 left-10 text-4xl font-black text-[var(--color-primary)]" aria-hidden="true">↑</div>
             <p className="font-bold text-lg">按這裡回首頁播放清單</p>
@@ -169,7 +185,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onChange={e => handleNeverRemindTutorialChange(e.target.checked)}
                 className="w-4 h-4 rounded border-white/70 accent-white cursor-pointer"
               />
-              <span className="font-bold text-sm">永遠不再提醒！</span>
+              <span className="font-bold text-sm">永遠不再提醒</span>
             </label>
             <button type="button" onClick={dismissTutorial} className="mt-2 rounded-lg bg-white/20 px-3 py-2">
               知道了
