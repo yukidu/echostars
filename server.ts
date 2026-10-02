@@ -784,7 +784,7 @@ app.put('/api/tracks/:id', (req, res) => {
   if (index === -1) return res.status(404).json({ error: '音檔不存在' });
 
   const current = tracks[index];
-  const { userEmail } = req.body;
+  const { userEmail, id: _ignoredId, uploadDate: _ignoredUploadDate, ...patch } = req.body;
 
   // Contributor check: only admin or the original uploader can edit
   const isAdmin = isSuperAdminEmail(userEmail);
@@ -796,10 +796,14 @@ app.put('/api/tracks/:id', (req, res) => {
 
   const updated: Track = {
     ...current,
-    ...req.body,
-    categories: Array.isArray(req.body.categories) ? req.body.categories.slice(0, 3) : current.categories,
-    keywords: Array.isArray(req.body.keywords) ? req.body.keywords.slice(0, 20) : (current.keywords || []),
-    uploadDate: current.uploadDate
+    ...patch,
+    categories: Array.isArray(patch.categories) ? patch.categories.slice(0, 3) : current.categories,
+    keywords: Array.isArray(patch.keywords) ? [...new Set(patch.keywords.map((k: any) => String(k).trim()).filter(Boolean))].slice(0, 20) : (current.keywords || []),
+    // Immutable identity/history fields cannot be accidentally overwritten by partial UI requests.
+    id: current.id,
+    uploadDate: current.uploadDate,
+    uploaderId: current.uploaderId,
+    uploaderEmail: current.uploaderEmail
   };
   tracks[index] = updated;
   saveStoreToDisk();

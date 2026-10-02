@@ -865,9 +865,30 @@ export default function App() {
   };
 
   // Requirement 2: 在「最大化視窗」直接修改音檔資訊、備註與相關學習連結
-  const handleUpdateTrack = async (trackId: string, updates: Partial<Track>) => {
+  // persist=false is used when a specialized endpoint (e.g. keyword API) has
+  // already saved the change and we only need to synchronize React state.
+  const handleUpdateTrack = async (
+    trackId: string,
+    updates: Partial<Track>,
+    options?: { persist?: boolean }
+  ) => {
+    const mergeLocalTrack = (patch: Partial<Track>) => {
+      setTracks(prev => prev.map(t => (t.id === trackId ? { ...t, ...patch } : t)));
+      if (currentTrack?.id === trackId) {
+        setCurrentTrack(prev => (prev ? { ...prev, ...patch } : prev));
+      }
+      if (selectedDetailTrack?.id === trackId) {
+        setSelectedDetailTrack(prev => (prev ? { ...prev, ...patch } : prev));
+      }
+    };
+
+    if (options?.persist === false) {
+      mergeLocalTrack(updates);
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/tracks/${trackId}`, {
+      const res = await fetch(`/api/tracks/${encodeURIComponent(trackId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...updates, userEmail: currentUser?.email })
@@ -877,14 +898,15 @@ export default function App() {
         alert(err.error || '儲存失敗');
         return;
       }
-      const updated = await res.json();
-      setTracks(prev => prev.map(t => (t.id === trackId ? updated : t)));
-      if (currentTrack?.id === trackId) {
-        setCurrentTrack(updated);
-      }
-      if (selectedDetailTrack?.id === trackId) {
-        setSelectedDetailTrack(updated);
-      }
+      const payload = await res.json();
+      const serverTrack =
+        payload?.track && typeof payload.track === 'object'
+          ? payload.track
+          : payload;
+
+      // Never replace a full track with a partial API object. Merge instead so a
+      // malformed/legacy response cannot blank title, speaker, cover or audio URL.
+      mergeLocalTrack(serverTrack && typeof serverTrack === 'object' ? serverTrack : updates);
     } catch (err) {
       console.error('Update track failed:', err);
       alert('更新失敗，請檢查網路連線。');

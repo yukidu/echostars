@@ -424,38 +424,106 @@ export default {
         }
 
         // 5.3.0 更新錄音檔 (PUT /api/tracks/:id)
+        // IMPORTANT: this endpoint is a true partial update. Missing fields must NEVER
+        // be replaced with placeholders/empty values, otherwise a keyword-only edit
+        // can destroy title, speaker, cover and other metadata.
         if (/^\/api\/tracks\/[^/]+$/.test(path) && method === 'PUT') {
-          const trackId = path.split('/api/tracks/')[1];
+          const trackId = decodeURIComponent(path.split('/api/tracks/')[1]);
           const body: any = await request.json().catch(() => ({}));
-          if (env.DB && trackId) {
-            try {
-              await env.DB.prepare(`
-                UPDATE tracks SET
-                  title = ?, speaker = ?, speakerRank = ?, speakerAvatar = ?,
-                  categories = ?, keywords = ?, series = ?, speechDate = ?,
-                  requiredRank = ?, seriesOrder = ?, description = ?,
-                  externalVideos = ?, externalPpts = ?, externalFiles = ?
-                WHERE id = ?
-              `).bind(
-                body.title || '無標題', body.speaker || '未知講者', body.speakerRank || '無',
-                body.speakerAvatar || '', JSON.stringify(body.categories || []), JSON.stringify(body.keywords || []),
-                body.series || '', body.speechDate || '', body.requiredRank || '無', body.seriesOrder || '',
-                body.description || '', JSON.stringify(body.externalVideos || []), JSON.stringify(body.externalPpts || []),
-                JSON.stringify(body.externalFiles || []), trackId
-              ).run();
-            } catch (e) {
-              console.error('D1 update track error:', e);
+          if (!env.DB) return errorResponse('資料庫尚未連線', 503);
+
+          try {
+            const existing: any = await env.DB.prepare('SELECT * FROM tracks WHERE id = ?').bind(trackId).first();
+            if (!existing) return errorResponse('音檔不存在', 404);
+
+            const updates: string[] = [];
+            const values: any[] = [];
+            const has = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
+            const add = (column: string, value: any) => {
+              updates.push(`${column} = ?`);
+              values.push(value);
+            };
+
+            if (has('title')) {
+              const value = String(body.title || '').trim();
+              if (!value) return errorResponse('演講主題不可為空', 400);
+              add('title', value);
             }
+            if (has('speaker')) {
+              const value = String(body.speaker || '').trim();
+              if (!value) return errorResponse('演講者不可為空', 400);
+              add('speaker', value);
+            }
+            if (has('speakerRank')) add('speakerRank', String(body.speakerRank || '無'));
+            if (has('speakerAvatar') && String(body.speakerAvatar || '').trim()) add('speakerAvatar', String(body.speakerAvatar));
+            if (has('categories')) {
+              if (!Array.isArray(body.categories)) return errorResponse('分類格式錯誤', 400);
+              add('categories', JSON.stringify(body.categories.slice(0, 3)));
+            }
+            if (has('keywords')) {
+              if (!Array.isArray(body.keywords)) return errorResponse('關鍵字格式錯誤', 400);
+              add('keywords', JSON.stringify([...new Set(body.keywords.map((k: any) => String(k).trim()).filter(Boolean))].slice(0, 20)));
+            }
+            if (has('series')) add('series', String(body.series || ''));
+            if (has('speechDate')) add('speechDate', String(body.speechDate || ''));
+            if (has('requiredRank')) add('requiredRank', String(body.requiredRank || '無'));
+            if (has('seriesOrder')) add('seriesOrder', String(body.seriesOrder || ''));
+            if (has('description')) add('description', String(body.description || ''));
+            if (has('duration')) add('duration', String(body.duration || ''));
+            if (has('durationSeconds') && Number.isFinite(Number(body.durationSeconds))) add('durationSeconds', Number(body.durationSeconds));
+            if (has('audioUrl') && String(body.audioUrl || '').trim()) add('audioUrl', String(body.audioUrl));
+            if (has('isPrivateVip')) add('isPrivateVip', body.isPrivateVip ? 1 : 0);
+            if (has('vipToken')) add('vipToken', body.vipToken || null);
+            if (has('vipExpiresAt')) add('vipExpiresAt', body.vipExpiresAt ?? null);
+            if (has('vipDurationDays') && Number.isFinite(Number(body.vipDurationDays))) add('vipDurationDays', Number(body.vipDurationDays));
+
+            for (const field of ['externalVideos', 'externalPpts', 'externalFiles'] as const) {
+              if (has(field)) {
+                if (!Array.isArray(body[field])) return errorResponse(`${field} 格式錯誤`, 400);
+                add(field, JSON.stringify(body[field]));
+              }
+            }
+
+            if (updates.length > 0) {
+              await env.DB.prepare(`UPDATE tracks SET ${updates.join(', ')} WHERE id = ?`)
+                .bind(...values, trackId)
+                .run();
+            }
+
+            const row: any = await env.DB.prepare('SELECT * FROM tracks WHERE id = ?').bind(trackId).first();
+            const parseArray = (value: any) => {
+              try {
+                const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+                return Array.isArray(parsed) ? parsed : [];
+              } catch {
+                return [];
+              }
+            };
+            const parseObject = (value: any) => {
+              try {
+                const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+                return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+              } catch {
+                return {};
+              }
+            };
+            const updatedTrack = {
+              ...row,
+              categories: parseArray(row.categories),
+              keywords: parseArray(row.keywords),
+              externalVideos: parseArray(row.externalVideos),
+              externalPpts: parseArray(row.externalPpts),
+              externalFiles: parseArray(row.externalFiles),
+              likedBy: parseArray(row.likedBy),
+              ratings: parseObject(row.ratings),
+              isPrivateVip: Boolean(row.isPrivateVip)
+            };
+
+            return jsonResponse({ success: true, track: updatedTrack });
+          } catch (e) {
+            console.error('D1 partial track update error:', e);
+            return errorResponse('更新音檔資料失敗', 500);
           }
-          const updatedTrack = {
-            ...body,
-            id: trackId,
-            categories: Array.isArray(body.categories) ? body.categories : ['未分類'],
-            keywords: Array.isArray(body.keywords) ? body.keywords : [],
-            likedBy: Array.isArray(body.likedBy) ? body.likedBy : [],
-            ratings: typeof body.ratings === 'object' && body.ratings !== null ? body.ratings : {}
-          };
-          return jsonResponse({ success: true, track: updatedTrack, ...updatedTrack });
         }
 
         // 5.3.3 音檔播放計數 (POST /api/tracks/:id/play)

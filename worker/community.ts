@@ -71,6 +71,68 @@ function normalizeTrack(row: any) {
   track.ratings = parse(row.ratings, {});
   return track;
 }
+
+function looksLikeLegacyPartialUpdateDamage(row: any) {
+  const emptyArray = (value: any) => {
+    const parsed = parse(value, []);
+    return Array.isArray(parsed) && parsed.length === 0;
+  };
+  return row?.title === '無標題'
+    && row?.speaker === '未知講者'
+    && !String(row?.speakerAvatar || '').trim()
+    && emptyArray(row?.categories)
+    && !String(row?.series || '').trim()
+    && !String(row?.speechDate || '').trim()
+    && !String(row?.seriesOrder || '').trim()
+    && !String(row?.description || '').trim()
+    && Boolean(String(row?.audioUrl || '').match(/ES\d{4,}-/i));
+}
+
+function cleanCoverSpeakerName(key: string) {
+  const fileName = decodeURIComponent(String(key || '')).split('/').pop() || '';
+  return fileName
+    .replace(/\.[^.]+$/, '')
+    .replace(/^cover-/i, '')
+    .replace(/-\d{10,14}-[a-z0-9]{4,8}$/i, '')
+    .replace(/-/g, ' ')
+    .trim();
+}
+
+function recoverTrackIdentityFromAudioUrl(audioUrl: string, coverObjects: any[]) {
+  let decoded = String(audioUrl || '');
+  try { decoded = decodeURIComponent(decoded); } catch {}
+  const fileName = decoded.split('/').pop() || '';
+  const withoutExt = fileName.replace(/\.[^.]+$/, '');
+  const match = withoutExt.match(/^ES\d{4,}-(.+?)-(.+)$/i);
+  if (!match) return null;
+
+  const speakerPart = match[1].trim();
+  const title = match[2].trim();
+  if (!speakerPart || !title) return null;
+
+  const compact = (value: string) => value.replace(/[\s-]+/g, '').toLowerCase();
+  const compactSpeakerPart = compact(speakerPart);
+  const candidates = (coverObjects || [])
+    .map((obj: any) => ({ obj, name: cleanCoverSpeakerName(obj.key) }))
+    .filter((item: any) => item.name && compactSpeakerPart.startsWith(compact(item.name)))
+    .sort((a: any, b: any) => compact(b.name).length - compact(a.name).length);
+
+  const coverMatch = candidates[0];
+  const speaker = coverMatch?.name || speakerPart;
+  const normalizedSpeaker = compact(speaker);
+  const rankSuffix = compactSpeakerPart.startsWith(normalizedSpeaker)
+    ? speakerPart.slice(Math.min(speakerPart.length, speaker.replace(/[\s-]+/g, '').length)).trim()
+    : '';
+
+  return {
+    title,
+    speaker,
+    speakerRank: rankSuffix || '無',
+    speakerAvatar: coverMatch?.obj?.key
+      ? `/api/r2/file/${encodeURIComponent(coverMatch.obj.key)}`
+      : ''
+  };
+}
 const normalizeComment = (row: any) => ({ ...row, isAdmin: Boolean(row.isAdmin), likedBy: parse(row.likedBy, []) });
 const keysFor = (body: any) => [...new Set([body.identifier, body.userEmail, body.userId, body.deviceId].filter(x => typeof x === 'string' && x.trim()).map(x => x.includes('@') ? x.toLowerCase().trim() : x))];
 
@@ -175,6 +237,43 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
     }
     if (path === '/api/tracks') {
       const { results } = await db.prepare('SELECT * FROM tracks ORDER BY uploadDate DESC').all();
+
+      // One-time self-healing for rows damaged by the old generic PUT bug.
+      // That bug replaced omitted metadata with placeholders/empty values, but
+      // audioUrl remained intact, so title/speaker can be reconstructed from the
+      // stable R2 audio filename and the speaker photo can be matched from cover/.
+      const damagedRows = results.filter(looksLikeLegacyPartialUpdateDamage);
+      if (damagedRows.length > 0) {
+        let coverObjects: any[] = [];
+        try {
+          if (env.R2_BUCKET) {
+            const listed = await env.R2_BUCKET.list({ prefix: 'cover/', limit: 1000 });
+            coverObjects = listed.objects || [];
+          }
+        } catch (error) {
+          console.warn('R2 cover lookup for track recovery failed:', error);
+        }
+
+        for (const row of damagedRows) {
+          const recovered = recoverTrackIdentityFromAudioUrl(row.audioUrl, coverObjects);
+          if (!recovered) continue;
+          try {
+            await db.prepare(
+              'UPDATE tracks SET title = ?, speaker = ?, speakerRank = ?, speakerAvatar = ? WHERE id = ?'
+            ).bind(
+              recovered.title,
+              recovered.speaker,
+              recovered.speakerRank,
+              recovered.speakerAvatar || row.speakerAvatar || '',
+              row.id
+            ).run();
+            Object.assign(row, recovered);
+          } catch (error) {
+            console.warn('Track metadata recovery failed:', row.id, error);
+          }
+        }
+      }
+
       return json(results.map(normalizeTrack));
     }
     if (trackAction || (commentAction && commentAction[2] && method === 'POST')) {
