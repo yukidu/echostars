@@ -316,9 +316,9 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
       }
       const body: any = await request.json();
       const target = trackId || body.trackId;
-      if (!target || !body.content?.trim()) return json({ error: '請輸入留言內容與音檔' }, 400);
+      if (!target || !body.content?.trim()) return json({ error: '請輸入心得內容與音檔' }, 400);
       if (!await db.prepare('SELECT id FROM tracks WHERE id = ?').bind(target).first()) return json({ error: '找不到音檔' }, 404);
-      if (body.replyToId && !await db.prepare('SELECT id FROM comments WHERE id = ? AND trackId = ?').bind(body.replyToId, target).first()) return json({ error: '回覆的留言已不存在' }, 400);
+      if (body.replyToId && !await db.prepare('SELECT id FROM comments WHERE id = ? AND trackId = ?').bind(body.replyToId, target).first()) return json({ error: '回覆的心得已不存在' }, 400);
       const comment = { id: `c-${crypto.randomUUID()}`, trackId: target, authorName: body.authorName || '訪客', authorAvatar: body.authorAvatar || '👤', authorBadge: body.authorBadge || '', authorEmail: body.authorEmail || '', deviceId: body.deviceId || '', content: body.content.trim(), timestamp: '剛剛', createdAt: Date.now(), replyToId: body.replyToId || null, replyToAuthor: body.replyToAuthor || null, isAdmin: !!body.isAdmin, likes: 0, likedBy: [] };
       const columns = Object.keys(comment);
       await db.batch([
@@ -330,14 +330,14 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
     if (commentAction) {
       const id = decodeURIComponent(commentAction[1]);
       const row = await db.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
-      if (!row) return json({ error: '留言不存在' }, 404);
+      if (!row) return json({ error: '心得不存在' }, 404);
       if (method === 'PUT') {
         const body: any = await request.json();
         const owns = row.authorEmail
           ? body.userEmail && row.authorEmail.toLowerCase().trim() === body.userEmail.toLowerCase().trim()
           : row.deviceId && row.deviceId === body.deviceId;
-        if (!owns) return json({error:'只能修改自己的留言'},403);
-        if (!body.content?.trim()) return json({ error: '留言不可空白' }, 400);
+        if (!owns) return json({error:'只能修改自己的心得'},403);
+        if (!body.content?.trim()) return json({ error: '心得不可空白' }, 400);
         await db.prepare('UPDATE comments SET content = ? WHERE id = ?').bind(body.content.trim(), id).run();
         return json(normalizeComment({ ...row, content: body.content.trim() }));
       }
