@@ -1320,6 +1320,12 @@ export default function App() {
     }
     clearStoredPlayback(tracks.map(t => t.id));
     setPlaybackMemories({});
+    setAllUsers(prev => prev.map(user =>
+      user.id === currentUser.id || user.email === currentUser.email
+        ? { ...user, playCount: 0 }
+        : user
+    ));
+    setCurrentUser(prev => prev ? { ...prev, playCount: 0 } : prev);
     lastPlaybackSyncRef.current = { trackId: '', second: -1 };
     if (audioRef.current && currentTrack) {
       audioRef.current.currentTime = 0;
