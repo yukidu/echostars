@@ -6,6 +6,7 @@ const router = readFileSync(new URL('../worker/categoryIntegrityRouter.ts', impo
 const bootstrap = readFileSync(new URL('../src/categoryIntegrityBootstrap.ts', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
 const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
 const sw = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 
 test('deleted categories are scrubbed from persisted tracks exactly once', () => {
@@ -37,6 +38,11 @@ test('client track writes are also sanitized against the latest category list', 
   assert.match(bootstrap, /rewriteTrackWrite/);
   assert.match(bootstrap, /body\.categories = sanitizeTrackCategories\(body\.categories\)/);
   assert.match(bootstrap, /pathname\.startsWith\('\/api\/categories'\)/);
+});
+
+test('schema reruns cannot recreate categories deleted by an administrator', () => {
+  assert.doesNotMatch(schema, /INSERT\s+OR\s+IGNORE\s+INTO\s+categories/i);
+  assert.match(schema, /分類完全由後台管理中心維護/);
 });
 
 test('PWA shell cache advances for category integrity release', () => {
