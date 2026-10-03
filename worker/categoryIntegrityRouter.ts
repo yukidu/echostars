@@ -1,7 +1,7 @@
 import appWorker from './sessionCookieRouter';
 import type { Env } from './index';
 
-const CATEGORY_INTEGRITY_MIGRATION = 'category-integrity-v57';
+const CATEGORY_INTEGRITY_MIGRATION = 'category-integrity-v71';
 const initialized = new WeakMap<object, Promise<void>>();
 
 function parseCategories(value: unknown): string[] {
@@ -30,12 +30,9 @@ async function liveCategories(db: any): Promise<string[]> {
 
 function sanitizeCategories(input: unknown, allowed: string[]): string[] {
   const allowedSet = new Set(allowed);
-  const next = [...new Set(parseCategories(input))]
+  return [...new Set(parseCategories(input))]
     .filter(name => allowedSet.has(name))
     .slice(0, 3);
-
-  if (next.length) return next;
-  return allowedSet.has('未分類') ? ['未分類'] : [];
 }
 
 async function ensureCategoryIntegrity(db: any) {
@@ -49,6 +46,9 @@ async function ensureCategoryIntegrity(db: any) {
         .first();
       if (migrated) return;
 
+      // The categories table is the only source of truth. This one-time v71
+      // reconciliation safely removes stale/deleted category names from old
+      // track rows. A track with no valid category stays as an empty array.
       const allowed = await liveCategories(db);
       const { results: rows } = await db.prepare('SELECT id, categories FROM tracks').all();
       const statements: any[] = [];
