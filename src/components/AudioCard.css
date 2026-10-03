@@ -1,0 +1,13 @@
+@keyframes newcomerRainbowBorder {
+  0%, 100% { border-color: #ff3b30; }
+  16% { border-color: #ff9500; }
+  33% { border-color: #ffcc00; }
+  50% { border-color: #34c759; }
+  66% { border-color: #00a8ff; }
+  83% { border-color: #8e44ff; }
+}
+
+/* Keep the existing border width/radius; animate color only. */
+.newcomer-rainbow-border {
+  animation: newcomerRainbowBorder 2.8s linear infinite;
+}
