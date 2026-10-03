@@ -6,6 +6,13 @@ import {
   type CanonicalPlaybackRecord,
   type TrackProgressMeta
 } from '../shared/learningProgress';
+import {
+  canInspectOtherLearningHistory,
+  decideLearningHistoryScope,
+  learningIdentityAliases,
+  normalizeLearningIdentity,
+  type LearningHistoryScopeDecision
+} from '../shared/learningHistoryAccess';
 
 const learningSchemaReady = new WeakMap<object, Promise<void>>();
 
@@ -17,10 +24,6 @@ function json(data: unknown, status = 200) {
       'Cache-Control': 'no-store'
     }
   });
-}
-
-function normalizeIdentity(value: unknown) {
-  return String(value || '').trim().toLowerCase();
 }
 
 async function ensureLearningSchema(db: any) {
@@ -109,20 +112,6 @@ async function authenticatedUser(request: Request, env: Env) {
   return data?.user || null;
 }
 
-function aliasesFor(user: any, requestedId = '') {
-  const aliases = new Set<string>();
-  if (user) {
-    const email = normalizeIdentity(user.email);
-    const id = normalizeIdentity(user.id);
-    if (email) aliases.add(email);
-    if (id) aliases.add(id);
-  } else {
-    const requested = normalizeIdentity(requestedId);
-    if (requested) aliases.add(requested);
-  }
-  return [...aliases];
-}
-
 // Older playback rows sometimes kept the correct member identity only in the
 // primary key (`<identity>_<trackId>`) while userIdentifier was blank or used an
 // earlier format. Match both representations so historical progress can never
@@ -141,6 +130,31 @@ function playbackIdentityFilter(aliases: string[]) {
     where: clauses.length ? clauses.join(' OR ') : '0',
     bindings
   };
+}
+
+async function resolveHistoryScope(
+  request: Request,
+  requestedId: string,
+  env: Env,
+  allowAdminTarget: boolean
+): Promise<LearningHistoryScopeDecision> {
+  const actor = await authenticatedUser(request, env);
+  const initial = decideLearningHistoryScope(actor, requestedId, null, allowAdminTarget);
+  if (initial.ok || initial.status !== 404) return initial;
+
+  // A 404 from the pure decision at this point means a privileged viewer is
+  // requesting another member. Resolve that member explicitly instead of ever
+  // falling back to the current session identity.
+  if (!env.DB || !actor || !canInspectOtherLearningHistory(actor)) return initial;
+  const requested = normalizeLearningIdentity(requestedId);
+  const target: any = await env.DB.prepare(`
+    SELECT id, email, role, isAdminUser
+    FROM users
+    WHERE LOWER(TRIM(id)) = ? OR LOWER(TRIM(email)) = ?
+    LIMIT 1
+  `).bind(requested, requested).first();
+
+  return decideLearningHistoryScope(actor, requestedId, target, allowAdminTarget);
 }
 
 async function trackMetaMap(db: any, trackIds: string[]) {
@@ -178,27 +192,30 @@ async function canonicalRecords(env: Env, aliases: string[]): Promise<Record<str
 
 async function historyResponse(request: Request, requestedId: string, env: Env) {
   if (!env.DB || !requestedId) return json({});
-  const user = await authenticatedUser(request, env);
-  if (!user && requestedId.includes('@')) return json({ error: '請先登入會員' }, 401);
-  const aliases = aliasesFor(user, requestedId);
-  return json(await canonicalRecords(env, aliases));
+  const scope = await resolveHistoryScope(request, requestedId, env, true);
+  if (!scope.ok) return json({ error: scope.error }, scope.status);
+  return json(await canonicalRecords(env, scope.aliases));
 }
 
 async function deleteHistory(request: Request, requestedId: string, env: Env) {
   if (!env.DB || !requestedId) return json({ error: '缺少使用者識別' }, 400);
-  const user = await authenticatedUser(request, env);
-  if (!user && requestedId.includes('@')) return json({ error: '請先登入會員' }, 401);
-  const aliases = aliasesFor(user, requestedId);
-  if (!aliases.length) return json({ success: true });
+
+  // Clearing history is intentionally self-only. Even administrators may view
+  // a member for support, but cannot delete somebody else's learning history.
+  const scope = await resolveHistoryScope(request, requestedId, env, false);
+  if (!scope.ok) return json({ error: scope.error }, scope.status);
+  if (!scope.aliases.length) return json({ success: true });
+
   await ensureLearningSchema(env.DB);
-  const filter = playbackIdentityFilter(aliases);
+  const filter = playbackIdentityFilter(scope.aliases);
+  const actor = await authenticatedUser(request, env);
   const statements = [
     env.DB.prepare(`DELETE FROM playback_memories WHERE ${filter.where}`).bind(...filter.bindings)
   ];
-  if (user) {
+  if (actor) {
     statements.push(
       env.DB.prepare('UPDATE users SET playCount = 0 WHERE id = ? OR LOWER(TRIM(email)) = ?')
-        .bind(String(user.id || ''), normalizeIdentity(user.email))
+        .bind(String(actor.id || ''), normalizeLearningIdentity(actor.email))
     );
   }
   await env.DB.batch(statements);
@@ -212,8 +229,8 @@ async function recordPlayback(request: Request, env: Env) {
   const trackId = String(body.trackId || '').trim();
   const user = await authenticatedUser(request, env);
   const identifier = user
-    ? (normalizeIdentity(user.email) || normalizeIdentity(user.id))
-    : normalizeIdentity(body.userIdOrDeviceId);
+    ? (normalizeLearningIdentity(user.email) || normalizeLearningIdentity(user.id))
+    : normalizeLearningIdentity(body.userIdOrDeviceId);
   if (!trackId || !identifier) return json({ error: '缺少必要參數 (trackId, userIdOrDeviceId)' }, 400);
 
   const track: any = await env.DB.prepare(`
@@ -295,10 +312,10 @@ async function memberStats(request: Request, env: Env) {
   if (!env.DB) return json({ error: '資料庫尚未連線' }, 503);
   const user = await authenticatedUser(request, env);
   if (!user) return json({ error: '請先登入會員' }, 401);
-  const aliases = aliasesFor(user);
+  const aliases = learningIdentityAliases(user);
   const records = await canonicalRecords(env, aliases);
   const summary = summarizePlaybackRecords(records);
-  const email = normalizeIdentity(user.email);
+  const email = normalizeLearningIdentity(user.email);
 
   const comments: any = await env.DB.prepare(`
     SELECT COUNT(*) AS count
@@ -333,7 +350,7 @@ async function recordShare(request: Request, env: Env) {
   `).bind(
     `share-${crypto.randomUUID()}`,
     String(user.id || ''),
-    normalizeIdentity(user.email),
+    normalizeLearningIdentity(user.email),
     trackId,
     Date.now()
   ).run();
