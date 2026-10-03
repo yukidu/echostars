@@ -111,19 +111,25 @@ export const AudioCard: React.FC<AudioCardProps> = ({
 
             {/* Listening progress: always one line, compact font. */}
             {isCompleted ? (
-              <div className="absolute top-0 inset-x-0 bg-emerald-600/95 text-white text-[8px] sm:text-[9px] font-bold text-center px-1 py-1 whitespace-nowrap overflow-hidden flex items-center justify-center gap-0.5 z-30 shadow-2xs leading-none">
+              <div
+                className="absolute top-0 inset-x-0 text-white text-[8px] sm:text-[9px] font-bold text-center px-1 py-1 whitespace-nowrap overflow-hidden flex items-center justify-center gap-0.5 z-30 shadow-2xs leading-none"
+                style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+              >
                 <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
                 <span className="whitespace-nowrap">[已聽完]</span>
               </div>
             ) : hasListened2Min ? (
-              <div className="absolute top-0 inset-x-0 bg-blue-600/95 text-white text-[8px] sm:text-[9px] font-bold text-center px-1 py-1 font-mono z-30 shadow-2xs whitespace-nowrap overflow-hidden leading-none">
+              <div
+                className="absolute top-0 inset-x-0 text-white text-[8px] sm:text-[9px] font-bold text-center px-1 py-1 font-mono z-30 shadow-2xs whitespace-nowrap overflow-hidden leading-none"
+                style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
+              >
                 [已聽 {Math.round(progressRatio * 100)}%]
               </div>
             ) : null}
 
             {/* Access level sits inside the portrait at the bottom. */}
             <div
-              className="absolute bottom-0 inset-x-0 z-30 flex items-center justify-center gap-0.5 bg-black/35 px-1 py-[2px] sm:py-0.5 text-[8px] sm:text-[9px] leading-none font-black text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] whitespace-nowrap overflow-hidden"
+              className="absolute bottom-0 inset-x-0 z-30 flex items-center justify-center gap-0.5 bg-black/35 px-1 py-[2px] sm:py-0.5 text-[8px] sm:text-[9px] leading-none font-black text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] whitespace-nowrap overflow-hidden"
               title={`收聽權限：${displayRequiredRank}`}
             >
               {displayRequiredRank !== '公開' && <Lock className="w-2.5 h-2.5 shrink-0" />}
