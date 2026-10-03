@@ -2,8 +2,17 @@ import appWorker from './playbackOwnerRouter';
 import type { Env } from './index';
 
 const SESSION_COOKIE = 'echostars_session';
-const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+// Site policy: keep the verified member session until the user explicitly logs
+// out / clears site data, or the account/session is revoked for security.
+// 2^31-1 seconds is the broadest interoperable persistent-cookie value. Some
+// browsers may impose a shorter storage cap, so /api/auth/session refreshes the
+// cookie whenever the member returns to the site.
+const PERSISTENT_COOKIE_MAX_AGE_SECONDS = 2147483647;
+const PERSISTENT_COOKIE_EXPIRES = 'Fri, 31 Dec 9999 23:59:59 GMT';
+const PERSISTENT_SESSION_EXPIRES_AT = 253402300799999;
+const PERSISTENCE_MIGRATION = 'persistent-auth-sessions-v1';
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{30,}$/;
+const persistentSchemaReady = new WeakMap<object, Promise<void>>();
 
 function bearerToken(request: Request) {
   const match = request.headers.get('Authorization')?.match(/^Bearer\s+([A-Za-z0-9_-]{30,})$/i);
@@ -28,11 +37,11 @@ function sessionTokens(request: Request) {
 }
 
 function sessionCookie(token: string) {
-  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}; Priority=High`;
+  return `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${PERSISTENT_COOKIE_MAX_AGE_SECONDS}; Expires=${PERSISTENT_COOKIE_EXPIRES}; Priority=High`;
 }
 
 function clearedSessionCookie() {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Priority=High`;
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Priority=High`;
 }
 
 function requestWithCookieSession(request: Request) {
@@ -54,11 +63,71 @@ function withSetCookie(response: Response, cookie: string) {
   });
 }
 
+function withJsonAndCookie(response: Response, data: unknown, cookie: string) {
+  const headers = new Headers(response.headers);
+  headers.set('Content-Type', 'application/json; charset=utf-8');
+  headers.set('Cache-Control', 'no-store');
+  headers.set('Set-Cookie', cookie);
+  return new Response(JSON.stringify(data), {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
 async function hashToken(token: string) {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
   return Array.from(new Uint8Array(digest))
     .map(byte => byte.toString(16).padStart(2, '0'))
     .join('');
+}
+
+async function ensurePersistentSessions(db: any) {
+  if (!db) return;
+  const key = db as object;
+  if (!persistentSchemaReady.has(key)) {
+    const task = (async () => {
+      const authTable = await db.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'auth_sessions'"
+      ).first();
+      if (!authTable) return;
+
+      await db.prepare('CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY)').run();
+      const done = await db.prepare('SELECT name FROM app_migrations WHERE name = ?')
+        .bind(PERSISTENCE_MIGRATION).first();
+      if (done) return;
+
+      const now = Date.now();
+      await db.batch([
+        // Do not resurrect sessions that had already expired before this policy
+        // change. Every still-valid session is upgraded in place.
+        db.prepare('DELETE FROM auth_sessions WHERE expiresAt <= ?').bind(now),
+        db.prepare('UPDATE auth_sessions SET expiresAt = ? WHERE expiresAt > ?')
+          .bind(PERSISTENT_SESSION_EXPIRES_AT, now),
+        db.prepare('INSERT OR IGNORE INTO app_migrations(name) VALUES (?)')
+          .bind(PERSISTENCE_MIGRATION)
+      ]);
+    })();
+    persistentSchemaReady.set(key, task);
+    task.catch(() => persistentSchemaReady.delete(key));
+  }
+  await persistentSchemaReady.get(key);
+}
+
+async function persistSessionToken(db: any, token: string) {
+  if (!db || !TOKEN_PATTERN.test(token)) return false;
+  await ensurePersistentSessions(db);
+  const tokenHash = await hashToken(token);
+  const row: any = await db.prepare('SELECT expiresAt FROM auth_sessions WHERE tokenHash = ? LIMIT 1')
+    .bind(tokenHash).first();
+  if (!row) return false;
+  const currentExpiry = Number(row.expiresAt || 0);
+  if (currentExpiry <= Date.now()) return false;
+  if (currentExpiry !== PERSISTENT_SESSION_EXPIRES_AT) {
+    await db.prepare('UPDATE auth_sessions SET expiresAt = ? WHERE tokenHash = ?')
+      .bind(PERSISTENT_SESSION_EXPIRES_AT, tokenHash).run();
+  }
+  return true;
 }
 
 async function logout(request: Request, env: Env) {
@@ -84,6 +153,12 @@ async function logout(request: Request, env: Env) {
 }
 
 async function sessionResponse(request: Request, env: Env) {
+  try {
+    await ensurePersistentSessions(env.DB);
+  } catch (error) {
+    console.warn('Persistent session migration failed:', error);
+  }
+
   const token = bearerToken(request) || cookieToken(request);
   const delegated = requestWithCookieSession(request);
   const response = await appWorker.fetch(delegated, env);
@@ -101,21 +176,37 @@ async function sessionResponse(request: Request, env: Env) {
   // cached member. Returning the same verified first-party session token here
   // lets a browser context recovered from the HttpOnly cookie immediately join
   // the existing authenticated fetch path without introducing a second auth model.
-  const body = JSON.stringify({ ...data, authToken: token });
-  const headers = new Headers(response.headers);
-  headers.set('Content-Type', 'application/json; charset=utf-8');
-  headers.set('Cache-Control', 'no-store');
-  headers.set('Set-Cookie', sessionCookie(token));
-  return new Response(body, { status: response.status, headers });
+  return withJsonAndCookie(response, {
+    ...data,
+    authToken: token,
+    sessionExpiresAt: PERSISTENT_SESSION_EXPIRES_AT
+  }, sessionCookie(token));
 }
 
 async function googleLoginResponse(request: Request, env: Env) {
+  try {
+    await ensurePersistentSessions(env.DB);
+  } catch (error) {
+    console.warn('Persistent session migration failed before login:', error);
+  }
+
   const response = await appWorker.fetch(request, env);
   if (!response.ok) return response;
   const data: any = await response.clone().json().catch(() => null);
   const token = String(data?.authToken || '');
   if (!TOKEN_PATTERN.test(token)) return response;
-  return withSetCookie(response, sessionCookie(token));
+
+  try {
+    const persisted = await persistSessionToken(env.DB, token);
+    if (!persisted) console.warn('Verified login session could not be upgraded to persistent storage.');
+  } catch (error) {
+    console.warn('Persisting verified login session failed:', error);
+  }
+
+  return withJsonAndCookie(response, {
+    ...data,
+    sessionExpiresAt: PERSISTENT_SESSION_EXPIRES_AT
+  }, sessionCookie(token));
 }
 
 export default {
