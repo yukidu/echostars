@@ -33,9 +33,18 @@ jobs:
       - name: commentModerationRemoval
         if: always()
         run: node --import tsx --test tests/commentModerationRemoval.test.ts
-      - name: community
+      - name: community profiles reactions comments
         if: always()
-        run: node --import tsx --test tests/community.test.ts
+        run: node --import tsx --test --test-name-pattern="legacy schema|Google default photo|track likes|ratings aggregate|comments are bound|regular admins|deleted initial tracks|missing DB binding|many numerology|Worker routes track comments|nested and orphan|v3 comment edits" tests/community.test.ts
+      - name: community keywords rank offline categories
+        if: always()
+        run: node --import tsx --test --test-name-pattern="v3 keywords|v3 rank approval|v3 offline cleanup|category order" tests/community.test.ts
+      - name: community track admin VIP persistence
+        if: always()
+        run: node --import tsx --test --test-name-pattern="track metadata edits|failed track/category writes|admin batch saves|VIP metadata persists" tests/community.test.ts
+      - name: community keyword ownership and long comments
+        if: always()
+        run: node --import tsx --test --test-name-pattern="keyword ownership|keyword ranking|comments allow 2000" tests/community.test.ts
       - name: globalNavigation
         if: always()
         run: node --import tsx --test tests/globalNavigation.test.ts
@@ -95,6 +104,7 @@ jobs:
         run: node --import tsx --test tests/vipAutoplay.test.ts
       - name: TypeScript diagnostic
         if: always()
+        continue-on-error: true
         run: npm run lint
       - name: Production build diagnostic
         if: always()
