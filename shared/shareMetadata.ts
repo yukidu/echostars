@@ -1,6 +1,13 @@
-export function shareMetadata(html: string, track: {title:string;speaker?:string;speakerAvatar?:string}, origin:string, id:string) {
+export function shareMetadata(
+  html: string,
+  track: {title:string;speaker?:string;speakerAvatar?:string},
+  origin: string,
+  id: string,
+  bareQuery = ''
+) {
   const escape=(value:string)=>value.replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
-  const url = origin + '/share/' + encodeURIComponent(id);
+  const query = bareQuery ? `?${bareQuery}` : '';
+  const url = origin + '/share/' + encodeURIComponent(id) + query;
   let image = origin + '/icon-512.png';
   try { const parsed=new URL(track.speakerAvatar||'',origin); if(['https:','http:'].includes(parsed.protocol)) image=parsed.href; } catch {}
   const title=escape(track.title), description=escape((track.speaker||'')+' · 繁星回聲');

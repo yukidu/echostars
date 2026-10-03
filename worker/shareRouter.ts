@@ -34,6 +34,13 @@ async function ensureShareSchema(db: any) {
         ON tracks(shareSlug)
         WHERE shareSlug IS NOT NULL AND shareSlug <> ''
       `).run();
+      await db.prepare(`
+        CREATE TABLE IF NOT EXISTS vip_share_access (
+          trackId TEXT PRIMARY KEY,
+          password TEXT NOT NULL,
+          updatedAt INTEGER NOT NULL
+        )
+      `).run();
     })();
     schemaReady.set(key, promise);
     promise.catch(() => schemaReady.delete(key));
@@ -67,25 +74,43 @@ export function romanizeSpeakerName(name: string) {
   return tokens.join('-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'SPEAKER';
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function randomVipPassword() {
+  const value = new Uint32Array(1);
+  crypto.getRandomValues(value);
+  return String(value[0] % 10000).padStart(4, '0');
+}
+
+function validVipPassword(value: string) {
+  return /^\d{4,12}$/.test(value);
+}
+
 async function assignShareSlug(db: any, trackId: string) {
   await ensureShareSchema(db);
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const track: any = await db.prepare(
-      'SELECT id, speaker, shareSlug FROM tracks WHERE id = ?'
+      'SELECT id, speaker, shareSlug, isPrivateVip FROM tracks WHERE id = ?'
     ).bind(trackId).first();
     if (!track) return { error: '音檔不存在', status: 404 } as const;
-    if (String(track.shareSlug || '').trim()) {
-      return { shareSlug: String(track.shareSlug).trim() } as const;
+    if (Boolean(track.isPrivateVip)) {
+      return { error: '私秘 VIP 音檔請使用 VIP 專屬分享連結', status: 409 } as const;
     }
 
     const base = romanizeSpeakerName(track.speaker || 'SPEAKER');
+    const normalPattern = new RegExp(`^${escapeRegExp(base)}-(\\d{3})$`);
+    const current = String(track.shareSlug || '').trim();
+    if (normalPattern.test(current)) return { shareSlug: current } as const;
+
     const { results } = await db.prepare(
       'SELECT shareSlug FROM tracks WHERE shareSlug LIKE ?'
     ).bind(`${base}-%`).all();
     const used = new Set<number>();
     for (const row of results || []) {
-      const match = String((row as any).shareSlug || '').match(new RegExp(`^${base}-(\\d{3})$`));
+      const match = String((row as any).shareSlug || '').match(normalPattern);
       if (match) used.add(Number(match[1]));
     }
 
@@ -95,13 +120,9 @@ async function assignShareSlug(db: any, trackId: string) {
     const shareSlug = `${base}-${String(sequence).padStart(3, '0')}`;
 
     try {
-      await db.prepare(`
-        UPDATE tracks
-        SET shareSlug = ?
-        WHERE id = ? AND (shareSlug IS NULL OR TRIM(shareSlug) = '')
-      `).bind(shareSlug, trackId).run();
+      await db.prepare('UPDATE tracks SET shareSlug = ? WHERE id = ?').bind(shareSlug, trackId).run();
       const saved: any = await db.prepare('SELECT shareSlug FROM tracks WHERE id = ?').bind(trackId).first();
-      if (String(saved?.shareSlug || '').trim()) return { shareSlug: String(saved.shareSlug).trim() } as const;
+      if (String(saved?.shareSlug || '').trim() === shareSlug) return { shareSlug } as const;
     } catch (error) {
       const message = String((error as Error)?.message || error || '');
       if (/unique|constraint/i.test(message)) continue;
@@ -112,6 +133,106 @@ async function assignShareSlug(db: any, trackId: string) {
   return { error: '分享序號建立失敗，請重試', status: 409 } as const;
 }
 
+async function getAuthorizedVipTrack(db: any, trackId: string, userEmail: string) {
+  await ensureShareSchema(db);
+  const track: any = await db.prepare(`
+    SELECT id, title, speaker, shareSlug, isPrivateVip, uploaderEmail,
+           vipExpiresAt, vipDurationDays
+    FROM tracks WHERE id = ?
+  `).bind(trackId).first();
+  if (!track) return { error: '音檔不存在', status: 404 } as const;
+  if (!Boolean(track.isPrivateVip)) return { error: '此音檔不是私秘 VIP 音檔', status: 409 } as const;
+
+  const actor = String(userEmail || '').trim().toLowerCase();
+  const uploader = String(track.uploaderEmail || '').trim().toLowerCase();
+  if (actor !== 'yukidu@gmail.com' && (!actor || actor !== uploader)) {
+    return { error: '只能管理自己上傳的 VIP 音檔', status: 403 } as const;
+  }
+  return { track } as const;
+}
+
+async function assignVipShareSlug(db: any, track: any) {
+  const base = romanizeSpeakerName(track.speaker || 'SPEAKER');
+  const vipPattern = new RegExp(`^${escapeRegExp(base)}-S(\\d{3})$`);
+  const current = String(track.shareSlug || '').trim();
+  if (vipPattern.test(current)) return current;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const { results } = await db.prepare(
+      'SELECT shareSlug FROM tracks WHERE shareSlug LIKE ?'
+    ).bind(`${base}-S%`).all();
+    const used = new Set<number>();
+    for (const row of results || []) {
+      const match = String((row as any).shareSlug || '').match(vipPattern);
+      if (match) used.add(Number(match[1]));
+    }
+
+    let sequence = 1;
+    while (used.has(sequence)) sequence += 1;
+    if (sequence > 999) throw new Error('此講者 VIP 分享序號已達 999 筆上限');
+    const candidate = `${base}-S${String(sequence).padStart(3, '0')}`;
+
+    try {
+      // Retire the old UUID token at the same time the VIP short URL is born.
+      await db.prepare('UPDATE tracks SET shareSlug = ?, vipToken = NULL WHERE id = ?')
+        .bind(candidate, track.id).run();
+      return candidate;
+    } catch (error) {
+      const message = String((error as Error)?.message || error || '');
+      if (/unique|constraint/i.test(message)) continue;
+      throw error;
+    }
+  }
+
+  throw new Error('VIP 分享序號建立失敗，請重試');
+}
+
+async function upsertVipPassword(db: any, trackId: string, requestedPassword?: string) {
+  const existing: any = await db.prepare(
+    'SELECT password FROM vip_share_access WHERE trackId = ?'
+  ).bind(trackId).first();
+  const existingPassword = String(existing?.password || '').trim();
+
+  if (requestedPassword === undefined && validVipPassword(existingPassword)) {
+    return { password: existingPassword } as const;
+  }
+
+  const password = requestedPassword !== undefined
+    ? String(requestedPassword).trim()
+    : randomVipPassword();
+
+  if (!validVipPassword(password)) {
+    return { error: 'VIP 密碼需為 4–12 位純數字', status: 400 } as const;
+  }
+  if (password === existingPassword) return { password } as const;
+
+  await db.prepare(`
+    INSERT INTO vip_share_access (trackId, password, updatedAt)
+    VALUES (?, ?, ?)
+    ON CONFLICT(trackId) DO UPDATE SET
+      password = excluded.password,
+      updatedAt = excluded.updatedAt
+  `).bind(trackId, password, Date.now()).run();
+
+  return { password } as const;
+}
+
+async function prepareVipShare(db: any, trackId: string, userEmail: string, requestedPassword?: string) {
+  const authorization = await getAuthorizedVipTrack(db, trackId, userEmail);
+  if ('error' in authorization) return authorization;
+
+  const shareSlug = await assignVipShareSlug(db, authorization.track);
+  const passwordResult = await upsertVipPassword(db, trackId, requestedPassword);
+  if ('error' in passwordResult) return passwordResult;
+
+  return {
+    shareSlug,
+    password: passwordResult.password,
+    vipExpiresAt: authorization.track.vipExpiresAt ?? null,
+    vipDurationDays: Number(authorization.track.vipDurationDays || 0)
+  } as const;
+}
+
 function escapeAttribute(value: string) {
   return value
     .replaceAll('&', '&amp;')
@@ -120,16 +241,51 @@ function escapeAttribute(value: string) {
     .replaceAll('>', '&gt;');
 }
 
+function vipUnlockScript(trackId: string) {
+  const safeId = JSON.stringify(String(trackId)).replace(/</g, '\\u003c');
+  return `<script>try{const id=${safeId};const key='sq_unlocked_vip_tracks';const list=JSON.parse(localStorage.getItem(key)||'[]');if(Array.isArray(list)&&!list.includes(id)){list.push(id);localStorage.setItem(key,JSON.stringify(list));}}catch{}</script>`;
+}
+
 async function serveSharePage(request: Request, env: Env, slug: string) {
   if (!env.DB) return new Response('分享服務暫時無法使用', { status: 503 });
   await ensureShareSchema(env.DB);
-  const track: any = await env.DB.prepare(
-    'SELECT id, title, speaker, speakerAvatar, shareSlug FROM tracks WHERE shareSlug = ?'
-  ).bind(slug).first();
+  const track: any = await env.DB.prepare(`
+    SELECT id, title, speaker, speakerAvatar, shareSlug, isPrivateVip, vipExpiresAt
+    FROM tracks WHERE shareSlug = ?
+  `).bind(slug).first();
   if (!track) return new Response('分享連結不存在', { status: 404 });
-  if (!env.ASSETS) return new Response('網站建置未完成', { status: 503 });
 
+  const isPrivateVip = Boolean(track.isPrivateVip);
+  const isVipSlug = /-S\d{3}$/.test(slug);
   const url = new URL(request.url);
+  let suppliedPassword = '';
+
+  if (isPrivateVip) {
+    if (!isVipSlug) return new Response('分享連結不存在', { status: 404 });
+    if (track.vipExpiresAt && Date.now() > Number(track.vipExpiresAt)) {
+      return new Response('VIP 分享連結已過期', { status: 410 });
+    }
+
+    try {
+      suppliedPassword = decodeURIComponent(url.search.startsWith('?') ? url.search.slice(1) : '');
+    } catch {
+      suppliedPassword = '';
+    }
+    if (!validVipPassword(suppliedPassword)) {
+      return new Response('VIP 密碼格式錯誤', { status: 403 });
+    }
+
+    const access: any = await env.DB.prepare(
+      'SELECT password FROM vip_share_access WHERE trackId = ?'
+    ).bind(track.id).first();
+    if (!access || String(access.password) !== suppliedPassword) {
+      return new Response('VIP 密碼錯誤', { status: 403 });
+    }
+  } else if (isVipSlug) {
+    return new Response('分享連結不存在', { status: 404 });
+  }
+
+  if (!env.ASSETS) return new Response('網站建置未完成', { status: 503 });
   const shellRequest = new Request(new URL('/index.html', url.origin), {
     method: 'GET',
     headers: { Accept: 'text/html' }
@@ -137,14 +293,26 @@ async function serveSharePage(request: Request, env: Env, slug: string) {
   const shell = await env.ASSETS.fetch(shellRequest);
   if (!shell.ok) return new Response('網站建置未完成', { status: 503 });
 
-  const metadataHtml = shareMetadata(await shell.text(), track, url.origin, slug);
+  const metadataHtml = shareMetadata(
+    await shell.text(),
+    track,
+    url.origin,
+    slug,
+    isPrivateVip ? suppliedPassword : ''
+  );
+  const vipMeta = isPrivateVip ? '<meta name="echostars-share-vip" content="1">' : '';
+  const unlockScript = isPrivateVip ? vipUnlockScript(String(track.id)) : '';
   const html = metadataHtml.replace(
     '</head>',
-    `<meta name="echostars-share-track" content="${escapeAttribute(String(track.id))}"></head>`
+    `<meta name="echostars-share-track" content="${escapeAttribute(String(track.id))}">${vipMeta}${unlockScript}</head>`
   );
   const headers = new Headers(shell.headers);
   headers.set('Content-Type', 'text/html; charset=utf-8');
-  headers.set('Cache-Control', 'public, max-age=60');
+  headers.set('Cache-Control', isPrivateVip ? 'no-store' : 'public, max-age=60');
+  if (isPrivateVip) {
+    headers.set('Referrer-Policy', 'no-referrer');
+    headers.set('X-Robots-Tag', 'noindex, nofollow');
+  }
   headers.delete('Content-Length');
   headers.delete('ETag');
   headers.delete('Content-Encoding');
@@ -156,6 +324,68 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method.toUpperCase();
+
+    const vipShareResetApi = path.match(/^\/api\/tracks\/([^/]+)\/vip-share\/reset$/);
+    if (vipShareResetApi) {
+      if (method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+      if (!env.DB) return json({ error: '資料庫尚未連線' }, 503);
+      try {
+        const trackId = decodeURIComponent(vipShareResetApi[1]);
+        const body: any = await request.json().catch(() => ({}));
+        const durationDays = Number(body.durationDays ?? 0);
+        if (!Number.isSafeInteger(durationDays) || durationDays < 0 || durationDays > 36500) {
+          return json({ error: 'VIP 有效天數格式錯誤' }, 400);
+        }
+
+        const authorization = await getAuthorizedVipTrack(env.DB, trackId, body.userEmail || '');
+        if ('error' in authorization) return json({ error: authorization.error }, authorization.status);
+        const shareSlug = await assignVipShareSlug(env.DB, authorization.track);
+        const passwordResult = await upsertVipPassword(env.DB, trackId, randomVipPassword());
+        if ('error' in passwordResult) return json({ error: passwordResult.error }, passwordResult.status);
+        const vipExpiresAt = durationDays === 0 ? null : Date.now() + durationDays * 86400000;
+        await env.DB.prepare(`
+          UPDATE tracks
+          SET vipToken = NULL, vipExpiresAt = ?, vipDurationDays = ?
+          WHERE id = ?
+        `).bind(vipExpiresAt, durationDays, trackId).run();
+
+        return json({
+          success: true,
+          shareSlug,
+          password: passwordResult.password,
+          vipExpiresAt,
+          vipDurationDays: durationDays,
+          url: `${url.origin}/share/${shareSlug}?${passwordResult.password}`
+        });
+      } catch (error) {
+        console.error('VIP share reset failed:', error);
+        return json({ error: 'VIP 連結重置失敗，請重試' }, 500);
+      }
+    }
+
+    const vipShareApi = path.match(/^\/api\/tracks\/([^/]+)\/vip-share$/);
+    if (vipShareApi) {
+      if (method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+      if (!env.DB) return json({ error: '資料庫尚未連線' }, 503);
+      try {
+        const trackId = decodeURIComponent(vipShareApi[1]);
+        const body: any = await request.json().catch(() => ({}));
+        const requestedPassword = body.password === undefined ? undefined : String(body.password);
+        const result = await prepareVipShare(env.DB, trackId, body.userEmail || '', requestedPassword);
+        if ('error' in result) return json({ error: result.error }, result.status);
+        return json({
+          success: true,
+          shareSlug: result.shareSlug,
+          password: result.password,
+          vipExpiresAt: result.vipExpiresAt,
+          vipDurationDays: result.vipDurationDays,
+          url: `${url.origin}/share/${result.shareSlug}?${result.password}`
+        });
+      } catch (error) {
+        console.error('VIP share preparation failed:', error);
+        return json({ error: '建立 VIP 分享連結失敗' }, 500);
+      }
+    }
 
     const slugApi = path.match(/^\/api\/tracks\/([^/]+)\/share-slug$/);
     if (slugApi) {
@@ -178,9 +408,8 @@ export default {
 
     if (path.startsWith('/share/') && method === 'GET') {
       const slug = decodeURIComponent(path.slice('/share/'.length)).trim();
-      // Legacy /share/t-... links are intentionally retired. Only the new
-      // uppercase passport-style name + three-digit sequence is accepted.
-      if (!/^[A-Z0-9]+(?:-[A-Z0-9]+)*-\d{3}$/.test(slug)) {
+      // Public links: NAME-001. Private VIP links: NAME-S001?1234.
+      if (!/^[A-Z0-9]+(?:-[A-Z0-9]+)*-(?:S)?\d{3}$/.test(slug)) {
         return new Response('分享連結不存在', { status: 404 });
       }
       try {
