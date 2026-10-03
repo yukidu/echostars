@@ -1,8 +1,9 @@
 const HOME_CACHE_KEY = 'echostars_home_cache_v3_3';
-const LIVE_CATEGORY_CACHE_KEY = 'echostars_live_categories_v57';
+const LIVE_CATEGORY_CACHE_KEY = 'echostars_live_categories_v71';
 const nativeFetch = window.fetch.bind(window);
 
 let liveCategories: string[] = [];
+let liveCategoriesLoaded = false;
 
 function normalizeCategoryList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -16,35 +17,27 @@ function sanitizeTrackCategories(value: unknown): string[] {
   const raw = Array.isArray(value)
     ? value.map(item => String(item || '').trim()).filter(Boolean)
     : [];
-  const next = [...new Set(raw)].filter(name => allowed.has(name)).slice(0, 3);
-  if (next.length) return next;
-  return allowed.has('未分類') ? ['未分類'] : [];
-}
-
-function rememberLiveCategories(categories: string[]) {
-  liveCategories = normalizeCategoryList(categories);
-  try {
-    localStorage.setItem(LIVE_CATEGORY_CACHE_KEY, JSON.stringify(liveCategories));
-  } catch {}
-  reconcileHomeCache();
+  return [...new Set(raw)].filter(name => allowed.has(name)).slice(0, 3);
 }
 
 function reconcileHomeCache() {
-  if (!liveCategories.length) return;
+  if (!liveCategoriesLoaded) return;
   try {
+    const expectedCategories = ['全部', ...liveCategories];
     const raw = localStorage.getItem(HOME_CACHE_KEY);
-    if (!raw) return;
-    const cached = JSON.parse(raw);
+    const cached = raw ? JSON.parse(raw) : { tracks: [], categories: [], savedAt: 0 };
     if (!cached || typeof cached !== 'object') return;
 
-    let changed = false;
-    const expectedCategories = ['全部', ...liveCategories];
+    let changed = !raw;
     if (JSON.stringify(cached.categories || []) !== JSON.stringify(expectedCategories)) {
       cached.categories = expectedCategories;
       changed = true;
     }
 
-    if (Array.isArray(cached.tracks)) {
+    if (!Array.isArray(cached.tracks)) {
+      cached.tracks = [];
+      changed = true;
+    } else {
       cached.tracks = cached.tracks.map((track: any) => {
         if (!track || typeof track !== 'object') return track;
         const next = sanitizeTrackCategories(track.categories);
@@ -63,6 +56,15 @@ function reconcileHomeCache() {
   } catch {}
 }
 
+function rememberLiveCategories(categories: string[]) {
+  liveCategories = normalizeCategoryList(categories);
+  liveCategoriesLoaded = true;
+  try {
+    localStorage.setItem(LIVE_CATEGORY_CACHE_KEY, JSON.stringify(liveCategories));
+  } catch {}
+  reconcileHomeCache();
+}
+
 async function refreshLiveCategories() {
   try {
     const response = await nativeFetch('/api/categories', {
@@ -70,16 +72,23 @@ async function refreshLiveCategories() {
       cache: 'no-store',
       credentials: 'same-origin'
     });
-    if (!response.ok) return;
-    const data = await response.json();
-    rememberLiveCategories(normalizeCategoryList(data));
+    if (response.ok) {
+      const data = await response.json();
+      rememberLiveCategories(normalizeCategoryList(data));
+      return;
+    }
   } catch {
-    // Offline fallback: use the last authoritative category list if available.
-    try {
-      const cached = JSON.parse(localStorage.getItem(LIVE_CATEGORY_CACHE_KEY) || '[]');
-      liveCategories = normalizeCategoryList(cached);
-      reconcileHomeCache();
-    } catch {}
+    // handled by the offline fallback below
+  }
+
+  // Offline fallback: use the last authoritative category list if available.
+  // An empty list is a valid authoritative state and must not revive defaults.
+  try {
+    const raw = localStorage.getItem(LIVE_CATEGORY_CACHE_KEY);
+    const cached = raw ? JSON.parse(raw) : [];
+    rememberLiveCategories(normalizeCategoryList(cached));
+  } catch {
+    rememberLiveCategories([]);
   }
 }
 
@@ -96,7 +105,7 @@ async function rewriteTrackWrite(input: RequestInfo | URL, init?: RequestInit): 
   const isUpdate = url.origin === window.location.origin && /^\/api\/tracks\/[^/]+$/.test(url.pathname) && method === 'PUT';
   if (!isCreate && !isUpdate) return [input, init];
 
-  if (!liveCategories.length) await refreshLiveCategories();
+  if (!liveCategoriesLoaded) await refreshLiveCategories();
 
   try {
     let body: any = null;
@@ -131,10 +140,32 @@ async function rewriteTrackWrite(input: RequestInfo | URL, init?: RequestInit): 
   }
 }
 
+async function sanitizeTrackListResponse(response: Response): Promise<Response> {
+  if (!response.ok || !liveCategoriesLoaded) return response;
+  try {
+    const data = await response.clone().json();
+    if (!Array.isArray(data)) return response;
+    const sanitized = data.map(track => (
+      track && typeof track === 'object'
+        ? { ...track, categories: sanitizeTrackCategories(track.categories) }
+        : track
+    ));
+    const headers = new Headers(response.headers);
+    headers.set('Content-Type', 'application/json; charset=utf-8');
+    return new Response(JSON.stringify(sanitized), {
+      status: response.status,
+      statusText: response.statusText,
+      headers
+    });
+  } catch {
+    return response;
+  }
+}
+
 window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const info = requestInfo(input, init);
   const [nextInput, nextInit] = await rewriteTrackWrite(input, init);
-  const response = await nativeFetch(nextInput, nextInit);
+  let response = await nativeFetch(nextInput, nextInit);
 
   if (
     info.url.origin === window.location.origin &&
@@ -147,8 +178,18 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     }).catch(() => undefined);
   }
 
+  if (
+    info.url.origin === window.location.origin &&
+    info.url.pathname === '/api/tracks' &&
+    info.method === 'GET'
+  ) {
+    response = await sanitizeTrackListResponse(response);
+  }
+
   return response;
 };
 
+// Resolve the authoritative category list before React starts. This prevents a
+// deleted category from flashing back during initial render or stale-cache use.
 await refreshLiveCategories();
 await import('./main');
