@@ -53,9 +53,9 @@ CREATE TABLE IF NOT EXISTS tracks (
   speakerRank TEXT,
   speakerAvatar TEXT,
   shareSlug TEXT,
-  categories TEXT, -- JSON Array: ["事業", "心態思維"]
-  keywordMeta TEXT DEFAULT '{}', -- JSON keyword creator and added timestamp
-  keywords TEXT,   -- JSON Array: ["目標", "行動"]
+  categories TEXT,
+  keywordMeta TEXT DEFAULT '{}',
+  keywords TEXT,
   rating REAL DEFAULT 5.0,
   ratingCount INTEGER DEFAULT 1,
   commentsCount INTEGER DEFAULT 0,
@@ -76,18 +76,18 @@ CREATE TABLE IF NOT EXISTS tracks (
   vipToken TEXT,
   vipExpiresAt INTEGER,
   vipDurationDays INTEGER DEFAULT 7,
-  externalVideos TEXT, -- JSON Array: [{"name":"...","url":"..."}]
-  externalPpts TEXT,   -- JSON Array
-  externalFiles TEXT,  -- JSON Array
-  likedBy TEXT,        -- JSON Array of user emails/IDs
-  ratings TEXT         -- JSON Object: {"user@gmail.com": 5}
+  externalVideos TEXT,
+  externalPpts TEXT,
+  externalFiles TEXT,
+  likedBy TEXT,
+  ratings TEXT
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS tracks_share_slug_unique
   ON tracks(shareSlug)
   WHERE shareSlug IS NOT NULL AND shareSlug <> '';
 
--- 2.1 私秘 VIP 短網址密碼。密碼不混入一般 tracks 清單 API，避免未授權訪客讀取。
+-- 2.1 私秘 VIP 短網址密碼
 CREATE TABLE IF NOT EXISTS vip_share_access (
   trackId TEXT PRIMARY KEY,
   password TEXT NOT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS comments (
   replyToAuthor TEXT,
   isAdmin INTEGER DEFAULT 0,
   deviceId TEXT,
-  likedBy TEXT -- JSON Array
+  likedBy TEXT
 );
 
 -- 4. 分類標籤表 (categories)
@@ -119,11 +119,13 @@ CREATE TABLE IF NOT EXISTS categories (
   createdAt INTEGER
 );
 
--- 5. 播放進度記憶 (playback_memories)
+-- 5. 播放進度記憶。memberId 是新的唯一 canonical owner；
+-- userIdentifier / key 保留只為相容歷史 email、舊 user id、匿名 device id。
 CREATE TABLE IF NOT EXISTS playback_memories (
-  key TEXT PRIMARY KEY, -- identifier_trackId
+  key TEXT PRIMARY KEY,
   trackId TEXT NOT NULL,
   userIdentifier TEXT NOT NULL,
+  memberId TEXT,
   currentTime REAL DEFAULT 0,
   duration REAL DEFAULT 0,
   progressPercent REAL DEFAULT 0,
@@ -137,8 +139,22 @@ CREATE TABLE IF NOT EXISTS playback_memories (
   lastListenDate TEXT,
   finishDate TEXT
 );
+CREATE INDEX IF NOT EXISTS playback_memories_member ON playback_memories(memberId);
+CREATE INDEX IF NOT EXISTS playback_memories_user ON playback_memories(userIdentifier);
+CREATE INDEX IF NOT EXISTS playback_memories_track ON playback_memories(trackId);
 
--- 5.1 會員實際完成分享操作的次數（複製分享文案／系統分享）
+-- 5.1 歷史身份別名 -> 穩定會員 id。email / user id 可直接建立；
+-- device id 只在有明確證據（例如同一裝置只對應一個會員 Email）時才歸戶。
+CREATE TABLE IF NOT EXISTS playback_identity_aliases (
+  alias TEXT PRIMARY KEY,
+  memberId TEXT NOT NULL,
+  aliasType TEXT NOT NULL,
+  source TEXT NOT NULL,
+  updatedAt INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS playback_alias_member ON playback_identity_aliases(memberId);
+
+-- 5.2 會員實際完成分享操作的次數（複製分享文案／系統分享）
 CREATE TABLE IF NOT EXISTS share_events (
   id TEXT PRIMARY KEY,
   userId TEXT NOT NULL,
@@ -154,8 +170,8 @@ CREATE TABLE IF NOT EXISTS user_activity_logs (
   id TEXT PRIMARY KEY,
   userEmail TEXT NOT NULL,
   userId TEXT,
-  actionType TEXT NOT NULL, -- 'login', 'register', 'update_profile', 'rate_track', 'like_track'
-  details TEXT,             -- JSON 格式詳細異動資訊
+  actionType TEXT NOT NULL,
+  details TEXT,
   timestamp INTEGER NOT NULL,
   createdAt TEXT NOT NULL
 );
