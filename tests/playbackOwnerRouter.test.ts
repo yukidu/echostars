@@ -50,7 +50,7 @@ test('local playback claim requires the verified bearer session and cannot trust
 test('a device already owned by another member is never transferred', () => {
   const section = router.match(/async function claimLocalPlayback[\s\S]*?\n}\n\nasync function memberStats/)?.[0] || '';
   assert.match(section, /existing && String\(existing\.memberId\) !== memberId/);
-  assert.match(section, /status|conflict/);
+  assert.match(section, /conflict: true/);
   assert.match(section, /409/);
 });
 
@@ -66,7 +66,13 @@ test('verified device claim imports localStorage progress into canonical member 
 test('the browser imports local history after secure login and for an existing verified session', () => {
   assert.match(bridge, /await claimLocalPlayback\(user\);[\s\S]*window\.location\.reload\(\)/);
   assert.match(bridge, /Date\.now\(\) - lastChecked < SESSION_CHECK_TTL[\s\S]*await claimLocalPlayback\(user\)/);
-  assert.match(bridge, /localStorage\.setItem\(markerKey, '1'\)/);
+  assert.match(bridge, /playbackFingerprint\(localPlayback\)/);
+  assert.match(bridge, /localStorage\.setItem\(markerKey, fingerprint\)/);
+});
+
+test('changed local progress is eligible for another safe import instead of a permanent one-time skip', () => {
+  assert.match(bridge, /localStorage\.getItem\(markerKey\) === fingerprint/);
+  assert.doesNotMatch(bridge, /localStorage\.getItem\(markerKey\) === '1'/);
 });
 
 test('worker entry point is the canonical playback owner router', () => {
