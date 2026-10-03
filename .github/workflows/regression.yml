@@ -15,106 +15,18 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: audioCardTypography
-        if: always()
-        run: node --import tsx --test tests/audioCardTypography.test.ts
-      - name: categoryIntegrity
-        if: always()
-        run: node --import tsx --test tests/categoryIntegrity.test.ts
-      - name: categoryManagementPolicy
-        if: always()
-        run: node --import tsx --test tests/categoryManagementPolicy.test.ts
-      - name: changelogReleaseNotes
-        if: always()
-        run: node --import tsx --test tests/changelogReleaseNotes.test.ts
-      - name: changelogV37PublicPolicy
-        if: always()
-        run: node --import tsx --test tests/changelogV37PublicPolicy.test.ts
-      - name: commentModerationRemoval
-        if: always()
-        run: node --import tsx --test tests/commentModerationRemoval.test.ts
-      - name: community profiles reactions comments
-        if: always()
-        run: node --import tsx --test --test-name-pattern="legacy schema|Google default photo|track likes|ratings aggregate|comments are bound|regular admins|deleted initial tracks|missing DB binding|many numerology|Worker routes track comments|nested and orphan|v3 comment edits" tests/community.test.ts
-      - name: community keywords CRUD
-        if: always()
-        run: node --import tsx --test --test-name-pattern="v3 keywords" tests/community.test.ts
-      - name: community rank approval
-        if: always()
-        run: node --import tsx --test --test-name-pattern="v3 rank approval" tests/community.test.ts
-      - name: community offline cleanup
-        if: always()
-        run: node --import tsx --test --test-name-pattern="v3 offline cleanup" tests/community.test.ts
-      - name: community category order
-        if: always()
-        run: node --import tsx --test --test-name-pattern="category order" tests/community.test.ts
-      - name: community track admin VIP persistence
-        if: always()
-        run: node --import tsx --test --test-name-pattern="track metadata edits|failed track/category writes|admin batch saves|VIP metadata persists" tests/community.test.ts
-      - name: community keyword ownership and long comments
-        if: always()
-        run: node --import tsx --test --test-name-pattern="keyword ownership|keyword ranking|comments allow 2000" tests/community.test.ts
-      - name: globalNavigation
-        if: always()
-        run: node --import tsx --test tests/globalNavigation.test.ts
-      - name: googleAuthSecurity
-        if: always()
-        run: node --import tsx --test tests/googleAuthSecurity.test.ts
-      - name: homeAudioCardTheme
-        if: always()
-        run: node --import tsx --test tests/homeAudioCardTheme.test.ts
-      - name: homeDensity
-        if: always()
-        run: node --import tsx --test tests/homeDensity.test.ts
-      - name: imageExportQuality
-        if: always()
-        run: node --import tsx --test tests/imageExportQuality.test.ts
-      - name: learningHistoryAccess
-        if: always()
-        run: node --import tsx --test tests/learningHistoryAccess.test.ts
-      - name: learningHistoryCompatibility
-        if: always()
-        run: node --import tsx --test tests/learningHistoryCompatibility.test.ts
-      - name: learningProgress
-        if: always()
-        run: node --import tsx --test tests/learningProgress.test.ts
-      - name: mediaSessionPolicy
-        if: always()
-        run: node --import tsx --test tests/mediaSessionPolicy.test.ts
-      - name: mobileMenuHalfLayout
-        if: always()
-        run: node --import tsx --test tests/mobileMenuHalfLayout.test.ts
-      - name: mobileMenuWidth
-        if: always()
-        run: node --import tsx --test tests/mobileMenuWidth.test.ts
-      - name: newcomerRainbow
-        if: always()
-        run: node --import tsx --test tests/newcomerRainbow.test.ts
-      - name: playbackOwnerRouter
-        if: always()
-        run: node --import tsx --test tests/playbackOwnerRouter.test.ts
-      - name: privacyCrawler
-        if: always()
-        run: node --import tsx --test tests/privacyCrawler.test.ts
-      - name: publicLearningHistoryRoute
-        if: always()
-        run: node --import tsx --test tests/publicLearningHistoryRoute.test.ts
-      - name: releaseIntegrity
-        if: always()
-        run: node --import tsx --test tests/releaseIntegrity.test.ts
-      - name: shareLinks
-        if: always()
-        run: node --import tsx --test tests/shareLinks.test.ts
-      - name: uploadModalPresentationPolicy
-        if: always()
-        run: node --import tsx --test tests/uploadModalPresentationPolicy.test.ts
-      - name: vipAutoplay
-        if: always()
-        run: node --import tsx --test tests/vipAutoplay.test.ts
+      - name: Full regression suite
+        run: npm test
+      - name: Personal learning card and image exports
+        run: node --import tsx --test tests/imageExportQuality.test.ts tests/learningHistoryAccess.test.ts tests/learningHistoryCompatibility.test.ts tests/learningProgress.test.ts
+      - name: Login session and playback ownership
+        run: node --import tsx --test tests/googleAuthSecurity.test.ts tests/playbackOwnerRouter.test.ts tests/publicLearningHistoryRoute.test.ts
+      - name: Categories community and upload flows
+        run: node --import tsx --test tests/categoryIntegrity.test.ts tests/categoryManagementPolicy.test.ts tests/community.test.ts tests/uploadModalPresentationPolicy.test.ts
+      - name: Sharing PWA privacy and mobile navigation
+        run: node --import tsx --test tests/shareLinks.test.ts tests/releaseIntegrity.test.ts tests/privacyCrawler.test.ts tests/mediaSessionPolicy.test.ts tests/mobileMenuHalfLayout.test.ts tests/mobileMenuWidth.test.ts tests/vipAutoplay.test.ts
       - name: TypeScript diagnostic
-        if: always()
         continue-on-error: true
         run: npm run lint
-      - name: Production build diagnostic
-        if: always()
+      - name: Production build
         run: npm run build
