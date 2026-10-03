@@ -12,8 +12,8 @@ test('learning history matches legacy identities stored only in playback key', (
 });
 
 test('canonical history and history deletion use the same legacy-compatible filter', () => {
-  const uses = routerSource.match(/playbackIdentityFilter\(aliases\)/g) || [];
-  assert.ok(uses.length >= 2, 'history reads and deletes must use the same identity compatibility filter');
-  assert.match(routerSource, /SELECT \* FROM playback_memories[\s\S]*WHERE \$\{filter\.where\}/);
-  assert.match(routerSource, /DELETE FROM playback_memories WHERE \$\{filter\.where\}/);
+  const uses = routerSource.match(/playbackIdentityFilter\(/g) || [];
+  assert.ok(uses.length >= 3, 'filter definition, history read and delete path must all remain wired');
+  assert.match(routerSource, /const filter = playbackIdentityFilter\(aliases\)[\s\S]*SELECT \* FROM playback_memories[\s\S]*WHERE \$\{filter\.where\}/);
+  assert.match(routerSource, /const filter = playbackIdentityFilter\(scope\.aliases\)[\s\S]*DELETE FROM playback_memories WHERE \$\{filter\.where\}/);
 });
