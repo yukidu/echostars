@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 # Storage bindings are omitted here so preview branches cannot read/write production D1, KV or R2.
 previews = { }
 
-# Every Preview/Production build now runs type-check + regression tests + Vite build.
+# Every Preview/Production build runs the regression suite before the Vite build.
 # This makes the Cloudflare check a real release gate instead of only a bundling check.
 [build]
 command = "npm run verify"
