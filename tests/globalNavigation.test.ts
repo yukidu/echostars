@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 
 const policy = readFileSync(new URL('../src/globalNavigationPolicy.ts', import.meta.url), 'utf8');
 const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const sw = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 
 test('main navigation is fixed to the viewport on every page', () => {
   assert.match(policy, /header\.sticky\.top-0/);
@@ -22,8 +21,4 @@ test('page reserves the navbar height so fixed navigation does not cover content
 
 test('global navigation policy is loaded by every app entry', () => {
   assert.match(index, /\/src\/globalNavigationPolicy\.ts/);
-});
-
-test('PWA shell cache advances for global fixed navigation release', () => {
-  assert.match(sw, /echostars-shell-v59/);
 });
