@@ -2,12 +2,7 @@ const MEDIA_PLAYER_SELECTOR = '[data-echostars-media-session="1"]';
 const DEFAULT_ARTWORK = '/icon-512.png';
 const APP_TITLE = '繁星回聲';
 
-type MediaSessionActionName =
-  | 'play'
-  | 'pause'
-  | 'seekbackward'
-  | 'seekforward'
-  | 'seekto';
+type MediaSessionActionName = 'play' | 'pause' | 'seekbackward' | 'seekforward' | 'seekto';
 
 const asAbsoluteUrl = (value: string | null | undefined) => {
   const source = (value || '').trim();
@@ -19,9 +14,9 @@ const asAbsoluteUrl = (value: string | null | undefined) => {
   }
 };
 
-const getMediaSession = () => {
+const getMediaSession = (): any => {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return null;
-  return (navigator as Navigator & { mediaSession?: MediaSession }).mediaSession || null;
+  return (navigator as any).mediaSession || null;
 };
 
 const getAudio = () => document.querySelector<HTMLAudioElement>('audio');
@@ -57,15 +52,18 @@ function syncPositionState(audio: HTMLAudioElement, force = false) {
 function syncMetadata() {
   const mediaSession = getMediaSession();
   const player = getPlayer();
-  if (!mediaSession || !player || typeof window.MediaMetadata !== 'function') return;
+  const MediaMetadataCtor = (window as any).MediaMetadata;
+  if (!mediaSession || !player || typeof MediaMetadataCtor !== 'function') return;
+
   const title = (player.dataset.mediaTitle || APP_TITLE).trim() || APP_TITLE;
   const artist = (player.dataset.mediaArtist || '').trim();
   const artwork = asAbsoluteUrl(player.dataset.mediaArtwork);
   const signature = `${title}\u0000${artist}\u0000${artwork}`;
   if (signature === lastMetadataSignature) return;
   lastMetadataSignature = signature;
+
   try {
-    mediaSession.metadata = new MediaMetadata({
+    mediaSession.metadata = new MediaMetadataCtor({
       title,
       artist,
       album: APP_TITLE,
@@ -77,7 +75,7 @@ function syncMetadata() {
     });
   } catch {
     try {
-      mediaSession.metadata = new MediaMetadata({ title, artist, album: APP_TITLE });
+      mediaSession.metadata = new MediaMetadataCtor({ title, artist, album: APP_TITLE });
     } catch {}
   }
 }
@@ -86,7 +84,7 @@ function safeSetActionHandler(action: MediaSessionActionName, handler: ((details
   const mediaSession = getMediaSession();
   if (!mediaSession) return;
   try {
-    mediaSession.setActionHandler(action, handler as MediaSessionActionHandler | null);
+    mediaSession.setActionHandler(action, handler);
   } catch {}
 }
 
@@ -107,7 +105,8 @@ function bindSystemControls(audio: HTMLAudioElement) {
   safeSetActionHandler('seekto', (details: any) => {
     const requested = Number(details?.seekTime);
     if (!Number.isFinite(requested)) return;
-    if (details?.fastSeek && typeof audio.fastSeek === 'function') audio.fastSeek(requested);
+    const fastSeek = (audio as any).fastSeek;
+    if (details?.fastSeek && typeof fastSeek === 'function') fastSeek.call(audio, requested);
     else audio.currentTime = requested;
     syncPositionState(audio, true);
   });
@@ -117,12 +116,14 @@ function bindAudio(audio: HTMLAudioElement) {
   if (boundAudio === audio) return;
   boundAudio = audio;
   audio.setAttribute('playsinline', '');
+
   const onPlay = () => { syncMetadata(); setPlaybackState(audio); syncPositionState(audio, true); };
   const onPause = () => { setPlaybackState(audio); syncPositionState(audio, true); };
   const onMetadata = () => { syncMetadata(); syncPositionState(audio, true); };
   const onTime = () => syncPositionState(audio, false);
   const onRate = () => syncPositionState(audio, true);
   const onEnded = () => setPlaybackState(audio);
+
   audio.addEventListener('play', onPlay);
   audio.addEventListener('playing', onPlay);
   audio.addEventListener('pause', onPause);
@@ -131,6 +132,7 @@ function bindAudio(audio: HTMLAudioElement) {
   audio.addEventListener('timeupdate', onTime);
   audio.addEventListener('ratechange', onRate);
   audio.addEventListener('ended', onEnded);
+
   bindSystemControls(audio);
   syncMetadata();
   setPlaybackState(audio);
