@@ -5,6 +5,7 @@ import { baseSpeakerRank } from './utils/ranks';
  */
 
 import { apiJson, identityKeys } from './utils/api';
+import { keywordRanking } from './utils/keywords';
 import React, { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Search, ChevronDown, Check, X, ShieldAlert, UploadCloud, Mic, ArrowDown, ArrowUp } from 'lucide-react';
 import {
@@ -370,14 +371,7 @@ export default function App() {
   };
 
   // Collect all unique keywords across all tracks
-  const allAvailableKeywords = useMemo(() => {
-    const kwSet = new Set<string>();
-    tracks.forEach(t => {
-      (t.keywords || []).forEach((k: string) => { if (k && k.trim()) kwSet.add(k.trim()); });
-      (t.tags || []).forEach((k: string) => { if (k && k.trim()) kwSet.add(k.trim()); });
-    });
-    return Array.from(kwSet).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
-  }, [tracks]);
+  const allAvailableKeywords = useMemo(() => keywordRanking(tracks), [tracks]);
 
   // Requirement 8: 自動顯示相關的關鍵詞（包括：分類標籤、網友關鍵字、音檔詳細資料）
   const searchSuggestions = useMemo(() => {
@@ -841,6 +835,7 @@ export default function App() {
     if (
       currentTab === 'notifications' ||
       currentTab === 'stats' ||
+      isProfileOpen ||
       Boolean(commentPreviewTrack)
     ) {
       void fetchAllComments();
@@ -2363,7 +2358,7 @@ export default function App() {
             </div>
 
             {/* Audio Cards List - Requirement 14 (v2.7): 刪除包圍所有音檔的更大區塊框線，騰出更多版面空間 */}
-            <div className="relative space-y-2 pt-1">
+            <div className="audio-card-grid relative grid grid-cols-1 gap-2 pt-1">
               {filteredTracks.length === 0 ? (
                 <div className="text-center py-16 bg-white/60 dark:bg-slate-800/40 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700">
                   <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
@@ -2562,7 +2557,8 @@ export default function App() {
         onClose={() => setIsProfileOpen(false)}
         currentUser={currentUser}
         tracks={tracks}
-        comments={comments}
+        comments={allComments}
+        identityKeys={identityKeys(currentUser, visitor.deviceId)}
         onLoginWithGoogle={handleLoginWithGoogle}
         onLogout={handleLogout}
         onUpdateProfile={handleUpdateProfile}

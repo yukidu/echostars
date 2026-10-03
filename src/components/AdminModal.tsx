@@ -1645,7 +1645,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           )}
           {/* TAB: 網友關鍵字 (Requirement 2) */}
           {activeTab === 'keywords' && (
-            <KeywordsTab
+            <KeywordsTab userEmail={currentUser?.email}
               tracks={tracks}
               onUpdateTrack={onUpdateTrack}
               onEditTrack={onEditTrack}

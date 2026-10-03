@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS tracks (
   speakerRank TEXT,
   speakerAvatar TEXT,
   categories TEXT, -- JSON Array: ["事業", "心態思維"]
+  keywordMeta TEXT DEFAULT '{}', -- JSON keyword creator and added timestamp
   keywords TEXT,   -- JSON Array: ["目標", "行動"]
   rating REAL DEFAULT 5.0,
   ratingCount INTEGER DEFAULT 1,

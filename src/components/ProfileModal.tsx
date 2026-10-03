@@ -55,6 +55,7 @@ interface ProfileModalProps {
   currentUser: UserProfile | null;
   tracks: Track[];
   comments: Comment[];
+  identityKeys?: string[];
   onLoginWithGoogle: (email?: string, name?: string, avatarUrl?: string) => void | Promise<void>;
   onLogout: () => void;
   onUpdateProfile: (updatedData: Partial<UserProfile>) => void | Promise<void>;
@@ -87,6 +88,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   currentUser,
   tracks,
   comments,
+  identityKeys = [],
   onLoginWithGoogle,
   onLogout,
   onUpdateProfile,
@@ -373,13 +375,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   // Find tracks rated by this user
   const userRatedTracks = tracks.map(t => {
-    const userKeys = [currentUser?.email, currentUser?.id, 'guest'].filter(Boolean);
+    const userKeys = [currentUser?.email?.trim().toLowerCase(), currentUser?.id, ...identityKeys, ...(currentUser?.email?.toLowerCase() === 'yukidu@gmail.com' ? ['u-admin'] : [])].filter(Boolean);
     const foundScore = userKeys.map(k => (t.ratings || {})[k!]).find(s => s !== undefined && s > 0);
     return { track: t, rating: foundScore };
   }).filter(item => item.rating !== undefined && item.rating > 0);
 
   const userComments = currentUser
-    ? comments.filter(c => c.authorEmail === currentUser.email)
+    ? comments.filter(c => c.authorEmail?.trim().toLowerCase() === currentUser.email?.trim().toLowerCase())
     : [];
 
   const userListenedItems = (listeningRecords && typeof listeningRecords === 'object' ? Object.values(listeningRecords) : [])

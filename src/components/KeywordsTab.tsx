@@ -19,6 +19,7 @@ import {
 import { Track } from '../types';
 
 interface KeywordsTabProps {
+  userEmail?: string;
   tracks: Track[];
   onUpdateTrack?: (
     trackId: string,
@@ -30,6 +31,7 @@ interface KeywordsTabProps {
 
 export const KeywordsTab: React.FC<KeywordsTabProps> = ({
   tracks,
+  userEmail,
   onUpdateTrack,
   onEditTrack
 }) => {
@@ -110,17 +112,18 @@ export const KeywordsTab: React.FC<KeywordsTabProps> = ({
       const res = await fetch('/api/keywords/rename', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oldKeyword: oldKw, newKeyword: trimmed })
+        body: JSON.stringify({ oldKeyword: oldKw, newKeyword: trimmed, userEmail })
       });
 
       if (res.ok) {
+        const saved = await res.json();
         // Synchronously update local tracks and propagate
         tracks.forEach(t => {
           if (Array.isArray(t.keywords) && t.keywords.includes(oldKw)) {
             const nextKws = t.keywords.map(k => (k === oldKw ? trimmed : k));
             const uniqueKws = Array.from(new Set(nextKws));
             if (onUpdateTrack) {
-              onUpdateTrack(t.id, { keywords: uniqueKws }, { persist: false });
+              onUpdateTrack(t.id, { keywords: uniqueKws, keywordMeta: saved.tracks?.find((row: any) => row.id === t.id)?.keywordMeta || t.keywordMeta }, { persist: false });
             }
           }
         });
@@ -144,16 +147,17 @@ export const KeywordsTab: React.FC<KeywordsTabProps> = ({
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const res = await fetch(`/api/keywords/delete?keyword=${encodeURIComponent(kw)}`, {
+      const res = await fetch(`/api/keywords/delete?keyword=${encodeURIComponent(kw)}&userEmail=${encodeURIComponent(userEmail || '')}`, {
         method: 'DELETE'
       });
 
       if (res.ok) {
+        const saved = await res.json();
         tracks.forEach(t => {
           if (Array.isArray(t.keywords) && t.keywords.includes(kw)) {
             const nextKws = t.keywords.filter(k => k !== kw);
             if (onUpdateTrack) {
-              onUpdateTrack(t.id, { keywords: nextKws }, { persist: false });
+              onUpdateTrack(t.id, { keywords: nextKws, keywordMeta: saved.tracks?.find((row: any) => row.id === t.id)?.keywordMeta || {} }, { persist: false });
             }
           }
         });
@@ -195,7 +199,7 @@ export const KeywordsTab: React.FC<KeywordsTabProps> = ({
       const res = await fetch(`/api/tracks/${targetTrack.id}/keywords`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword: trimmed })
+        body: JSON.stringify({ keyword: trimmed, userEmail })
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -206,7 +210,7 @@ export const KeywordsTab: React.FC<KeywordsTabProps> = ({
         if (onUpdateTrack) {
           onUpdateTrack(
             targetTrack.id,
-            { keywords: data.keywords || [...currentKeywords, trimmed] },
+            { keywords: data.keywords || [...currentKeywords, trimmed], keywordMeta: data.keywordMeta },
             { persist: false }
           );
         }

@@ -160,6 +160,7 @@ export interface Track {
   speakerAvatar: string;
   category?: string; // primary or fallback category
   categories: string[]; // up to 3 categories
+  keywordMeta?: Record<string, { creatorId: string; createdAt: number }>;
   keywords?: string[]; // 網友關鍵字 (最多20個)
   rating: number;
   ratingCount: number;
