@@ -14,11 +14,11 @@ test('v3.7 public changelog removes implementation jargon and keeps user-facing 
   assert.doesNotMatch(policy, /beforeinstallprompt|skipWaiting|clients\.claim|100dvw|translateX|localStorage|Cloudflare D1|Workers KV/);
 });
 
-test('v3.7 public policy rewrites summary and all three visible changelog sections', () => {
-  assert.match(policy, /PUBLIC_V37_CHANGELOG\.summary/);
-  assert.match(policy, /replaceSection\(modal, '增加功能'/);
-  assert.match(policy, /replaceSection\(modal, '修改功能'/);
-  assert.match(policy, /replaceSection\(modal, '刪除功能'/);
+test('v3.7 changelog is normalized in data before React renders the modal', () => {
+  assert.match(policy, /DEFAULT_CHANGELOG_DATA\.findIndex/);
+  assert.match(policy, /normalizePayload/);
+  assert.match(policy, /url\.pathname === '\/api\/changelog'/);
+  assert.doesNotMatch(policy, /MutationObserver|innerHTML|querySelectorAll<HTMLElement>\('span, h3, div, p'\)/);
 });
 
 test('public changelog policy is loaded before the main application policies', () => {
@@ -28,6 +28,6 @@ test('public changelog policy is loaded before the main application policies', (
   assert.ok(jpeg > v37);
 });
 
-test('PWA shell cache advances for v3.7 public language release', () => {
-  assert.match(sw, /echostars-shell-v65/);
+test('PWA shell cache advances for blank changelog modal fix', () => {
+  assert.match(sw, /echostars-shell-v67/);
 });
