@@ -6,9 +6,12 @@ const authRouter = readFileSync(new URL('../worker/authRouter.ts', import.meta.u
 const learningRouter = readFileSync(new URL('../worker/learningCardRouter.ts', import.meta.url), 'utf8');
 const playbackRouter = readFileSync(new URL('../worker/playbackOwnerRouter.ts', import.meta.url), 'utf8');
 const sessionCookieRouter = readFileSync(new URL('../worker/sessionCookieRouter.ts', import.meta.url), 'utf8');
+const categoryRouter = readFileSync(new URL('../worker/categoryIntegrityRouter.ts', import.meta.url), 'utf8');
+const privacyRouter = readFileSync(new URL('../worker/privacyCrawlerRouter.ts', import.meta.url), 'utf8');
 const bridge = readFileSync(new URL('../src/googleIdentityBridge.ts', import.meta.url), 'utf8');
 const recovery = readFileSync(new URL('../src/shareAuthRecovery.ts', import.meta.url), 'utf8');
 const profile = readFileSync(new URL('../src/components/ProfileModal.tsx', import.meta.url), 'utf8');
+const bootstrap = readFileSync(new URL('../src/categoryIntegrityBootstrap.ts', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
 const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
@@ -33,7 +36,7 @@ test('browser uses Google Identity Services credential flow and authenticated AP
   assert.match(bridge, /JSON\.stringify\(\{ credential \}\)/);
   assert.match(bridge, /headers\.set\('Authorization', `Bearer \$\{token\}`\)/);
   assert.doesNotMatch(bridge, /initTokenClient/);
-  assert.match(profile, /initTokenClient/); // legacy UI code remains unreachable behind the migration bridge
+  assert.match(profile, /initTokenClient/); // old Profile UI remains behind the verified bridge
 });
 
 test('first-party session cookie is secure and never placed in a share URL', () => {
@@ -82,15 +85,19 @@ test('sensitive write routes bind identity to the verified session', () => {
   assert.match(authRouter, /只有超級管理員可執行此操作/);
 });
 
-test('wrapper order preserves learning/auth security while adding cookie continuity', () => {
-  assert.match(wrangler, /main = "worker\/sessionCookieRouter\.ts"/);
+test('wrapper order preserves privacy, categories, cookie continuity, playback and auth security', () => {
+  assert.match(wrangler, /main = "worker\/privacyCrawlerRouter\.ts"/);
+  assert.match(privacyRouter, /import appWorker from '\.\/categoryIntegrityRouter'/);
+  assert.match(categoryRouter, /import appWorker from '\.\/sessionCookieRouter'/);
   assert.match(sessionCookieRouter, /import appWorker from '\.\/playbackOwnerRouter'/);
   assert.match(playbackRouter, /import learningWorker from '\.\/learningCardRouter'/);
   assert.match(learningRouter, /import authWorker from '\.\/authRouter'/);
+
   const recoveryIndex = index.indexOf('/src/shareAuthRecovery.ts');
   const bridgeIndex = index.indexOf('/src/googleIdentityBridge.ts');
-  const mainIndex = index.indexOf('/src/main.tsx');
-  assert.ok(recoveryIndex >= 0 && bridgeIndex > recoveryIndex && mainIndex > bridgeIndex);
+  const bootstrapIndex = index.indexOf('/src/categoryIntegrityBootstrap.ts');
+  assert.ok(recoveryIndex >= 0 && bridgeIndex > recoveryIndex && bootstrapIndex > bridgeIndex);
+  assert.match(bootstrap, /await import\('\.\/main'\)/);
 });
 
 test('no Google OAuth client secret is embedded in the auth implementation', () => {
