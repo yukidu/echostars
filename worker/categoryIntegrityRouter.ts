@@ -2,6 +2,7 @@ import appWorker from './sessionCookieRouter';
 import type { Env } from './index';
 
 const CATEGORY_INTEGRITY_MIGRATION = 'category-integrity-v71';
+const CATEGORY_UPDATE_BATCH_SIZE = 50;
 const initialized = new WeakMap<object, Promise<void>>();
 
 function parseCategories(value: unknown): string[] {
@@ -49,7 +50,12 @@ async function reconcileAllTrackCategories(db: any, allowed?: string[]) {
       );
     }
   }
-  if (statements.length) await db.batch(statements);
+
+  // Keep reconciliation safe even when an installation has accumulated many
+  // tracks. D1 batch sizes stay small and every update is idempotent.
+  for (let index = 0; index < statements.length; index += CATEGORY_UPDATE_BATCH_SIZE) {
+    await db.batch(statements.slice(index, index + CATEGORY_UPDATE_BATCH_SIZE));
+  }
 }
 
 async function ensureCategoryIntegrity(db: any) {
@@ -108,6 +114,8 @@ async function sanitizeTrackWrite(request: Request, env: Env): Promise<Request> 
 function jsonResponse(data: unknown, base?: Response) {
   const headers = new Headers(base?.headers);
   headers.set('Content-Type', 'application/json; charset=utf-8');
+  headers.delete('Content-Length');
+  headers.delete('Content-Encoding');
   headers.set('Access-Control-Allow-Origin', '*');
   headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
