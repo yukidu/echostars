@@ -26,6 +26,13 @@ test('menu labels wrap as whole Chinese words instead of one-character columns',
   assert.match(css, /font-size:\s*0\.875rem\s*!important/);
 });
 
+test('notification pending badge is placed on its own row', () => {
+  assert.match(css, /button:has\(> div\)/);
+  assert.match(css, /grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(css, /button > div \+ span/);
+  assert.match(css, /justify-self:\s*start/);
+});
+
 test('install status is positioned under the install label', () => {
   assert.match(css, /button\[aria-label="繁星回聲已安裝"\]/);
   assert.match(css, /button\[aria-label="安裝到桌面"\]/);
