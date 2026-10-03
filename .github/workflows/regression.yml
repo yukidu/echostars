@@ -36,9 +36,18 @@ jobs:
       - name: community profiles reactions comments
         if: always()
         run: node --import tsx --test --test-name-pattern="legacy schema|Google default photo|track likes|ratings aggregate|comments are bound|regular admins|deleted initial tracks|missing DB binding|many numerology|Worker routes track comments|nested and orphan|v3 comment edits" tests/community.test.ts
-      - name: community keywords rank offline categories
+      - name: community keywords CRUD
         if: always()
-        run: node --import tsx --test --test-name-pattern="v3 keywords|v3 rank approval|v3 offline cleanup|category order" tests/community.test.ts
+        run: node --import tsx --test --test-name-pattern="v3 keywords" tests/community.test.ts
+      - name: community rank approval
+        if: always()
+        run: node --import tsx --test --test-name-pattern="v3 rank approval" tests/community.test.ts
+      - name: community offline cleanup
+        if: always()
+        run: node --import tsx --test --test-name-pattern="v3 offline cleanup" tests/community.test.ts
+      - name: community category order
+        if: always()
+        run: node --import tsx --test --test-name-pattern="category order" tests/community.test.ts
       - name: community track admin VIP persistence
         if: always()
         run: node --import tsx --test --test-name-pattern="track metadata edits|failed track/category writes|admin batch saves|VIP metadata persists" tests/community.test.ts
