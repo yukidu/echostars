@@ -118,6 +118,11 @@ function showVipAutoplayFallback(audio: HTMLAudioElement) {
     opacity: '.78'
   });
 
+  audio.addEventListener('playing', () => {
+    removeVipAutoplayFallback();
+    window.setTimeout(() => syncVipPlayerUiToActualPlayback(audio), 0);
+  }, { once: true });
+
   button.addEventListener('click', () => {
     // play() is called immediately inside this real click event so browsers
     // that require a user gesture can grant audible playback.
@@ -159,6 +164,7 @@ function startVipShareAutoplay() {
     audio.setAttribute('playsinline', '');
 
     const onPlaying = () => {
+      if (finished) return;
       finished = true;
       removeVipAutoplayFallback();
       window.setTimeout(() => syncVipPlayerUiToActualPlayback(audio), 0);
