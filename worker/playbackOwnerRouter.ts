@@ -65,8 +65,6 @@ async function ensureOwnershipSchema(db: any) {
           FROM users
           WHERE id IS NOT NULL AND TRIM(id) <> ''
         `).bind(now),
-        // A historical device id is safe to claim only when every member-authored
-        // comment made from that device belongs to the same account.
         db.prepare(`
           INSERT OR IGNORE INTO playback_identity_aliases(alias, memberId, aliasType, source, updatedAt)
           SELECT LOWER(TRIM(c.deviceId)), MIN(u.id), 'device', 'comment', ?
@@ -79,8 +77,6 @@ async function ensureOwnershipSchema(db: any) {
         `).bind(now)
       ]);
 
-      // Non-destructive backfill. Rows that can be proven to belong to a member
-      // gain a stable owner; unknown anonymous device rows remain untouched.
       await db.prepare(`
         UPDATE playback_memories
         SET memberId = (
@@ -88,7 +84,6 @@ async function ensureOwnershipSchema(db: any) {
           FROM playback_identity_aliases a
           WHERE LOWER(TRIM(playback_memories.userIdentifier)) = a.alias
              OR LOWER(SUBSTR(TRIM(playback_memories.key), 1, LENGTH(a.alias) + 1)) = a.alias || '_'
-          ORDER BY CASE WHEN LOWER(TRIM(playback_memories.userIdentifier)) = a.alias THEN 0 ELSE 1 END
           LIMIT 1
         )
         WHERE (memberId IS NULL OR TRIM(memberId) = '')
@@ -144,18 +139,19 @@ async function aliasesForMember(db: any, member: any) {
     if (alias) aliases.add(alias);
   }
 
-  // Read-time recovery catches devices that became attributable after this
-  // Worker isolate initialized, without requiring a write on every profile view.
   if (email) {
     const commentDevices = await db.prepare(`
-      SELECT LOWER(TRIM(c.deviceId)) AS alias
+      SELECT DISTINCT LOWER(TRIM(c.deviceId)) AS alias
       FROM comments c
-      JOIN users u ON LOWER(TRIM(c.authorEmail)) = LOWER(TRIM(u.email))
       WHERE LOWER(TRIM(c.authorEmail)) = ?
         AND c.deviceId IS NOT NULL AND TRIM(c.deviceId) <> ''
-      GROUP BY LOWER(TRIM(c.deviceId))
-      HAVING COUNT(DISTINCT u.id) = 1
-    `).bind(email).all();
+        AND NOT EXISTS (
+          SELECT 1 FROM comments other
+          WHERE LOWER(TRIM(other.deviceId)) = LOWER(TRIM(c.deviceId))
+            AND other.authorEmail IS NOT NULL AND TRIM(other.authorEmail) <> ''
+            AND LOWER(TRIM(other.authorEmail)) <> ?
+        )
+    `).bind(email, email).all();
     for (const row of commentDevices.results || []) {
       const alias = normalize((row as any).alias);
       if (alias) aliases.add(alias);
