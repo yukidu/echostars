@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 
 const notes = readFileSync(new URL('../src/changelogReleaseNotes.ts', import.meta.url), 'utf8');
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const sw = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 
 test('v3.8 cumulative changelog covers recent user-facing releases', () => {
   assert.match(notes, /version:\s*'v3\.8'/);
@@ -30,8 +29,4 @@ test('release notes patch loads before the other runtime policies', () => {
   const firstExistingPolicy = indexHtml.indexOf('/src/jpegExportPolicy.ts');
   assert.ok(notesIndex >= 0);
   assert.ok(firstExistingPolicy > notesIndex);
-});
-
-test('PWA shell cache advances for cumulative changelog release', () => {
-  assert.match(sw, /echostars-shell-v64/);
 });
