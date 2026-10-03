@@ -8,6 +8,28 @@
 }
 
 /*
+ * 首頁音檔資訊卡字體層級：
+ * - 曲目名稱是唯一粗體，使用目前調色盤主色並放大。
+ * - 其餘卡片文字一律維持一般字重，避免資訊層級過重。
+ */
+.audio-card,
+.audio-card * {
+  font-weight: 400 !important;
+}
+
+.audio-card h3 {
+  color: var(--color-primary, #c06c84) !important;
+  font-size: 1.125rem !important;
+  font-weight: 900 !important;
+}
+
+@media (min-width: 640px) {
+  .audio-card h3 {
+    font-size: 1.25rem !important;
+  }
+}
+
+/*
  * 「新人」標籤：標籤本體保留原本底色與 1px 邊框空間；
  * 彩虹只由 ::after 畫在盒子內側 1px 區域，完全不參與內容背景。
  */
