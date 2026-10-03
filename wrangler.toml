@@ -8,9 +8,10 @@ compatibility_flags = ["nodejs_compat"]
 # Storage bindings are omitted here so preview branches cannot read/write production D1, KV or R2.
 previews = { }
 
-# 建置指令 (確保 Cloudflare Workers CI 自動執行 Vite 打包產出 dist)
+# Every Preview/Production build now runs type-check + regression tests + Vite build.
+# This makes the Cloudflare check a real release gate instead of only a bundling check.
 [build]
-command = "npm run build"
+command = "npm run verify"
 
 # 靜態前端資源 (Vite build 產出之 dist 目錄)
 [assets]
