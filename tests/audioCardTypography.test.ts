@@ -16,11 +16,11 @@ test('track title grows further on larger screens', () => {
   assert.match(css, /@media \(min-width:\s*640px\)[\s\S]*\.audio-card h3[\s\S]*font-size:\s*1\.375rem !important/);
 });
 
-test('like count text is black without overriding the heart icon', () => {
-  assert.match(css, /\.audio-card \.reaction-button\[aria-pressed\] span\s*\{[\s\S]*color:\s*#000 !important/);
+test('like count text inherits the same feedback-row color without overriding the heart icon', () => {
+  assert.match(css, /\.audio-card \.reaction-button\[aria-pressed\] span\s*\{[\s\S]*color:\s*inherit !important/);
   assert.doesNotMatch(css, /\.audio-card \.reaction-button\[aria-pressed\] svg/);
 });
 
-test('PWA shell cache advances for larger title and black like count release', () => {
-  assert.match(sw, /echostars-shell-v62/);
+test('PWA shell cache advances for feedback color release', () => {
+  assert.match(sw, /echostars-shell-v63/);
 });
