@@ -11,7 +11,7 @@ test('VIP share pages retry real audio playback after React selects the shared t
   assert.match(main, /document\.querySelector<HTMLAudioElement>\('audio'\)/);
   assert.match(main, /audio\.play\(\)/);
   assert.match(main, /audio\.autoplay = true/);
-  assert.match(main, /audio\.playsInline = true/);
+  assert.match(main, /audio\.setAttribute\('playsinline', ''\)/);
   assert.match(main, /startVipShareAutoplay\(\);/);
 });
 
