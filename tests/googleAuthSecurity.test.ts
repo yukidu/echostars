@@ -47,6 +47,22 @@ test('first-party session cookie is secure and never placed in a share URL', () 
   assert.doesNotMatch(recovery, /location\.href\s*=.*(?:authToken|session)/i);
 });
 
+test('site-defined auth lifetime is persistent instead of expiring after 30 days', () => {
+  assert.match(sessionCookieRouter, /PERSISTENT_COOKIE_MAX_AGE_SECONDS = 2147483647/);
+  assert.match(sessionCookieRouter, /PERSISTENT_COOKIE_EXPIRES = 'Fri, 31 Dec 9999 23:59:59 GMT'/);
+  assert.match(sessionCookieRouter, /PERSISTENT_SESSION_EXPIRES_AT = 253402300799999/);
+  assert.match(sessionCookieRouter, /PERSISTENCE_MIGRATION = 'persistent-auth-sessions-v1'/);
+  assert.match(sessionCookieRouter, /UPDATE auth_sessions SET expiresAt = \? WHERE expiresAt > \?/);
+  assert.match(sessionCookieRouter, /sessionExpiresAt:\s*PERSISTENT_SESSION_EXPIRES_AT/);
+  assert.doesNotMatch(sessionCookieRouter, /30\s*\*\s*24\s*\*\s*60\s*\*\s*60/);
+});
+
+test('expired sessions are not resurrected when existing sessions are upgraded', () => {
+  assert.match(sessionCookieRouter, /DELETE FROM auth_sessions WHERE expiresAt <= \?/);
+  assert.match(sessionCookieRouter, /currentExpiry <= Date\.now\(\)/);
+  assert.match(sessionCookieRouter, /DELETE FROM auth_sessions WHERE tokenHash = \?/);
+});
+
 test('share entry can restore a verified member session and only then falls back to Google', () => {
   assert.match(recovery, /originalFetch\('\/api\/auth\/session'/);
   assert.match(recovery, /credentials:\s*'include'/);
