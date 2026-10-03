@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Image as ImageIcon, Share2, Download, X, Loader2 } from 'lucide-react';
+import { Image as ImageIcon, Share2, X, Loader2, AlertCircle } from 'lucide-react';
 import { Track, Comment, UserProfile } from '../types';
 import {
   exportRatedTracksImage,
@@ -30,41 +30,64 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [currentBlob, setCurrentBlob] = useState<Blob | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     setMode(initialMode);
   }, [initialMode]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setCurrentBlob(null);
+      setPreviewUrl(null);
+      setExportError(null);
+      setIsGenerating(false);
+      return;
+    }
 
-    let isMounted = true;
+    let cancelled = false;
+    let generatedUrl: string | null = null;
     setIsGenerating(true);
+    setCurrentBlob(null);
+    setPreviewUrl(null);
+    setExportError(null);
 
     const generate = async () => {
-      let blob: Blob;
-      if (mode === 'comments' && currentTrack) {
-        blob = await exportTrackCommentsImage(currentTrack, comments);
-      } else {
-        blob = await exportRatedTracksImage(
-          ratedTracks,
-          currentUser.name,
-          currentUser.rank
-        );
-      }
+      try {
+        let blob: Blob;
+        if (mode === 'comments' && currentTrack) {
+          blob = await exportTrackCommentsImage(currentTrack, comments);
+        } else {
+          blob = await exportRatedTracksImage(
+            ratedTracks,
+            currentUser.name,
+            currentUser.rank
+          );
+        }
 
-      if (isMounted) {
+        if (!blob || blob.size <= 0) {
+          throw new Error('圖片產生失敗，請重新嘗試。');
+        }
+
+        if (cancelled) return;
+        generatedUrl = URL.createObjectURL(blob);
         setCurrentBlob(blob);
-        const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        setIsGenerating(false);
+        setPreviewUrl(generatedUrl);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to generate export preview:', error);
+          setExportError(error instanceof Error ? error.message : '圖片產生失敗，請重新嘗試。');
+        }
+      } finally {
+        if (!cancelled) setIsGenerating(false);
       }
     };
 
-    generate();
+    void generate();
 
     return () => {
-      isMounted = false;
+      cancelled = true;
+      if (generatedUrl) URL.revokeObjectURL(generatedUrl);
     };
   }, [isOpen, mode, currentTrack, comments, ratedTracks, currentUser]);
 
@@ -77,7 +100,13 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
         ? `繁星回聲_${currentTrack?.title || '演講'}_心得全覽.jpg`
         : `繁星回聲_${currentUser.name}_評價精選清單.jpg`;
 
-    await shareOrDownloadImage(currentBlob, filename, '繁星回聲黑白極簡分享圖');
+    setExportError(null);
+    try {
+      await shareOrDownloadImage(currentBlob, filename, '繁星回聲黑白極簡分享圖');
+    } catch (error) {
+      console.error('Failed to share export image:', error);
+      setExportError(error instanceof Error ? error.message : '分享或儲存圖片失敗，請重新嘗試。');
+    }
   };
 
   return (
@@ -101,6 +130,7 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+            aria-label="關閉匯出視窗"
           >
             <X className="w-5 h-5" />
           </button>
@@ -140,6 +170,17 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
               <Loader2 className="w-8 h-8 animate-spin text-slate-700 dark:text-slate-300" />
               <p className="text-xs">正在前端繪製黑白高對比分享圖...</p>
             </div>
+          ) : exportError ? (
+            <div className="py-14 px-5 flex max-w-sm flex-col items-center gap-3 text-center text-rose-600 dark:text-rose-300">
+              <AlertCircle className="w-8 h-8" />
+              <p className="text-sm font-bold">{exportError}</p>
+              <button
+                type="button"
+                onClick={() => setMode(current => current === 'comments' ? 'rated' : 'comments')}
+                className="hidden"
+                aria-hidden="true"
+              />
+            </div>
           ) : previewUrl ? (
             <div className="shadow-xl rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700 max-w-sm">
               <img src={previewUrl} alt="分享預覽" className="w-full h-auto" />
@@ -156,7 +197,7 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
             關閉
           </button>
           <button
-            onClick={handleShare}
+            onClick={() => void handleShare()}
             disabled={isGenerating || !currentBlob}
             className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold flex items-center gap-2 shadow-md active:scale-95 transition-all disabled:opacity-50"
           >
