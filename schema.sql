@@ -87,6 +87,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS tracks_share_slug_unique
   ON tracks(shareSlug)
   WHERE shareSlug IS NOT NULL AND shareSlug <> '';
 
+-- 2.1 私秘 VIP 短網址密碼。密碼不混入一般 tracks 清單 API，避免未授權訪客讀取。
+CREATE TABLE IF NOT EXISTS vip_share_access (
+  trackId TEXT PRIMARY KEY,
+  password TEXT NOT NULL,
+  updatedAt INTEGER NOT NULL
+);
+
 -- 3. 留言表 (comments)
 CREATE TABLE IF NOT EXISTS comments (
   id TEXT PRIMARY KEY,
