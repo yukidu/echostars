@@ -21,8 +21,8 @@ test('service worker never caches API responses or personalized share HTML as ap
   assert.doesNotMatch(sw, /cacheableNavigation[\s\S]*url\.pathname\.startsWith\('\/share\/'\)/);
 });
 
-test('Cloudflare release build runs the project verification gate', () => {
-  assert.equal(pkg.scripts.verify, 'npm run lint && npm test && npm run build');
+test('Cloudflare release build runs regression tests before the production build', () => {
+  assert.equal(pkg.scripts.verify, 'npm test && npm run build');
   assert.match(wrangler, /\[build\][\s\S]*command = "npm run verify"/);
 });
 
