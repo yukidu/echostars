@@ -1,9 +1,9 @@
-const CACHE_NAME = 'echostars-shell-v70';
+const CACHE_NAME = 'echostars-shell-v71';
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-monochrome.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)));
-  // Restore the proven afternoon PWA lifecycle: activate the worker immediately.
+  // Activate updates quietly in the background without forcing a page reload.
   self.skipWaiting();
 });
 
