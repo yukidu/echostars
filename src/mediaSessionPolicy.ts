@@ -2,6 +2,7 @@ const MEDIA_PLAYER_SELECTOR = '[data-echostars-media-session="1"]';
 const MEDIA_TOGGLE_SELECTOR = '[data-echostars-media-toggle="1"]';
 const DEFAULT_ARTWORK = '/icon-512.png';
 const APP_TITLE = '繁星回聲';
+const DEFAULT_ARTWORK_PATHS = new Set(['/icon-192.png', '/icon-512.png', '/icon.svg']);
 
 type MediaSessionActionName = 'play' | 'pause' | 'seekbackward' | 'seekforward' | 'seekto';
 
@@ -13,6 +14,29 @@ const asAbsoluteUrl = (value: string | null | undefined) => {
   } catch {
     return new URL(DEFAULT_ARTWORK, window.location.origin).href;
   }
+};
+
+const isDefaultArtworkUrl = (value: string) => {
+  try {
+    return DEFAULT_ARTWORK_PATHS.has(new URL(value, window.location.origin).pathname);
+  } catch {
+    return true;
+  }
+};
+
+const mediaArtworkEntries = (value: string | null | undefined) => {
+  const artwork = asAbsoluteUrl(value);
+
+  // A real speaker portrait must be the only artwork candidate. Android/Chrome
+  // can otherwise prefer an explicitly-sized app icon and hide the portrait.
+  if (!isDefaultArtworkUrl(artwork)) {
+    return [{ src: artwork }];
+  }
+
+  return [
+    { src: asAbsoluteUrl('/icon-192.png'), sizes: '192x192', type: 'image/png' },
+    { src: asAbsoluteUrl('/icon-512.png'), sizes: '512x512', type: 'image/png' }
+  ];
 };
 
 const getMediaSession = (): any => {
@@ -60,6 +84,7 @@ function syncMetadata() {
   const title = (player.dataset.mediaTitle || APP_TITLE).trim() || APP_TITLE;
   const artist = (player.dataset.mediaArtist || '').trim();
   const artwork = asAbsoluteUrl(player.dataset.mediaArtwork);
+  const artworkEntries = mediaArtworkEntries(player.dataset.mediaArtwork);
   const signature = `${title}\u0000${artist}\u0000${artwork}`;
   if (signature === lastMetadataSignature) return;
   lastMetadataSignature = signature;
@@ -69,11 +94,7 @@ function syncMetadata() {
       title,
       artist,
       album: APP_TITLE,
-      artwork: [
-        { src: artwork },
-        { src: asAbsoluteUrl('/icon-192.png'), sizes: '192x192', type: 'image/png' },
-        { src: asAbsoluteUrl('/icon-512.png'), sizes: '512x512', type: 'image/png' }
-      ]
+      artwork: artworkEntries
     });
   } catch {
     try {
