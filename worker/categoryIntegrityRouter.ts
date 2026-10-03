@@ -35,12 +35,13 @@ function sanitizeCategories(input: unknown, allowed: string[]): string[] {
     .slice(0, 3);
 }
 
-async function reconcileAllTrackCategories(db: any, allowed = await liveCategories(db)) {
+async function reconcileAllTrackCategories(db: any, allowed?: string[]) {
+  const activeCategories = allowed ?? await liveCategories(db);
   const { results: rows } = await db.prepare('SELECT id, categories FROM tracks').all();
   const statements: any[] = [];
   for (const row of rows || []) {
     const before = parseCategories((row as any).categories);
-    const after = sanitizeCategories(before, allowed);
+    const after = sanitizeCategories(before, activeCategories);
     if (JSON.stringify(before) !== JSON.stringify(after)) {
       statements.push(
         db.prepare('UPDATE tracks SET categories = ? WHERE id = ?')
