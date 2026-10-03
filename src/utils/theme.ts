@@ -73,6 +73,17 @@ export function getRandomLightPalette(excludeId?: string): ThemePalette {
 export function applyThemeToDom(palette: ThemePalette, isDark: boolean) {
   const root = document.documentElement;
 
+  // Keep the browser chrome and installed PWA top bar in sync with the exact
+  // palette primary color. Chromium uses the live theme-color meta value for
+  // both normal tabs and standalone PWA window chrome.
+  let themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (!themeColorMeta) {
+    themeColorMeta = document.createElement('meta');
+    themeColorMeta.name = 'theme-color';
+    document.head.appendChild(themeColorMeta);
+  }
+  themeColorMeta.content = palette.primary;
+
   // Primary color and accents ALWAYS stay identical across dark and light modes!
   // 置頂麥克風 logo 填色即為 var(--color-primary)
   root.style.setProperty('--color-primary', palette.primary);

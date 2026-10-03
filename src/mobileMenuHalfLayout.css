@@ -1,8 +1,13 @@
-/* v69: Mobile hamburger menu is intentionally half-width and right-aligned.
-   These rules make the existing React menu readable at 50vw without changing
-   navigation behavior. */
+/* v70: Mobile hamburger menu is intentionally half-width and right-aligned.
+   Keep it out of document flow so opening the drawer never pushes down or
+   hides the left half of the current page. */
 @media (max-width: 767px) {
   header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] {
+    position: absolute !important;
+    top: 100% !important;
+    right: 0 !important;
+    left: auto !important;
+    z-index: 30;
     width: 50vw !important;
     max-width: 50vw !important;
     margin-left: auto !important;
@@ -83,7 +88,8 @@
   }
 
   /* Install row: status such as 「已安裝」 belongs under 「安裝到桌面」.
-     This also keeps iOS/Chromium status text from colliding with the label. */
+     The left-side install glyph remains a download arrow even after the PWA
+     has already been installed. */
   header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="繁星回聲已安裝"],
   header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="安裝到桌面"] {
     display: grid !important;
@@ -94,11 +100,22 @@
     align-items: center;
   }
 
-  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="繁星回聲已安裝"] > svg:first-child,
-  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="安裝到桌面"] > svg:first-child {
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="繁星回聲已安裝"]::before,
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="安裝到桌面"]::before {
+    content: "";
     grid-column: 1;
     grid-row: 1 / span 2;
     align-self: center;
+    width: 18px;
+    height: 18px;
+    background-color: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M11 3h2v8.17l3.59-3.58L18 9l-6 6-6-6 1.41-1.41L11 11.17V3zM5 19h14v2H5z'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M11 3h2v8.17l3.59-3.58L18 9l-6 6-6-6 1.41-1.41L11 11.17V3zM5 19h14v2H5z'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="繁星回聲已安裝"] > svg:first-child,
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="安裝到桌面"] > svg:first-child {
+    display: none !important;
   }
 
   header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="繁星回聲已安裝"] > span:first-of-type,
