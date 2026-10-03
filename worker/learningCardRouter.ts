@@ -9,6 +9,7 @@ import {
 import {
   canInspectOtherLearningHistory,
   decideLearningHistoryScope,
+  decidePublicLearningHistoryTarget,
   learningIdentityAliases,
   normalizeLearningIdentity,
   type LearningHistoryScopeDecision
@@ -132,6 +133,27 @@ function playbackIdentityFilter(aliases: string[]) {
   };
 }
 
+// Public learning history is a profile/leaderboard feature. Always resolve the
+// requested member first and use that member's aliases; never substitute the
+// viewer/session identity. This keeps visitor/member/admin views identical.
+async function resolvePublicHistoryScope(
+  requestedId: string,
+  env: Env
+): Promise<LearningHistoryScopeDecision> {
+  const requested = normalizeLearningIdentity(requestedId);
+  if (!requested) return { ok: false, status: 400, error: '缺少使用者識別' };
+  if (!env.DB) return { ok: false, status: 503, error: '資料庫尚未連線' };
+
+  const target: any = await env.DB.prepare(`
+    SELECT id, email
+    FROM users
+    WHERE LOWER(TRIM(id)) = ? OR LOWER(TRIM(email)) = ?
+    LIMIT 1
+  `).bind(requested, requested).first();
+
+  return decidePublicLearningHistoryTarget(requestedId, target);
+}
+
 async function resolveHistoryScope(
   request: Request,
   requestedId: string,
@@ -190,9 +212,9 @@ async function canonicalRecords(env: Env, aliases: string[]): Promise<Record<str
   return merged;
 }
 
-async function historyResponse(request: Request, requestedId: string, env: Env) {
+async function historyResponse(_request: Request, requestedId: string, env: Env) {
   if (!env.DB || !requestedId) return json({});
-  const scope = await resolveHistoryScope(request, requestedId, env, true);
+  const scope = await resolvePublicHistoryScope(requestedId, env);
   if (!scope.ok) return json({ error: scope.error }, scope.status);
   return json(await canonicalRecords(env, scope.aliases));
 }
