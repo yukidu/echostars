@@ -112,7 +112,6 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
   return (
     <div className="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl border border-rose-100/60 dark:border-slate-800 my-6">
-        {/* Header */}
         <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center">
@@ -136,7 +135,6 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
           </button>
         </div>
 
-        {/* Mode Switcher */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
           {currentTrack && (
             <button
@@ -163,7 +161,6 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
           </button>
         </div>
 
-        {/* Canvas Preview Area */}
         <div className="p-5 max-h-[50vh] overflow-y-auto bg-slate-100 dark:bg-slate-950 flex items-center justify-center">
           {isGenerating ? (
             <div className="py-20 flex flex-col items-center gap-2 text-slate-500">
@@ -174,12 +171,6 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
             <div className="py-14 px-5 flex max-w-sm flex-col items-center gap-3 text-center text-rose-600 dark:text-rose-300">
               <AlertCircle className="w-8 h-8" />
               <p className="text-sm font-bold">{exportError}</p>
-              <button
-                type="button"
-                onClick={() => setMode(current => current === 'comments' ? 'rated' : 'comments')}
-                className="hidden"
-                aria-hidden="true"
-              />
             </div>
           ) : previewUrl ? (
             <div className="shadow-xl rounded-lg overflow-hidden border border-slate-300 dark:border-slate-700 max-w-sm">
@@ -188,7 +179,6 @@ export const BwExportModal: React.FC<BwExportModalProps> = ({
           ) : null}
         </div>
 
-        {/* Footer Actions */}
         <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
           <button
             onClick={onClose}
