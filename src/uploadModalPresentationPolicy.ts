@@ -1,4 +1,4 @@
-const UPLOAD_PRESENTATION_STYLE_ID = 'echostars-upload-presentation-v51';
+const UPLOAD_PRESENTATION_STYLE_ID = 'echostars-upload-presentation-v52';
 
 const normalizeText = (value: string | null | undefined) => (value || '').replace(/\s+/g, ' ').trim();
 
@@ -10,13 +10,13 @@ function installUploadPresentationStyle() {
   style.textContent = `
     @media (min-width: 768px) {
       .upload-modal-overlay > div {
-        max-width: 64rem !important;
+        max-width: 72rem !important;
       }
     }
 
     #track-upload-form[data-upload-presentation="1"] {
       display: grid !important;
-      grid-template-columns: repeat(6, minmax(0, 1fr));
+      grid-template-columns: repeat(8, minmax(0, 1fr));
       gap: 1rem !important;
     }
 
@@ -76,8 +76,19 @@ function installUploadPresentationStyle() {
       background: rgb(248 250 252 / .82);
     }
 
-    #track-upload-form[data-upload-presentation="1"] [data-upload-vip="1"] {
+    #track-upload-form[data-upload-presentation="1"] [data-upload-permission="1"] {
       grid-column: 5 / 7 !important;
+      grid-row: 2 / span 2;
+      align-self: stretch;
+      margin: 0 !important;
+      padding: .75rem;
+      border: 1px solid rgb(226 232 240);
+      border-radius: 1rem;
+      background: rgb(248 250 252 / .82);
+    }
+
+    #track-upload-form[data-upload-presentation="1"] [data-upload-vip="1"] {
+      grid-column: 7 / 9 !important;
       grid-row: 2 / span 2;
       align-self: stretch;
       margin: 0 !important;
@@ -95,22 +106,47 @@ function installUploadPresentationStyle() {
       grid-column: 1 / -1;
     }
 
-    #track-upload-form[data-upload-presentation="1"] [data-upload-fields-grid="1"] > :not([data-upload-vip="1"]) {
-      grid-column: span 3;
+    #track-upload-form[data-upload-presentation="1"] [data-upload-fields-grid="1"] > :not([data-upload-vip="1"]):not([data-upload-permission="1"]) {
+      grid-column: span 4;
     }
 
-    #track-upload-form[data-upload-presentation="1"] [data-upload-keyword-add="1"] > svg {
+    #track-upload-form[data-upload-presentation="1"] [data-upload-keyword-add="1"] {
+      white-space: nowrap !important;
+      flex: 0 0 auto !important;
+      min-width: 3.25rem;
+    }
+
+    #track-upload-form[data-upload-presentation="1"] [data-upload-keyword-candidates="1"] {
+      padding-top: .5rem !important;
+    }
+
+    #track-upload-form[data-upload-presentation="1"] [data-upload-keyword-candidates="1"] > span:first-child {
+      display: none !important;
+    }
+
+    #track-upload-form[data-upload-presentation="1"] [data-upload-cover-library="1"] button[title^="使用 "] span:last-child {
+      display: block !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      text-align: center;
+      line-height: 1.05;
+    }
+
+    [data-upload-note-hidden="1"] {
       display: none !important;
     }
 
     .dark #track-upload-form[data-upload-presentation="1"] [data-upload-cover-label="1"],
     .dark #track-upload-form[data-upload-presentation="1"] [data-upload-cover-selected="1"],
-    .dark #track-upload-form[data-upload-presentation="1"] [data-upload-audio="1"] {
+    .dark #track-upload-form[data-upload-presentation="1"] [data-upload-audio="1"],
+    .dark #track-upload-form[data-upload-presentation="1"] [data-upload-permission="1"] {
       border-color: rgb(51 65 85);
       background: rgb(15 23 42 / .55);
     }
 
-    @media (max-width: 639px) {
+    @media (max-width: 767px) {
       #track-upload-form[data-upload-presentation="1"] {
         grid-template-columns: minmax(0, 1fr);
       }
@@ -130,17 +166,22 @@ function installUploadPresentationStyle() {
         grid-row: 4;
       }
 
-      #track-upload-form[data-upload-presentation="1"] [data-upload-vip="1"] {
+      #track-upload-form[data-upload-presentation="1"] [data-upload-permission="1"] {
         grid-column: 1 !important;
         grid-row: 5;
       }
 
-      #track-upload-form[data-upload-presentation="1"] [data-upload-cover-library="1"] {
-        grid-column: 1;
+      #track-upload-form[data-upload-presentation="1"] [data-upload-vip="1"] {
+        grid-column: 1 !important;
         grid-row: 6;
       }
 
-      #track-upload-form[data-upload-presentation="1"] [data-upload-fields-grid="1"] > :not([data-upload-vip="1"]) {
+      #track-upload-form[data-upload-presentation="1"] [data-upload-cover-library="1"] {
+        grid-column: 1;
+        grid-row: 7;
+      }
+
+      #track-upload-form[data-upload-presentation="1"] [data-upload-fields-grid="1"] > :not([data-upload-vip="1"]):not([data-upload-permission="1"]) {
         grid-column: 1 / -1;
       }
     }
@@ -151,6 +192,179 @@ function installUploadPresentationStyle() {
 function directLabelText(element: Element) {
   const label = Array.from(element.children).find(child => child.tagName === 'LABEL');
   return normalizeText(label?.textContent);
+}
+
+function setReactInputValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  if (setter) setter.call(input, value);
+  else input.value = value;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function clearNewUploadDefaults(form: HTMLFormElement) {
+  if (form.dataset.uploadDefaultsCleared === '1') return;
+  const modal = form.closest('.upload-modal-overlay');
+  const heading = normalizeText(modal?.querySelector('h2')?.textContent);
+  if (heading !== '上傳音檔') return;
+
+  const fields = form.querySelectorAll<HTMLElement>('[data-upload-fields-grid="1"] > div');
+  fields.forEach(field => {
+    const label = normalizeText(field.querySelector('label')?.textContent);
+    const input = field.querySelector<HTMLInputElement>('input');
+    if (!input) return;
+    if (label.startsWith('演講日期') || label.startsWith('系列順序')) {
+      setReactInputValue(input, '');
+    }
+  });
+
+  form.dataset.uploadDefaultsCleared = '1';
+}
+
+function simplifyLabelText(form: HTMLFormElement) {
+  const replacements: Array<[string, string]> = [
+    ['音訊檔案 *', '音訊檔案 *'],
+    ['主講者封面照片', '主講者封面照片'],
+    ['分類標籤', '分類標籤'],
+    ['網友關鍵字', '網友關鍵字'],
+    ['演講主題', '演講主題 *'],
+    ['演講人', '演講人'],
+    ['系列 (TALB)', '系列'],
+    ['演講日期', '演講日期'],
+    ['系列順序', '系列順序'],
+    ['瀏覽權限最低門檻獎銜', '瀏覽權限'],
+    ['今天上傳日期', '今天上傳日期']
+  ];
+
+  form.querySelectorAll<HTMLLabelElement>('label').forEach(label => {
+    if (label.closest('[data-upload-vip="1"]')) return;
+    const text = normalizeText(label.textContent);
+    const match = replacements.find(([prefix]) => text.startsWith(prefix));
+    if (!match) return;
+
+    const [prefix, clean] = match;
+    if (text === clean) return;
+
+    if (label.children.length === 0) {
+      label.textContent = clean;
+      return;
+    }
+
+    if (prefix === '網友關鍵字') {
+      const textNode = Array.from(label.childNodes).find(node => node.nodeType === Node.TEXT_NODE);
+      if (textNode) textNode.textContent = clean;
+    }
+  });
+
+  form.querySelectorAll<HTMLElement>('span').forEach(span => {
+    if (span.closest('[data-upload-vip="1"]')) return;
+    const text = normalizeText(span.textContent);
+    if (text.startsWith('(勾選後儲存與檔案名稱將加上 GAR')) {
+      span.dataset.uploadNoteHidden = '1';
+    }
+  });
+}
+
+function hideExplanatoryNotes(form: HTMLFormElement) {
+  const notePhrases = [
+    '支援 MP3、M4A',
+    '可點擊或拖曳上傳；若音檔內含封面',
+    '點擊標籤選取；',
+    '每首音檔最多 20 組關鍵字',
+    '尚未設定關鍵字，可從下方直接點選或自訂輸入新增',
+    '點選曾被使用的熱門關鍵字直接帶入：'
+  ];
+
+  form.querySelectorAll<HTMLElement>('p, span').forEach(element => {
+    if (element.closest('[data-upload-vip="1"]')) return;
+    const text = normalizeText(element.textContent);
+    if (notePhrases.some(phrase => text.includes(phrase))) {
+      element.dataset.uploadNoteHidden = '1';
+    }
+  });
+
+  form.querySelectorAll<HTMLElement>('[data-upload-cover-library="1"] span').forEach(span => {
+    if (span.closest('button')) return;
+    const text = normalizeText(span.textContent);
+    const count = text.match(/(\d+)\s*張/);
+    if (count && text.includes('點照片可快速套用')) span.textContent = `${count[1]} 張`;
+  });
+
+  form.querySelectorAll<HTMLElement>('[data-upload-cover-library="1"] div').forEach(div => {
+    const text = normalizeText(div.textContent);
+    if (text === '正在讀取 R2 cover/ 圖庫…') div.textContent = '讀取中…';
+    if (text.includes('R2 cover/ 目前沒有可選照片')) div.textContent = '尚無照片';
+  });
+}
+
+function fitCoverLibraryNames(coverLibrary: HTMLElement) {
+  requestAnimationFrame(() => {
+    coverLibrary.querySelectorAll<HTMLElement>('button[title^="使用 "] span:last-child').forEach(label => {
+      const clean = normalizeText(label.textContent).replace(/^✓\s*/, '');
+      if (label.textContent !== clean) label.textContent = clean;
+
+      label.style.whiteSpace = 'nowrap';
+      label.style.wordBreak = 'normal';
+      label.style.fontSize = '10px';
+
+      let size = 10;
+      while (label.clientWidth > 0 && label.scrollWidth > label.clientWidth && size > 6) {
+        size -= 0.5;
+        label.style.fontSize = `${size}px`;
+      }
+
+      if (label.clientWidth > 0 && label.scrollWidth > label.clientWidth) {
+        label.style.whiteSpace = 'normal';
+        label.style.wordBreak = 'break-all';
+      }
+    });
+  });
+}
+
+function updateKeywordCandidates(keywordSection: HTMLElement) {
+  const input = keywordSection.querySelector<HTMLInputElement>('input[type="text"]');
+  const candidates = keywordSection.querySelector<HTMLElement>('[data-upload-keyword-candidates="1"]');
+  if (!input || !candidates) return;
+
+  const query = input.value.trim().toLocaleLowerCase('zh-Hant');
+  const buttons = Array.from(candidates.querySelectorAll<HTMLButtonElement>('button'));
+
+  if (!query) {
+    candidates.style.display = 'none';
+    buttons.forEach(button => { button.style.display = ''; });
+    return;
+  }
+
+  let matchCount = 0;
+  buttons.forEach(button => {
+    const text = normalizeText(button.textContent).toLocaleLowerCase('zh-Hant');
+    const matched = text.includes(query);
+    button.style.display = matched ? '' : 'none';
+    if (matched) {
+      button.style.order = text.startsWith(query) ? '0' : '1';
+      matchCount += 1;
+    }
+  });
+  candidates.style.display = matchCount > 0 ? '' : 'none';
+}
+
+function wireKeywordSuggestions(keywordSection: HTMLElement) {
+  const input = keywordSection.querySelector<HTMLInputElement>('input[type="text"]');
+  if (!input) return;
+  input.placeholder = '輸入或搜尋關鍵字';
+
+  const candidates = Array.from(keywordSection.children).find(child =>
+    child instanceof HTMLElement && normalizeText(child.textContent).includes('點選曾被使用的熱門關鍵字直接帶入')
+  ) as HTMLElement | undefined;
+
+  if (candidates) candidates.dataset.uploadKeywordCandidates = '1';
+
+  if (input.dataset.uploadKeywordSearchBound !== '1') {
+    input.dataset.uploadKeywordSearchBound = '1';
+    input.addEventListener('input', () => updateKeywordCandidates(keywordSection));
+    input.addEventListener('focus', () => updateKeywordCandidates(keywordSection));
+  }
+
+  updateKeywordCandidates(keywordSection);
 }
 
 function cleanKeywordSymbols(keywordSection: HTMLElement) {
@@ -164,8 +378,9 @@ function cleanKeywordSymbols(keywordSection: HTMLElement) {
   keywordSection.querySelectorAll<HTMLButtonElement>('button').forEach(button => {
     const text = normalizeText(button.textContent);
 
-    if (text === '加入關鍵字') {
+    if (text === '加入關鍵字' || text === '加入') {
       button.dataset.uploadKeywordAdd = '1';
+      if (button.textContent !== '加入') button.textContent = '加入';
       return;
     }
 
@@ -202,7 +417,10 @@ function markUploadForm(form: HTMLFormElement) {
 
     if (coverLabel) coverLabel.dataset.uploadCoverLabel = '1';
     if (coverSelected) coverSelected.dataset.uploadCoverSelected = '1';
-    if (coverLibrary) coverLibrary.dataset.uploadCoverLibrary = '1';
+    if (coverLibrary) {
+      coverLibrary.dataset.uploadCoverLibrary = '1';
+      fitCoverLibraryNames(coverLibrary);
+    }
   }
 
   const categories = directChildren.find(child => directLabelText(child).startsWith('分類標籤'));
@@ -212,6 +430,7 @@ function markUploadForm(form: HTMLFormElement) {
   if (keywordSection) {
     keywordSection.dataset.uploadKeywords = '1';
     cleanKeywordSymbols(keywordSection);
+    wireKeywordSuggestions(keywordSection);
   }
 
   const fieldsGrid = directChildren.find(child =>
@@ -222,8 +441,14 @@ function markUploadForm(form: HTMLFormElement) {
     fieldsGrid.dataset.uploadFieldsGrid = '1';
     const fieldChildren = Array.from(fieldsGrid.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
     const vip = fieldChildren.find(child => normalizeText(child.textContent).includes('私秘 VIP 專屬音檔'));
+    const permission = fieldChildren.find(child => directLabelText(child).startsWith('瀏覽權限最低門檻獎銜'));
     if (vip) vip.dataset.uploadVip = '1';
+    if (permission) permission.dataset.uploadPermission = '1';
   }
+
+  simplifyLabelText(form);
+  hideExplanatoryNotes(form);
+  clearNewUploadDefaults(form);
 
   directChildren.forEach(child => {
     if (
@@ -271,3 +496,5 @@ uploadPresentationObserver.observe(document.documentElement, {
   subtree: true,
   characterData: true
 });
+
+window.addEventListener('resize', () => applyUploadPresentation());
