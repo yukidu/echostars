@@ -38,7 +38,7 @@ interface UploadModalProps {
   currentUser: UserProfile | null;
   isAdmin: boolean;
   trackToEdit?: Track | null;
-  onCategoriesUpdated?: (categories?: string[]) => void;
+  onCategoriesUpdated?: (categories?: string[], change?: { oldName: string; newName?: string }) => void;
   tracks?: Track[];
 }
 
@@ -264,6 +264,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newCatInput.trim() })
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '儲存失敗，請稍後再試');
+      }
       if (res.ok) {
         const addedName = newCatInput.trim();
         const data = await res.json().catch(() => ({}));
@@ -275,6 +279,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         }
         if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
       }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '儲存失敗，請稍後再試');
     } finally {
       setIsCatLoading(false);
     }
@@ -292,14 +298,20 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newName: editingCatNew.trim() })
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '儲存失敗，請稍後再試');
+      }
       if (res.ok) {
         const updated = editingCatNew.trim();
         const data = await res.json().catch(() => ({}));
         if (Array.isArray(data?.categories)) setCategoryList(data.categories);
         setSelectedCategories(prev => prev.map(c => (c === oldName ? (updated as CategoryType) : c)));
         setEditingCatOld(null);
-        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined, { oldName, newName: editingCatNew.trim() });
       }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '儲存失敗，請稍後再試');
     } finally {
       setIsCatLoading(false);
     }
@@ -311,6 +323,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       const res = await fetch(`/api/categories/${encodeURIComponent(catName)}`, {
         method: 'DELETE'
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '儲存失敗，請稍後再試');
+      }
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         if (Array.isArray(data?.categories)) setCategoryList(data.categories);
@@ -318,8 +334,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           const next = prev.filter(c => c !== catName);
           return next.length > 0 ? next : (['未分類'] as CategoryType[]);
         });
-        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined, { oldName: catName });
       }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '儲存失敗，請稍後再試');
     } finally {
       setIsCatLoading(false);
     }
@@ -336,34 +354,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       const rawRank = (trackToEdit.speakerRank || '無').trim();
       const hasGar = rawRank.startsWith('GAR');
       const cleanRank = hasGar ? rawRank.replace(/^GAR/, '').trim() : rawRank;
-      const matched = (SPEAKER_RANK_OPTIONS as readonly string[]).includes(cleanRank) ? cleanRank : '無';
+      const matched = hasGar && !GAR_ELIGIBLE_RANKS.includes(cleanRank) ? rawRank : (cleanRank || '無');
       setBaseSpeakerRank(matched);
       setIsGarRank(hasGar && GAR_ELIGIBLE_RANKS.includes(matched));
-      setSelectedCategories(trackToEdit.categories && trackToEdit.categories.length > 0 ? trackToEdit.categories.slice(0, 3) : ['事業']);
+      setSelectedCategories(Array.isArray(trackToEdit.categories) ? trackToEdit.categories.slice(0, 3) : ['未分類']);
       setKeywords(Array.isArray(trackToEdit.keywords) ? [...trackToEdit.keywords] : []);
       setSeries(trackToEdit.series || '');
       setSpeechDate(trackToEdit.speechDate || '');
-      setSeriesOrder(trackToEdit.seriesOrder || '第 1 集');
-      {
-        const rawRequired = String(trackToEdit.requiredRank || '無');
-        const ranks = RANK_ORDER as readonly string[];
-        const idx = ranks.indexOf(rawRequired);
-        const simplified: Array<{ value: AmwayRank; index: number }> = [
-          { value: '無', index: 0 },
-          { value: '3%', index: ranks.indexOf('3%') },
-          { value: '9%', index: ranks.indexOf('9%') },
-          { value: '15%', index: ranks.indexOf('15%') },
-          { value: '銀章', index: ranks.indexOf('銀章') },
-          { value: '白金', index: ranks.indexOf('白金') },
-          { value: '翡翠', index: ranks.indexOf('翡翠') },
-          { value: '鑽石級以上', index: ranks.indexOf('鑽石級以上') }
-        ];
-        const mapped = simplified.reduce((best, option) =>
-          idx >= option.index && option.index >= best.index ? option : best,
-          simplified[0]
-        );
-        setRequiredRank(mapped.value);
-      }
+      setSeriesOrder(trackToEdit.seriesOrder ?? '');
+      setRequiredRank(trackToEdit.requiredRank || '無');
       setDescription(trackToEdit.description || '');
       setIsPrivateVip(Boolean(trackToEdit.isPrivateVip));
       setVipDurationDays(trackToEdit.vipDurationDays !== undefined ? trackToEdit.vipDurationDays : 0);
@@ -536,6 +535,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isUploading) return;
     if (!audioFile && !trackToEdit) {
       setErrorMessage('請務必提供音訊檔案！');
       return;
@@ -580,7 +580,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       }
 
       let finalCoverUrl =
-        trackToEdit?.speakerAvatar ||
+        trackToEdit ? (trackToEdit.speakerAvatar ?? '') :
         'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80';
 
       // Direct upload cover file to Cloudflare R2
@@ -596,8 +596,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           method: 'POST',
           body: coverFormData
         });
+        if (!uploadCoverRes.ok) {
+          const data = await uploadCoverRes.json().catch(() => ({}));
+          throw new Error(data.error || '封面上傳失敗，音檔資訊尚未儲存');
+        }
         if (uploadCoverRes.ok) {
           const uploadCoverData = await uploadCoverRes.json();
+          if (!uploadCoverData.url) throw new Error('封面上傳未回傳圖片網址，請重試');
           if (uploadCoverData.url) {
             finalCoverUrl = uploadCoverData.url;
             const nextItem: CoverLibraryItem = {
@@ -637,10 +642,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         speakerAvatar: finalCoverUrl,
         categories: selectedCategories.slice(0, 3),
         keywords: keywords.slice(0, 20),
-        series: series.trim() || '精選演講系列',
-        speechDate: speechDate.trim() || todayUploadDate,
+        series: series.trim(),
+        speechDate: speechDate.trim(),
         requiredRank,
-        seriesOrder: seriesOrder.trim() || '第 1 集',
+        seriesOrder: seriesOrder.trim(),
         description: description.trim(),
         audioUrl: finalAudioUrl,
         uploaderId: trackToEdit ? trackToEdit.uploaderId : currentUser?.id,
@@ -656,13 +661,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         vipToken: trackToEdit?.vipToken
       };
 
-      const url = trackToEdit ? `/api/tracks/${trackToEdit.id}` : '/api/tracks';
+      const url = trackToEdit ? `/api/tracks/${encodeURIComponent(trackToEdit.id)}` : '/api/tracks';
       const method = trackToEdit ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(trackToEdit
+          ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => key === 'userEmail' || JSON.stringify(value) !== JSON.stringify((trackToEdit as any)[key])))
+          : payload)
       });
 
       if (!res.ok) {
@@ -676,7 +683,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         ...trackObj,
         ratings: (trackObj && typeof trackObj.ratings === 'object' && trackObj.ratings !== null) ? trackObj.ratings : {},
         likedBy: Array.isArray(trackObj?.likedBy) ? trackObj.likedBy : [],
-        categories: Array.isArray(trackObj?.categories) && trackObj.categories.length > 0 ? trackObj.categories : (selectedCategories.length > 0 ? selectedCategories.slice(0, 3) : ['未分類']),
+        categories: Array.isArray(trackObj?.categories) ? trackObj.categories : (selectedCategories.length > 0 ? selectedCategories.slice(0, 3) : ['未分類']),
         keywords: Array.isArray(trackObj?.keywords) ? trackObj.keywords : (keywords.length > 0 ? keywords.slice(0, 20) : []),
         rating: typeof trackObj?.rating === 'number' ? trackObj.rating : 5.0,
         ratingCount: typeof trackObj?.ratingCount === 'number' ? trackObj.ratingCount : 1,
@@ -684,6 +691,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         likes: typeof trackObj?.likes === 'number' ? trackObj.likes : 0,
         playCount: typeof trackObj?.playCount === 'number' ? trackObj.playCount : 0
       };
+      if (!trackObj?.id || (trackToEdit && trackObj.id !== trackToEdit.id)) {
+        throw new Error('伺服器未回傳已儲存的音檔，請重試。');
+      }
       onSuccess(normalizedTrack);
       onClose();
     } catch (err: any) {
@@ -1182,7 +1192,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 onChange={e => handleBaseRankChange(e.target.value)}
                 className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-hidden focus:border-rose-400 font-medium cursor-pointer"
               >
-                {SPEAKER_RANK_OPTIONS.map(opt => (
+                {Array.from(new Set([baseSpeakerRank, ...SPEAKER_RANK_OPTIONS])).map(opt => (
                   <option key={opt} value={opt}>
                     {opt}
                   </option>
@@ -1259,6 +1269,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 onChange={e => setRequiredRank(e.target.value as AmwayRank)}
                 className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 outline-hidden focus:border-rose-400"
               >
+                {!['無', '3%', '9%', '15%', '銀章', '白金', '翡翠', '鑽石級以上'].includes(requiredRank) && <option value={requiredRank}>{requiredRank}</option>}
                 <option value="無">公開</option>
                 <option value="3%">3%</option>
                 <option value="9%">9%</option>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'echostars-shell-v31';
+const CACHE_NAME = 'echostars-shell-v32';
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', event => {
@@ -24,12 +24,11 @@ self.addEventListener('fetch', event => {
   if (
     event.request.method !== 'GET' ||
     url.origin !== self.location.origin ||
-    (url.pathname.startsWith('/api/') && url.pathname !== '/api/tracks')
+    url.pathname.startsWith('/api/')
   ) return;
 
   const navigation = event.request.mode === 'navigate';
   const staticAsset =
-    url.pathname === '/api/tracks' ||
     url.pathname.startsWith('/assets/') ||
     APP_SHELL.includes(url.pathname);
 

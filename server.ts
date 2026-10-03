@@ -627,10 +627,10 @@ app.post('/api/tracks', (req, res) => {
     likes: 0,
     duration: `約 ${minutes} 分鐘`,
     durationSeconds: durationSec,
-    series: series?.trim() || '預設系列',
-    speechDate: speechDate || uploadDate,
+    series: series?.trim() ?? '',
+    speechDate: speechDate ?? '',
     requiredRank: requiredRank || '無',
-    seriesOrder: seriesOrder?.trim() || '第 1 集',
+    seriesOrder: seriesOrder?.trim() ?? '',
     uploadDate: uploadDate,
     description: description?.trim() || '',
     audioUrl,
@@ -1267,6 +1267,7 @@ app.put('/api/admin/users/batch', (req, res) => {
     }
   });
 
+  saveStoreToDisk();
   res.json({ success: true, count: userIds.length, users });
 });
 

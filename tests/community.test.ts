@@ -285,3 +285,102 @@ test('category order rejects malformed and stale lists without writing, then pre
   assert.equal(legacy.status, 200);
   db.sqlite.close();
 });
+
+async function workerCall(db: any, path: string, method = 'GET', body?: any) {
+  const response = await worker.fetch(new Request('https://test.example' + path, {
+    method, ...(body !== undefined ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {})
+  }), { DB: db });
+  return { status: response.status, data: await response.json() as any };
+}
+
+test('track metadata edits survive re-read, empty values stay empty and unrelated fields survive partial edits', async () => {
+  const db = database();
+  for (let i = 0; i < 24; i++) {
+    const created = await workerCall(db, '/api/tracks', 'POST', {
+      id: `edit-${i}`, title: `演講 ${i}`, speaker: `講員 ${i}`, speakerRank: '創辦人紅寶石',
+      requiredRank: '6%', audioUrl: `/uploads/${i}.mp3`, speechDate: '2026/10/03',
+      description: '原備註', series: '原系列', seriesOrder: '第 2 集', categories: ['事業'], keywords: ['原標籤'],
+      externalVideos: [{ name: '舊影片', url: 'https://example.com/video' }],
+      uploaderEmail: 'yukidu@gmail.com', durationSeconds: 3439
+    });
+    assert.equal(created.status, 200);
+    const saved = await workerCall(db, `/api/tracks/edit-${i}`, 'PUT', {
+      description: `新的備註 ${i}`, categories: ['新人'], keywords: ['新標籤'], speechDate: '',
+      series: '', seriesOrder: '', externalVideos: [], externalPpts: [], externalFiles: []
+    });
+    assert.equal(saved.status, 200);
+    assert.equal(saved.data.track.speechDate, '');
+    assert.equal(saved.data.track.series, '');
+    assert.equal(saved.data.track.seriesOrder, '');
+    assert.equal(saved.data.track.title, `演講 ${i}`);
+    assert.equal(saved.data.track.requiredRank, '6%');
+    assert.equal(saved.data.track.durationSeconds, 3439);
+    const keywordOnly = await workerCall(db, `/api/tracks/edit-${i}`, 'PUT', { keywords: [] });
+    assert.equal(keywordOnly.data.track.description, `新的備註 ${i}`);
+  }
+  const stored = (await workerCall(db, '/api/tracks')).data;
+  assert.equal(stored.length, 24);
+  for (const track of stored) {
+    assert.equal(track.speechDate, '');
+    assert.equal(track.series, '');
+    assert.equal(track.seriesOrder, '');
+    assert.deepEqual(track.categories, ['新人']);
+    assert.deepEqual(track.keywords, []);
+    assert.deepEqual(track.externalVideos, []);
+    assert.equal(track.speakerRank, '創辦人紅寶石');
+  }
+  db.sqlite.close();
+});
+
+test('failed track/category writes and missing bindings never return success', async () => {
+  const broken = { prepare() { throw new Error('simulated unavailable DB'); } };
+  for (const [path, body] of [['/api/tracks', { title: '新音檔', audioUrl: '/test.mp3' }], ['/api/categories', { name: '新分類' }]] as const) {
+    assert.equal((await workerCall(undefined, path, 'POST', body)).status, 503);
+    assert.equal((await workerCall(broken, path, 'POST', body)).status, 500);
+  }
+  const db = database();
+  assert.equal((await workerCall(db, '/api/tracks/missing', 'PUT', { description: '不能假裝成功' })).status, 404);
+  db.sqlite.close();
+});
+
+test('admin batch saves exactly requested member fields and returns persisted records', async () => {
+  const db = database();
+  await call(db, '/api/users/google-sync', 'POST', { email: 'yukidu@gmail.com', name: '管理員' });
+  const user = (await call(db, '/api/users/google-sync', 'POST', { email: 'batch@example.com', name: '測試會員' })).data.user;
+  assert.equal((await workerCall(db, '/api/admin/users/batch', 'PUT', { userIds: [user.id], updates: { center: '桃園' } })).status, 403);
+  const result = await workerCall(db, '/api/admin/users/batch', 'PUT', {
+    actorEmail: 'yukidu@gmail.com', userIds: [user.id], updates: { center: '桃園', rank: '白金', diamondUpline: '測試鑽石', isContributor: true }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.users[0].center, '桃園');
+  assert.equal(result.data.users[0].name, '測試會員');
+  assert.equal(result.data.users[0].canUpload, true);
+  const stored = (await call(db, '/api/users/profile?email=batch%40example.com')).data.user;
+  assert.equal(stored.diamondUpline, '測試鑽石');
+  assert.equal(stored.rank, '白金');
+  db.sqlite.close();
+});
+
+test('VIP metadata persists on upload, duration edit and reset without a second generic PUT', async () => {
+  const db = database();
+  const created = await workerCall(db, '/api/tracks', 'POST', {
+    id: 'vip-test', title: 'VIP', audioUrl: '/vip.mp3', uploaderEmail: 'yukidu@gmail.com', isPrivateVip: true, vipDurationDays: 0
+  });
+  assert.equal(created.status, 200);
+  assert.ok(created.data.track.vipToken);
+  const originalToken = created.data.track.vipToken;
+  assert.equal(created.data.track.vipExpiresAt, null);
+  const changed = await workerCall(db, '/api/tracks/vip-test', 'PUT', { vipDurationDays: 7 });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.data.track.vipToken, originalToken);
+  assert.ok(changed.data.track.vipExpiresAt > Date.now());
+  const reset = await workerCall(db, '/api/tracks/vip-test/reset-vip-token', 'POST', { userEmail: 'yukidu@gmail.com', durationDays: 0 });
+  assert.equal(reset.status, 200);
+  assert.notEqual(reset.data.vipToken, originalToken);
+  const persisted = (await workerCall(db, '/api/tracks')).data.find((t: any) => t.id === 'vip-test');
+  assert.equal(persisted.vipToken, reset.data.vipToken);
+  assert.equal(persisted.vipExpiresAt, null);
+  assert.equal(persisted.vipDurationDays, 0);
+  assert.equal((await workerCall(db, '/api/tracks/vip-test', 'PUT', { vipDurationDays: -1 })).status, 400);
+  db.sqlite.close();
+});

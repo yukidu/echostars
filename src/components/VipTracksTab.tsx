@@ -24,7 +24,7 @@ interface VipTracksTabProps {
   tracks: Track[];
   currentUser?: UserProfile | null;
   isAdmin?: boolean;
-  onUpdateTrack?: (trackId: string, updates: Partial<Track>) => Promise<void> | void;
+  onUpdateTrack?: (trackId: string, updates: Partial<Track>, options?: { persist?: boolean }) => Promise<void> | void;
   onDeleteTrack: (trackId: string) => Promise<void>;
   onEditTrack: (track: Track) => void;
   onPlayTrack?: (track: Track) => void;
@@ -96,17 +96,17 @@ export const VipTracksTab: React.FC<VipTracksTabProps> = ({
       const res = await fetch(`/api/tracks/${track.id}/reset-vip-token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ durationDays: newDurationDays })
+        body: JSON.stringify({ durationDays: newDurationDays, userEmail: currentUser?.email })
       });
       if (res.ok) {
         const data = await res.json();
         if (onUpdateTrack) {
-          onUpdateTrack(track.id, {
+          await onUpdateTrack(track.id, {
             isPrivateVip: true,
             vipToken: data.vipToken,
             vipExpiresAt: data.vipExpiresAt,
             vipDurationDays: data.vipDurationDays
-          });
+          }, { persist: false });
         }
         setResettingTrackId(null);
         setSuccessMsg(`《${track.title}》VIP 專屬連結已重置成功！舊連結已全數失效。`);

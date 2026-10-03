@@ -323,9 +323,7 @@ export default {
           if (env.DB) {
             try {
               const { results } = await env.DB.prepare('SELECT name FROM categories ORDER BY createdAt ASC, rowid ASC').all();
-              if (results && results.length > 0) {
-                return jsonResponse(results.map((r: any) => r.name));
-              }
+              return jsonResponse((results || []).map((r: any) => r.name));
             } catch (e) {
               console.error('D1 categories query error:', e);
             }
@@ -337,6 +335,7 @@ export default {
           const body: any = await request.json().catch(() => ({}));
           const name = body.name?.trim();
           if (!name) return errorResponse('標籤名稱不可為空');
+          if (!env.DB) return errorResponse('資料庫尚未連線，分類尚未儲存', 503);
           if (env.DB) {
             try {
               await env.DB.prepare('INSERT OR IGNORE INTO categories (name, createdAt) VALUES (?, ?)').bind(name, Date.now()).run();
@@ -344,9 +343,10 @@ export default {
               return jsonResponse({ success: true, categories: results.map((r: any) => r.name) });
             } catch (e) {
               console.error('D1 categories insert error:', e);
+              return errorResponse('分類儲存失敗，請稍後再試', 500);
             }
           }
-          return jsonResponse({ success: true, categories: ['事業', '心態思維', '營養', '安麗產品', '影集', '未分類', name] });
+          return errorResponse('分類尚未儲存', 503);
         }
       }
 
@@ -502,7 +502,11 @@ export default {
         }
 
         if (path === '/api/tracks' && method === 'POST') {
+          if (!env.DB) return errorResponse('資料庫尚未連線，音檔資訊尚未儲存', 503);
           const body: any = await request.json().catch(() => ({}));
+          if (!String(body.title || '').trim() || !String(body.audioUrl || '').trim()) return errorResponse('標題與音檔為必填項目', 400);
+          const vipDays = Number(body.vipDurationDays ?? 0);
+          if (!Number.isSafeInteger(vipDays) || vipDays < 0 || vipDays > 36500) return errorResponse('VIP 有效天數格式錯誤', 400);
           const id = body.id || `t-${Date.now()}`;
           const cleanCategories = Array.isArray(body.categories) && body.categories.length > 0 ? body.categories : ['未分類'];
           const cleanKeywords = Array.isArray(body.keywords) ? body.keywords : [];
@@ -526,6 +530,9 @@ export default {
           const newTrack = {
             ...body,
             id,
+            vipDurationDays: body.isPrivateVip ? vipDays : 0,
+            vipToken: body.isPrivateVip ? `vip_${crypto.randomUUID()}` : null,
+            vipExpiresAt: body.isPrivateVip && vipDays > 0 ? Date.now() + vipDays * 86400000 : null,
             duration: normalizedDuration,
             durationSeconds: normalizedDurationSeconds,
             uploadDate: body.uploadDate || new Date().toISOString(),
@@ -551,8 +558,8 @@ export default {
                   rating, ratingCount, commentsCount, likes, duration, durationSeconds,
                   audioUrl, series, speechDate, requiredRank, seriesOrder, uploadDate,
                   description, uploaderId, uploaderEmail, playCount, isPrivateVip,
-                  externalVideos, externalPpts, externalFiles, likedBy, ratings
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  externalVideos, externalPpts, externalFiles, likedBy, ratings, vipToken, vipExpiresAt, vipDurationDays
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).bind(
                 id, newTrack.title || '無標題', newTrack.speaker || '未知講者', newTrack.speakerRank || '無',
                 newTrack.speakerAvatar || '', JSON.stringify(newTrack.categories), JSON.stringify(newTrack.keywords),
@@ -562,13 +569,35 @@ export default {
                 newTrack.uploadDate, newTrack.description || '', newTrack.uploaderId || '', newTrack.uploaderEmail || '',
                 newTrack.playCount, newTrack.isPrivateVip ? 1 : 0, JSON.stringify(newTrack.externalVideos),
                 JSON.stringify(newTrack.externalPpts), JSON.stringify(newTrack.externalFiles),
-                JSON.stringify(newTrack.likedBy), JSON.stringify(newTrack.ratings)
+                JSON.stringify(newTrack.likedBy), JSON.stringify(newTrack.ratings), newTrack.vipToken, newTrack.vipExpiresAt, newTrack.vipDurationDays
               ).run();
             } catch (e) {
               console.error('D1 insert track error:', e);
+              return errorResponse('音檔資訊儲存失敗，請保留表單並重試', 500);
             }
           }
           return jsonResponse({ success: true, track: newTrack, ...newTrack });
+        }
+
+        if (/^\/api\/tracks\/[^/]+\/reset-vip-token$/.test(path) && method === 'POST') {
+          if (!env.DB) return errorResponse('資料庫尚未連線', 503);
+          try {
+            const trackId = decodeURIComponent(path.split('/')[3]);
+            const body: any = await request.json();
+            const existing: any = await env.DB.prepare('SELECT * FROM tracks WHERE id = ?').bind(trackId).first();
+            if (!existing) return errorResponse('音檔不存在', 404);
+            const actor = String(body.userEmail || '').trim().toLowerCase();
+            if (actor !== 'yukidu@gmail.com' && (!actor || actor !== String(existing.uploaderEmail || '').trim().toLowerCase())) return errorResponse('只能修改自己上傳的 VIP 音檔', 403);
+            const days = Number(body.durationDays ?? existing.vipDurationDays ?? 0);
+            if (!Number.isSafeInteger(days) || days < 0 || days > 36500) return errorResponse('VIP 有效天數格式錯誤', 400);
+            const vipToken = `vip_${crypto.randomUUID()}`;
+            const vipExpiresAt = days === 0 ? null : Date.now() + days * 86400000;
+            await env.DB.prepare('UPDATE tracks SET isPrivateVip = 1, vipToken = ?, vipExpiresAt = ?, vipDurationDays = ? WHERE id = ?').bind(vipToken, vipExpiresAt, days, trackId).run();
+            return jsonResponse({ success: true, vipToken, vipExpiresAt, vipDurationDays: days });
+          } catch (error) {
+            console.error('VIP reset failed:', error);
+            return errorResponse('VIP 連結重置失敗，請重試', 500);
+          }
         }
 
         // 5.3.0 更新錄音檔 (PUT /api/tracks/:id)
@@ -603,7 +632,7 @@ export default {
               add('speaker', value);
             }
             if (has('speakerRank')) add('speakerRank', String(body.speakerRank || '無'));
-            if (has('speakerAvatar') && String(body.speakerAvatar || '').trim()) add('speakerAvatar', String(body.speakerAvatar));
+            if (has('speakerAvatar')) add('speakerAvatar', String(body.speakerAvatar));
             if (has('categories')) {
               if (!Array.isArray(body.categories)) return errorResponse('分類格式錯誤', 400);
               add('categories', JSON.stringify(body.categories.slice(0, 3)));
@@ -620,10 +649,16 @@ export default {
             if (has('duration')) add('duration', String(body.duration || ''));
             if (has('durationSeconds') && Number.isFinite(Number(body.durationSeconds))) add('durationSeconds', Number(body.durationSeconds));
             if (has('audioUrl') && String(body.audioUrl || '').trim()) add('audioUrl', String(body.audioUrl));
-            if (has('isPrivateVip')) add('isPrivateVip', body.isPrivateVip ? 1 : 0);
-            if (has('vipToken')) add('vipToken', body.vipToken || null);
-            if (has('vipExpiresAt')) add('vipExpiresAt', body.vipExpiresAt ?? null);
-            if (has('vipDurationDays') && Number.isFinite(Number(body.vipDurationDays))) add('vipDurationDays', Number(body.vipDurationDays));
+            if (has('isPrivateVip') || has('vipDurationDays')) {
+              const enabled = has('isPrivateVip') ? Boolean(body.isPrivateVip) : Boolean(existing.isPrivateVip);
+              const days = enabled ? Number(body.vipDurationDays ?? existing.vipDurationDays ?? 0) : 0;
+              if (!Number.isSafeInteger(days) || days < 0 || days > 36500) return errorResponse('VIP 有效天數格式錯誤', 400);
+              add('isPrivateVip', Number(enabled));
+              add('vipDurationDays', days);
+              add('vipToken', enabled ? (existing.vipToken || `vip_${crypto.randomUUID()}`) : null);
+              const changed = enabled !== Boolean(existing.isPrivateVip) || days !== Number(existing.vipDurationDays || 0);
+              add('vipExpiresAt', !enabled || days === 0 ? null : (changed ? Date.now() + days * 86400000 : existing.vipExpiresAt));
+            }
 
             for (const field of ['externalVideos', 'externalPpts', 'externalFiles'] as const) {
               if (has(field)) {
@@ -915,9 +950,10 @@ export default {
         if (method === 'PUT') {
           const body: any = await request.json().catch(() => ({}));
           const { changelog } = body;
-          if (env.KV && Array.isArray(changelog)) {
-            await env.KV.put('changelog', JSON.stringify(changelog));
-          }
+          if (!env.KV) return errorResponse('儲存服務尚未連線', 503);
+          if (!Array.isArray(changelog)) return errorResponse('改版紀錄格式錯誤', 400);
+          try { await env.KV.put('changelog', JSON.stringify(changelog)); }
+          catch { return errorResponse('改版紀錄儲存失敗', 500); }
           return jsonResponse({ success: true, changelog });
         }
       }

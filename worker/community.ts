@@ -171,7 +171,8 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
   const keywordAction = path.match(/^\/api\/tracks\/([^/]+)\/keywords(?:\/(.+))?$/);
   const keywordAdmin = ['/api/keywords/rename', '/api/keywords/delete'].includes(path);
   const permissionAction = path.match(/^\/api\/users\/([^/]+)\/(contributor|admin-role|block)$/);
-  const handled = (permissionAction && method === 'PUT') || (auditAction && method === 'PUT') || keywordAction || keywordAdmin || (path === '/api/tracks' && method === 'GET') || (trackAction && method === 'POST') ||
+  const batchUsers = path === '/api/admin/users/batch' && method === 'PUT';
+  const handled = batchUsers || (permissionAction && method === 'PUT') || (auditAction && method === 'PUT') || keywordAction || keywordAdmin || (path === '/api/tracks' && method === 'GET') || (trackAction && method === 'POST') ||
     ((path === '/api/comments' || commentList) && ['GET', 'POST'].includes(method)) ||
     (commentAction && ['POST', 'PUT', 'DELETE'].includes(method)) ||
     (['/api/users', '/api/users/profile', '/api/users/google-sync'].includes(path) && ['GET', 'POST'].includes(method)) || (userUpdate && method === 'PUT');
@@ -181,6 +182,28 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
   try {
     await ensureSchema(db);
     if (path.startsWith('/api/tracks')) await seedTracks(db, defaults);
+    if (batchUsers) {
+      const body: any = await request.json();
+      const actor = await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').bind(String(body.actorEmail || '').toLowerCase().trim()).first();
+      if (!actor || actor.isBlocked || actor.email.toLowerCase().trim() !== 'yukidu@gmail.com') return json({ error: '只有超級管理員可批次修改會員' }, 403);
+      if (!Array.isArray(body.userIds) || !body.userIds.length || body.userIds.some((id: any) => typeof id !== 'string' || !id)) return json({ error: '請選擇會員' }, 400);
+      const ids: string[] = [...new Set<string>(body.userIds)];
+      const patch = body.updates;
+      if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return json({ error: '缺少修改內容' }, 400);
+      const allowed = ['center', 'rank', 'diamondUpline', 'isContributor'];
+      if (Object.keys(patch).some(key => !allowed.includes(key))) return json({ error: '不支援的批次欄位' }, 400);
+      const fields = allowed.filter(key => patch[key] !== undefined);
+      if (!fields.length || fields.some(key => typeof patch[key] !== (key === 'isContributor' ? 'boolean' : 'string'))) return json({ error: '修改內容格式錯誤' }, 400);
+      const { results: existing } = await db.prepare(`SELECT * FROM users WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
+      if (existing.length !== ids.length) return json({ error: '部分會員已不存在，請重新整理後再試' }, 409);
+      if (patch.isContributor === false && existing.some((u: any) => u.email?.toLowerCase().trim() === 'yukidu@gmail.com')) return json({ error: '不可取消超級管理員的上傳權限' }, 400);
+      const columns = [...fields];
+      const values = fields.map(key => key === 'isContributor' ? Number(patch[key]) : patch[key]);
+      if (fields.includes('isContributor')) { columns.push('canUpload'); values.push(Number(patch.isContributor)); }
+      await db.batch(ids.map(id => db.prepare(`UPDATE users SET ${columns.map(key => `${key} = ?`).join(',')} WHERE id = ?`).bind(...values, id)));
+      const { results } = await db.prepare(`SELECT * FROM users WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
+      return json({ success: true, count: results.length, users: results.map(normalizeUser) });
+    }
     if (permissionAction) {
       const body: any = await request.json();
       const actor = await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').bind(String(body.actorEmail||'').trim().toLowerCase()).first();
