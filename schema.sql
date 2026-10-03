@@ -133,9 +133,21 @@ CREATE TABLE IF NOT EXISTS playback_memories (
   trackSpeaker TEXT,
   trackSpeakerRank TEXT,
   isDeleted INTEGER DEFAULT 0,
+  firstListenDate TEXT,
   lastListenDate TEXT,
   finishDate TEXT
 );
+
+-- 5.1 會員實際完成分享操作的次數（複製分享文案／系統分享）
+CREATE TABLE IF NOT EXISTS share_events (
+  id TEXT PRIMARY KEY,
+  userId TEXT NOT NULL,
+  userEmail TEXT NOT NULL,
+  trackId TEXT NOT NULL,
+  createdAt INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS share_events_user ON share_events(userId, userEmail);
+CREATE INDEX IF NOT EXISTS share_events_created ON share_events(createdAt);
 
 -- 6. 會員行為與異動歷程紀錄表 (user_activity_logs)
 CREATE TABLE IF NOT EXISTS user_activity_logs (
