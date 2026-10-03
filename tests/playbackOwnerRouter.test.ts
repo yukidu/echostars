@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const router = readFileSync(new URL('../worker/playbackOwnerRouter.ts', import.meta.url), 'utf8');
+const bridge = readFileSync(new URL('../src/googleIdentityBridge.ts', import.meta.url), 'utf8');
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
 
@@ -22,7 +23,7 @@ test('public history resolves the selected member and is independent from the vi
 
 test('legacy device ownership is recovered only when one device maps to one member', () => {
   assert.match(router, /HAVING COUNT\(DISTINCT u\.id\) = 1/);
-  assert.match(router, /NOT EXISTS \([\s\S]*other\.authorEmail[\s\S]*<> \?/);
+  assert.match(router, /NOT EXISTS \([\s\S]*other\.authorEmail[\s\S]*<> LOWER\(TRIM\(c\.authorEmail\)\)/);
 });
 
 test('backfill is non-destructive and only fills missing memberId', () => {
@@ -34,7 +35,38 @@ test('backfill is non-destructive and only fills missing memberId', () => {
 test('future playback writes canonicalize registered email or id to users.id', () => {
   assert.match(router, /const direct = await resolveMember\(env\.DB, identifier\)/);
   assert.match(router, /const memberId = member\?\.id \? String\(member\.id\) : ''/);
-  assert.match(router, /const key = `\$\{identifier\}_\$\{trackId\}`/);
+  assert.match(router, /playbackStatement\([\s\S]*identifier,[\s\S]*memberId/);
+  assert.match(router, /`\$\{ownerIdentifier\}_\$\{track\.id\}`/);
+});
+
+test('local playback claim requires the verified bearer session and cannot trust body email', () => {
+  const section = router.match(/async function claimLocalPlayback[\s\S]*?\n}\n\nasync function memberStats/)?.[0] || '';
+  assert.match(section, /authenticatedUser\(request, env\)/);
+  assert.match(section, /請先以 Google 帳號登入/);
+  assert.doesNotMatch(section, /body\.email/);
+  assert.match(section, /\/\^dev-\[a-z0-9-\]\+\$\/i/);
+});
+
+test('a device already owned by another member is never transferred', () => {
+  const section = router.match(/async function claimLocalPlayback[\s\S]*?\n}\n\nasync function memberStats/)?.[0] || '';
+  assert.match(section, /existing && String\(existing\.memberId\) !== memberId/);
+  assert.match(section, /status|conflict/);
+  assert.match(section, /409/);
+});
+
+test('verified device claim imports localStorage progress into canonical member keys', () => {
+  assert.match(router, /path === '\/api\/playback\/claim-local'/);
+  assert.match(router, /localPlayback/);
+  assert.match(router, /playbackStatement\(env\.DB, memberId, memberId/);
+  assert.match(bridge, /sq_audio_progress_v1_/);
+  assert.match(bridge, /\/api\/playback\/claim-local/);
+  assert.match(bridge, /Authorization: `Bearer \$\{token\}`/);
+});
+
+test('the browser imports local history after secure login and for an existing verified session', () => {
+  assert.match(bridge, /await claimLocalPlayback\(user\);[\s\S]*window\.location\.reload\(\)/);
+  assert.match(bridge, /Date\.now\(\) - lastChecked < SESSION_CHECK_TTL[\s\S]*await claimLocalPlayback\(user\)/);
+  assert.match(bridge, /localStorage\.setItem\(markerKey, '1'\)/);
 });
 
 test('worker entry point is the canonical playback owner router', () => {
