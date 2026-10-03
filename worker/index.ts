@@ -5,7 +5,7 @@ import { shareMetadata } from '../shared/shareMetadata';
  * 架構: Cloudflare Workers + D1 資料庫 + R2 物件儲存 + KV 快取
  */
 
-import { communityApi } from './community';
+import { communityApi, keywordPatch } from './community';
 
 export interface Env {
   DB?: any; // Cloudflare D1Database
@@ -509,7 +509,10 @@ export default {
           if (!Number.isSafeInteger(vipDays) || vipDays < 0 || vipDays > 36500) return errorResponse('VIP 有效天數格式錯誤', 400);
           const id = body.id || `t-${Date.now()}`;
           const cleanCategories = Array.isArray(body.categories) && body.categories.length > 0 ? body.categories : ['未分類'];
-          const cleanKeywords = Array.isArray(body.keywords) ? body.keywords : [];
+          const cleanKeywords = Array.isArray(body.keywords) ? [...new Set<string>(body.keywords.map((k: any) => String(k).trim()).filter(Boolean))] : [];
+          if (cleanKeywords.length > 20 || cleanKeywords.some(k => k.length > 80)) return errorResponse('關鍵字數量或長度超過上限',400);
+          const ownership = await keywordPatch(env.DB, {keywords:[],keywordMeta:{}}, cleanKeywords, body);
+          if (ownership.error) return errorResponse(ownership.error,403);
           const cleanVideos = Array.isArray(body.externalVideos) ? body.externalVideos : [];
           const cleanPpts = Array.isArray(body.externalPpts) ? body.externalPpts : [];
           const cleanFiles = Array.isArray(body.externalFiles) ? body.externalFiles : [];
@@ -538,6 +541,7 @@ export default {
             uploadDate: body.uploadDate || new Date().toISOString(),
             categories: cleanCategories,
             keywords: cleanKeywords,
+            keywordMeta: ownership.meta,
             rating: typeof body.rating === 'number' ? body.rating : 5.0,
             ratingCount: typeof body.ratingCount === 'number' ? body.ratingCount : 1,
             commentsCount: typeof body.commentsCount === 'number' ? body.commentsCount : 0,
@@ -552,14 +556,14 @@ export default {
 
           if (env.DB) {
             try {
-              await env.DB.prepare(`
+              const insert = env.DB.prepare(`
                 INSERT INTO tracks (
                   id, title, speaker, speakerRank, speakerAvatar, categories, keywords,
                   rating, ratingCount, commentsCount, likes, duration, durationSeconds,
                   audioUrl, series, speechDate, requiredRank, seriesOrder, uploadDate,
                   description, uploaderId, uploaderEmail, playCount, isPrivateVip,
-                  externalVideos, externalPpts, externalFiles, likedBy, ratings, vipToken, vipExpiresAt, vipDurationDays
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  externalVideos, externalPpts, externalFiles, likedBy, ratings, vipToken, vipExpiresAt, vipDurationDays, keywordMeta
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               `).bind(
                 id, newTrack.title || '無標題', newTrack.speaker || '未知講者', newTrack.speakerRank || '無',
                 newTrack.speakerAvatar || '', JSON.stringify(newTrack.categories), JSON.stringify(newTrack.keywords),
@@ -569,8 +573,9 @@ export default {
                 newTrack.uploadDate, newTrack.description || '', newTrack.uploaderId || '', newTrack.uploaderEmail || '',
                 newTrack.playCount, newTrack.isPrivateVip ? 1 : 0, JSON.stringify(newTrack.externalVideos),
                 JSON.stringify(newTrack.externalPpts), JSON.stringify(newTrack.externalFiles),
-                JSON.stringify(newTrack.likedBy), JSON.stringify(newTrack.ratings), newTrack.vipToken, newTrack.vipExpiresAt, newTrack.vipDurationDays
-              ).run();
+                JSON.stringify(newTrack.likedBy), JSON.stringify(newTrack.ratings), newTrack.vipToken, newTrack.vipExpiresAt, newTrack.vipDurationDays, JSON.stringify(newTrack.keywordMeta)
+              );
+              await env.DB.batch([insert, ...newTrack.keywords.map((name: string) => env.DB.prepare('INSERT OR IGNORE INTO keyword_catalog(name,createdAt) VALUES (?,?)').bind(name,newTrack.keywordMeta[name]?.createdAt || Date.now()))]);
             } catch (e) {
               console.error('D1 insert track error:', e);
               return errorResponse('音檔資訊儲存失敗，請保留表單並重試', 500);
@@ -639,7 +644,12 @@ export default {
             }
             if (has('keywords')) {
               if (!Array.isArray(body.keywords)) return errorResponse('關鍵字格式錯誤', 400);
-              add('keywords', JSON.stringify([...new Set(body.keywords.map((k: any) => String(k).trim()).filter(Boolean))].slice(0, 20)));
+              const next = [...new Set<string>(body.keywords.map((k: any) => String(k).trim()).filter(Boolean))];
+              if (next.length > 20 || next.some(k => k.length > 80)) return errorResponse('關鍵字數量或長度超過上限',400);
+              const patch = await keywordPatch(env.DB, existing, next, body);
+              if (patch.error) return errorResponse(patch.error,403);
+              add('keywords', JSON.stringify(next));
+              add('keywordMeta', JSON.stringify(patch.meta));
             }
             if (has('series')) add('series', String(body.series || ''));
             if (has('speechDate')) add('speechDate', String(body.speechDate || ''));
@@ -668,9 +678,11 @@ export default {
             }
 
             if (updates.length > 0) {
-              await env.DB.prepare(`UPDATE tracks SET ${updates.join(', ')} WHERE id = ?`)
-                .bind(...values, trackId)
-                .run();
+              const statements = [env.DB.prepare(`UPDATE tracks SET ${updates.join(', ')} WHERE id = ?`).bind(...values, trackId)];
+              if (has('keywords')) {
+                for (const name of new Set<string>([...JSON.parse(existing.keywords || '[]'), ...body.keywords])) statements.push(env.DB.prepare('INSERT OR IGNORE INTO keyword_catalog(name,createdAt) VALUES (?,?)').bind(name,Date.now()));
+              }
+              await env.DB.batch(statements);
             }
 
             const row: any = await env.DB.prepare('SELECT * FROM tracks WHERE id = ?').bind(trackId).first();
@@ -694,6 +706,7 @@ export default {
               ...row,
               categories: parseArray(row.categories),
               keywords: parseArray(row.keywords),
+              keywordMeta: JSON.parse(row.keywordMeta || '{}'),
               externalVideos: parseArray(row.externalVideos),
               externalPpts: parseArray(row.externalPpts),
               externalFiles: parseArray(row.externalFiles),

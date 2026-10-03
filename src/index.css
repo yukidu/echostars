@@ -351,3 +351,13 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
 
 /* Admin stays visible in the background while the editor must always sit above it. */
 .upload-modal-overlay { z-index: 160 !important; }
+
+@media (min-width: 768px), (orientation: landscape) {
+  .audio-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 768px) and (max-width: 1000px), (orientation: landscape) and (max-width: 767px) {
+  .audio-card-grid .audio-card > div { gap: 0.5rem; }
+  .audio-card-grid .audio-card > div > div:first-child { width: 5rem; }
+  .audio-card-grid .audio-card > div > div:first-child > button { width: 5rem; height: 5rem; }
+  .audio-card-grid .audio-card .order-2 { flex-wrap: wrap; }
+}

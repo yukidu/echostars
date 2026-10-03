@@ -250,7 +250,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     setNewKeywordInput('');
   };
 
+  const canRemoveKeyword = (kw: string) => !trackToEdit?.keywords?.includes(kw) || currentUser?.email?.trim().toLowerCase() === 'yukidu@gmail.com' || Boolean(currentUser && trackToEdit?.keywordMeta?.[kw]?.creatorId === currentUser.id);
   const handleRemoveKeyword = (kw: string) => {
+    if (!canRemoveKeyword(kw)) return;
     setKeywords(prev => prev.filter(k => k !== kw));
   };
 
@@ -1078,6 +1080,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                     <span>#{kw}</span>
                     <button
                       type="button"
+                      disabled={!canRemoveKeyword(kw)}
+                      title={canRemoveKeyword(kw) ? '移除關鍵字' : '僅建立者或超級管理員可移除'}
                       onClick={() => handleRemoveKeyword(kw)}
                       className="p-0.5 rounded-full hover:bg-amber-200 dark:hover:bg-amber-800 text-amber-700 dark:text-amber-300"
                     >

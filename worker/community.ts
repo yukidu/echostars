@@ -25,7 +25,7 @@ const initialized = new WeakMap<object, Promise<void>>();
 async function ensureSchema(db: any) {
   if (!initialized.has(db)) {
     const promise = (async () => {
-      for (const [table, fields] of Object.entries({ users: userColumns, playback_memories: { lastListenDate: 'TEXT', finishDate: 'TEXT' } })) {
+      for (const [table, fields] of Object.entries({ users: userColumns, tracks: { keywordMeta: "TEXT DEFAULT '{}'" }, playback_memories: { lastListenDate: 'TEXT', finishDate: 'TEXT' } })) {
         const { results } = await db.prepare(`PRAGMA table_info(${table})`).all();
         if (!results?.length) throw new Error(`Missing database table: ${table}`);
         const existing = new Set(results.map((r: any) => r.name));
@@ -39,6 +39,7 @@ async function ensureSchema(db: any) {
           }
         }
       }
+      await db.prepare('CREATE TABLE IF NOT EXISTS keyword_catalog (name TEXT PRIMARY KEY, createdAt INTEGER NOT NULL)').run();
       await db.prepare('CREATE INDEX IF NOT EXISTS comments_track_created ON comments(trackId, createdAt)').run();
       await db.prepare('CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY)').run();
       if (!await db.prepare("SELECT name FROM app_migrations WHERE name = 'remove-demo-v3'").first()) {
@@ -76,6 +77,7 @@ function normalizeTrack(row: any) {
   const track = { ...row, isPrivateVip: Boolean(row.isPrivateVip) };
   ['categories', 'keywords', 'externalVideos', 'externalPpts', 'externalFiles', 'likedBy'].forEach(k => track[k] = parse(row[k], []));
   track.ratings = parse(row.ratings, {});
+  track.keywordMeta = parse(row.keywordMeta, {});
   return track;
 }
 
@@ -172,7 +174,9 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
   const keywordAdmin = ['/api/keywords/rename', '/api/keywords/delete'].includes(path);
   const permissionAction = path.match(/^\/api\/users\/([^/]+)\/(contributor|admin-role|block)$/);
   const batchUsers = path === '/api/admin/users/batch' && method === 'PUT';
-  const handled = batchUsers || (permissionAction && method === 'PUT') || (auditAction && method === 'PUT') || keywordAction || keywordAdmin || (path === '/api/tracks' && method === 'GET') || (trackAction && method === 'POST') ||
+  const trackWrite = (path === '/api/tracks' && method === 'POST') || (/^\/api\/tracks\/[^/]+$/.test(path) && method === 'PUT');
+  const keywordList = path === '/api/keywords' && method === 'GET';
+  const handled = trackWrite || keywordList || batchUsers || (permissionAction && method === 'PUT') || (auditAction && method === 'PUT') || keywordAction || keywordAdmin || (path === '/api/tracks' && method === 'GET') || (trackAction && method === 'POST') ||
     ((path === '/api/comments' || commentList) && ['GET', 'POST'].includes(method)) ||
     (commentAction && ['POST', 'PUT', 'DELETE'].includes(method)) ||
     (['/api/users', '/api/users/profile', '/api/users/google-sync'].includes(path) && ['GET', 'POST'].includes(method)) || (userUpdate && method === 'PUT');
@@ -181,6 +185,7 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
   const db = env.DB;
   try {
     await ensureSchema(db);
+    if (trackWrite) return null;
     if (path.startsWith('/api/tracks')) await seedTracks(db, defaults);
     if (batchUsers) {
       const body: any = await request.json();
@@ -237,34 +242,47 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
         .bind(rank, rank, auditor.name, new Date().toISOString(), id).run();
       return json(normalizeUser(await db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first()));
     }
+    if (keywordList) {
+      const rows = (await db.prepare('SELECT keywords FROM tracks').all()).results;
+      const catalog = (await db.prepare('SELECT name FROM keyword_catalog ORDER BY createdAt DESC').all()).results;
+      return json([...new Set([...catalog.map((r: any) => r.name), ...rows.flatMap((r: any) => parse(r.keywords, []))])]);
+    }
     if (keywordAction || keywordAdmin) {
-      const body: any = method === 'DELETE' ? {keyword:url.searchParams.get('keyword'), ...await request.json().catch(()=>({}))} : await request.json();
+      const body: any = method === 'DELETE' ? {keyword:url.searchParams.get('keyword'), userEmail:url.searchParams.get('userEmail'), userId:url.searchParams.get('userId'), ...await request.json().catch(()=>({}))} : await request.json();
+      const actor = await keywordActor(db, body);
+      if (!actor) return json({error:'請先登入會員'},403);
+      const superAdmin = actor.email.toLowerCase().trim() === 'yukidu@gmail.com';
+      if (keywordAdmin && !superAdmin) return json({error:'只有超級管理員可批次管理關鍵字'},403);
       const rows = keywordAction
-        ? (await db.prepare('SELECT id, keywords FROM tracks WHERE id = ?').bind(decodeURIComponent(keywordAction[1])).all()).results
-        : (await db.prepare('SELECT id, keywords FROM tracks').all()).results;
+        ? (await db.prepare('SELECT id, keywords, keywordMeta FROM tracks WHERE id = ?').bind(decodeURIComponent(keywordAction[1])).all()).results
+        : (await db.prepare('SELECT id, keywords, keywordMeta FROM tracks').all()).results;
       if (keywordAction && !rows.length) return json({error:'音檔不存在'},404);
-      const statements = [];
-      let result: string[] = [];
+      const statements = [], changed = [];
       for (const row of rows) {
         let keywords: string[] = parse(row.keywords, []);
+        const meta = Object.assign(Object.create(null), parse(row.keywordMeta, {}));
+        const old = method === 'PUT' ? body.oldKeyword : keywordAction?.[2] ? decodeURIComponent(keywordAction[2]) : body.keyword;
+        const name = String(method === 'PUT' ? body.newKeyword || '' : body.keyword || '').trim();
+        if (!['POST','PUT','DELETE'].includes(method)) return json({error:'不支援此操作'},405);
+        if (method !== 'DELETE' && (!name || name.length > 80)) return json({error:'關鍵字需為 1 至 80 字'},400);
+        if (method !== 'POST' && !keywords.includes(old)) { if (keywordAdmin) continue; return json({error:'關鍵字不存在'},404); }
+        if (method !== 'POST' && !superAdmin && meta[old]?.creatorId !== actor.id) return json({error:'只能修改或刪除自己新增的關鍵字'},403);
         if (method === 'POST') {
-          const keyword = String(body.keyword || '').trim();
-          if (!keyword) return json({error:'請輸入關鍵字'},400);
-          if (!keywords.includes(keyword) && keywords.length >= 20) return json({error:'每首最多20個關鍵字'},400);
-          keywords = [...new Set([...keywords, keyword])];
+          if (keywords.includes(name)) return json({error:'此關鍵字已存在'},409);
+          if (keywords.length >= 20) return json({error:'每首最多20個關鍵字'},400);
+          keywords.push(name); meta[name] = {creatorId:actor.id,createdAt:Date.now()};
         } else if (method === 'PUT') {
-          const oldKeyword = body.oldKeyword, newKeyword = String(body.newKeyword || '').trim();
-          if (!oldKeyword || !newKeyword) return json({error:'請輸入新舊關鍵字'},400);
-          keywords = [...new Set(keywords.map(k=>k===oldKeyword?newKeyword:k))];
-        } else if (method === 'DELETE') {
-          const keyword = keywordAction?.[2] ? decodeURIComponent(keywordAction[2]) : body.keyword;
-          keywords = keywords.filter(k=>k!==keyword);
-        } else return json({error:'不支援此操作'},405);
-        result = keywords;
-        statements.push(db.prepare('UPDATE tracks SET keywords = ? WHERE id = ?').bind(JSON.stringify(keywords),row.id));
+          if (name !== old && keywords.includes(name)) return json({error:'此關鍵字已存在'},409);
+          keywords = keywords.map(k => k === old ? name : k);
+          const ownership = meta[old] || {creatorId:'',createdAt:0}; delete meta[old]; meta[name] = ownership;
+        } else { keywords = keywords.filter(k=>k!==old); delete meta[old]; }
+        if (method !== 'POST') statements.push(db.prepare('INSERT OR IGNORE INTO keyword_catalog(name,createdAt) VALUES (?,?)').bind(old,0));
+        if (method !== 'DELETE') statements.push(db.prepare('INSERT OR IGNORE INTO keyword_catalog(name,createdAt) VALUES (?,?)').bind(name,meta[name]?.createdAt || Date.now()));
+        statements.push(db.prepare('UPDATE tracks SET keywords = ?, keywordMeta = ? WHERE id = ?').bind(JSON.stringify(keywords),JSON.stringify(meta),row.id));
+        changed.push({id:row.id,keywords,keywordMeta:meta});
       }
       if (statements.length) await db.batch(statements);
-      return json({success:true,keywords:result});
+      return json({success:true,keywords:changed[0]?.keywords || [],keywordMeta:changed[0]?.keywordMeta || {},tracks:changed});
     }
     if (path === '/api/tracks') {
       const { results } = await db.prepare('SELECT * FROM tracks ORDER BY uploadDate DESC').all();
@@ -359,6 +377,7 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
       }
       const body: any = await request.json();
       const target = trackId || body.trackId;
+      if (typeof body.content !== 'string' || body.content.length > 2000) return json({ error: '心得最多 2000 字' }, 400);
       if (!target || !body.content?.trim()) return json({ error: '請輸入心得內容與音檔' }, 400);
       if (!await db.prepare('SELECT id FROM tracks WHERE id = ?').bind(target).first()) return json({ error: '找不到音檔' }, 404);
       if (body.replyToId && !await db.prepare('SELECT id FROM comments WHERE id = ? AND trackId = ?').bind(body.replyToId, target).first()) return json({ error: '回覆的心得已不存在' }, 400);
@@ -380,6 +399,7 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
           ? body.userEmail && row.authorEmail.toLowerCase().trim() === body.userEmail.toLowerCase().trim()
           : row.deviceId && row.deviceId === body.deviceId;
         if (!owns) return json({error:'只能修改自己的心得'},403);
+        if (typeof body.content !== 'string' || body.content.length > 2000) return json({ error: '心得最多 2000 字' }, 400);
         if (!body.content?.trim()) return json({ error: '心得不可空白' }, 400);
         await db.prepare('UPDATE comments SET content = ? WHERE id = ?').bind(body.content.trim(), id).run();
         return json(normalizeComment({ ...row, content: body.content.trim() }));
@@ -467,4 +487,22 @@ export async function communityApi(request: Request, env: Env, defaults: any[]):
     console.error('Persistent community API failed:', error);
     return json({ error: '資料讀取或儲存失敗，請稍後重試。' }, 500);
   }
+}
+
+export async function keywordActor(db: any, body: any) {
+  const email = String(body.userEmail || '').trim().toLowerCase();
+  if (!email) return null;
+  const actor = await db.prepare('SELECT * FROM users WHERE LOWER(TRIM(email)) = ?').bind(email).first();
+  return actor && !actor.isBlocked && (!body.userId || body.userId === actor.id) ? actor : null;
+}
+export async function keywordPatch(db: any, existing: any, next: string[], body: any) {
+  const previous: string[] = parse(existing.keywords, []), meta = Object.assign(Object.create(null), parse(existing.keywordMeta, {}));
+  const removed = previous.filter(k => !next.includes(k)), added = next.filter(k => !previous.includes(k));
+  if (!removed.length && !added.length) return { meta };
+  const actor = await keywordActor(db, body);
+  if (!actor) return { error: '請先登入會員' };
+  if (actor.email.toLowerCase().trim() !== 'yukidu@gmail.com' && removed.some(k => meta[k]?.creatorId !== actor.id)) return { error: '只能修改或刪除自己新增的關鍵字' };
+  removed.forEach(k => delete meta[k]);
+  added.forEach(k => meta[k] = {creatorId:actor.id,createdAt:Date.now()});
+  return {meta};
 }

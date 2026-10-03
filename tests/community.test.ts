@@ -14,6 +14,7 @@ function database(legacy = false) {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
   if (legacy) {
+    sqlite.exec('ALTER TABLE tracks DROP COLUMN keywordMeta');
     for (const column of ['residence', 'birthday', 'approvedRank', 'rankAuditType', 'canUpload', 'playCount', 'googleAvatar', 'avatarUploadCount', 'avatarUploadMonth', 'profileEditCount', 'profileEditMonth', 'zodiac', 'talentNumber', 'lifeNumber']) sqlite.exec(`ALTER TABLE users DROP COLUMN ${column}`);
     sqlite.exec('ALTER TABLE playback_memories DROP COLUMN lastListenDate');
     sqlite.exec('ALTER TABLE playback_memories DROP COLUMN finishDate');
@@ -210,10 +211,11 @@ test('v3 comment edits reject another author, including the administrator', asyn
 });
 test('v3 keywords support add, rename and query-string delete',async()=>{
  const db=database();await call(db,'/api/tracks');
- assert.deepEqual((await call(db,'/api/tracks/t-test/keywords','POST',{keyword:'學習'})).data.keywords,['學習']);
- await call(db,'/api/keywords/rename','PUT',{oldKeyword:'學習',newKeyword:'成長'});
+ await call(db,'/api/users/google-sync','POST',{email:'yukidu@gmail.com',name:'管理員'});
+ assert.deepEqual((await call(db,'/api/tracks/t-test/keywords','POST',{keyword:'學習',userEmail:'yukidu@gmail.com'})).data.keywords,['學習']);
+ await call(db,'/api/keywords/rename','PUT',{oldKeyword:'學習',newKeyword:'成長',userEmail:'yukidu@gmail.com'});
  assert.deepEqual((await call(db,'/api/tracks')).data[0].keywords,['成長']);
- assert.equal((await call(db,'/api/keywords/delete?keyword='+encodeURIComponent('成長'),'DELETE')).status,200);
+ assert.equal((await call(db,'/api/keywords/delete?keyword='+encodeURIComponent('成長')+'&userEmail=yukidu%40gmail.com','DELETE')).status,200);
  assert.deepEqual((await call(db,'/api/tracks')).data[0].keywords,[]);
  db.sqlite.close();
 });
@@ -295,9 +297,10 @@ async function workerCall(db: any, path: string, method = 'GET', body?: any) {
 
 test('track metadata edits survive re-read, empty values stay empty and unrelated fields survive partial edits', async () => {
   const db = database();
+  await call(db,'/api/users/google-sync','POST',{email:'yukidu@gmail.com',name:'管理員'});
   for (let i = 0; i < 24; i++) {
     const created = await workerCall(db, '/api/tracks', 'POST', {
-      id: `edit-${i}`, title: `演講 ${i}`, speaker: `講員 ${i}`, speakerRank: '創辦人紅寶石',
+      userEmail: 'yukidu@gmail.com', id: `edit-${i}`, title: `演講 ${i}`, speaker: `講員 ${i}`, speakerRank: '創辦人紅寶石',
       requiredRank: '6%', audioUrl: `/uploads/${i}.mp3`, speechDate: '2026/10/03',
       description: '原備註', series: '原系列', seriesOrder: '第 2 集', categories: ['事業'], keywords: ['原標籤'],
       externalVideos: [{ name: '舊影片', url: 'https://example.com/video' }],
@@ -305,7 +308,7 @@ test('track metadata edits survive re-read, empty values stay empty and unrelate
     });
     assert.equal(created.status, 200);
     const saved = await workerCall(db, `/api/tracks/edit-${i}`, 'PUT', {
-      description: `新的備註 ${i}`, categories: ['新人'], keywords: ['新標籤'], speechDate: '',
+      userEmail: 'yukidu@gmail.com', description: `新的備註 ${i}`, categories: ['新人'], keywords: ['新標籤'], speechDate: '',
       series: '', seriesOrder: '', externalVideos: [], externalPpts: [], externalFiles: []
     });
     assert.equal(saved.status, 200);
@@ -315,7 +318,7 @@ test('track metadata edits survive re-read, empty values stay empty and unrelate
     assert.equal(saved.data.track.title, `演講 ${i}`);
     assert.equal(saved.data.track.requiredRank, '6%');
     assert.equal(saved.data.track.durationSeconds, 3439);
-    const keywordOnly = await workerCall(db, `/api/tracks/edit-${i}`, 'PUT', { keywords: [] });
+    const keywordOnly = await workerCall(db, `/api/tracks/edit-${i}`, 'PUT', { keywords: [], userEmail: 'yukidu@gmail.com' });
     assert.equal(keywordOnly.data.track.description, `新的備註 ${i}`);
   }
   const stored = (await workerCall(db, '/api/tracks')).data;
@@ -383,4 +386,47 @@ test('VIP metadata persists on upload, duration edit and reset without a second 
   assert.equal(persisted.vipDurationDays, 0);
   assert.equal((await workerCall(db, '/api/tracks/vip-test', 'PUT', { vipDurationDays: -1 })).status, 400);
   db.sqlite.close();
+});
+
+test('keyword ownership is persisted and enforced on per-track, global and full-form mutations', async () => {
+ const db=database();await call(db,'/api/tracks');
+ const alice=(await call(db,'/api/users/google-sync','POST',{email:'alice@example.com',name:'甲'})).data.user;
+ const bob=(await call(db,'/api/users/google-sync','POST',{email:'bob@example.com',name:'乙'})).data.user;
+ await call(db,'/api/users/google-sync','POST',{email:'yukidu@gmail.com',name:'管理員'});
+ const path='/api/tracks/t-test/keywords';
+ assert.equal((await call(db,path,'POST',{keyword:'學習'})).status,403);
+ const added=await call(db,path,'POST',{keyword:'學習',userEmail:alice.email,userId:alice.id});
+ assert.equal(added.data.keywordMeta['學習'].creatorId,alice.id);
+ assert.ok(added.data.keywordMeta['學習'].createdAt>0);
+ assert.equal((await call(db,path,'PUT',{oldKeyword:'學習',newKeyword:'偷改',userEmail:bob.email})).status,403);
+ assert.equal((await call(db,path+'/學習?userEmail='+bob.email,'DELETE')).status,403);
+ assert.equal((await workerCall(db,'/api/tracks/t-test','PUT',{keywords:[],userEmail:bob.email})).status,403);
+ assert.equal((await call(db,'/api/keywords/rename','PUT',{oldKeyword:'學習',newKeyword:'偷改',userEmail:bob.email})).status,403);
+ assert.equal((await call(db,path,'POST',{keyword:'學習',userEmail:bob.email})).status,409);
+ const renamed=await call(db,path,'PUT',{oldKeyword:'學習',newKeyword:'成長',userEmail:alice.email});
+ assert.equal(renamed.data.keywordMeta['成長'].creatorId,alice.id);
+ assert.equal(renamed.data.keywordMeta['成長'].createdAt,added.data.keywordMeta['學習'].createdAt);
+ assert.equal((await call(db,path+'/成長?userEmail=yukidu%40gmail.com','DELETE')).status,200);
+ const catalog=(await call(db,'/api/keywords')).data;assert.ok(catalog.includes('學習') && catalog.includes('成長'));
+ db.sqlite.prepare('UPDATE tracks SET keywords = ? WHERE id = ?').run('["舊關鍵字"]','t-test');
+ assert.equal((await call(db,path+'/舊關鍵字?userEmail='+alice.email,'DELETE')).status,403);
+ assert.equal((await call(db,path+'/舊關鍵字?userEmail=yukidu%40gmail.com','DELETE')).status,200);
+ db.sqlite.close();
+});
+
+test('keyword ranking sorts frequency first then newer additions; duplicates count once per track', async () => {
+ const {keywordRanking}=await import('../src/utils/keywords');
+ const tracks:any=[{keywords:['熱門','舊','新','熱門'],keywordMeta:{舊:{createdAt:10},新:{createdAt:20}}},{keywords:['熱門']}];
+ assert.deepEqual(keywordRanking(tracks),['熱門','新','舊']);
+});
+
+test('comments allow 2000 characters on create and edit, reject 2001 without changing saved content', async () => {
+ const db=database();await call(db,'/api/tracks');
+ const body={authorEmail:'member@example.com',content:'心'.repeat(2000)};
+ const created=await call(db,'/api/tracks/t-test/comments','POST',body);assert.equal(created.status,201);
+ assert.equal((await call(db,'/api/tracks/t-test/comments','POST',{...body,content:'心'.repeat(2001)})).status,400);
+ const path='/api/comments/'+created.data.id;
+ assert.equal((await call(db,path,'PUT',{userEmail:body.authorEmail,content:'得'.repeat(2000)})).status,200);
+ assert.equal((await call(db,path,'PUT',{userEmail:body.authorEmail,content:'得'.repeat(2001)})).status,400);
+ assert.equal((await call(db,'/api/comments')).data[0].content,'得'.repeat(2000));db.sqlite.close();
 });

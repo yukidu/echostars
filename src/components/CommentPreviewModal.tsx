@@ -700,7 +700,7 @@ const threads = commentThreads(comments);
                   ? `以 ${currentUser.name} 快速發表心得... (輸入 @ 或 ＠ 標記)`
                   : '發表快速心得... (輸入 @ 或 ＠ 標記)'
               }
-              maxLength={300}
+              maxLength={2000}
               className="min-w-0 flex-1 px-3 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-hidden focus:ring-1 focus:ring-[var(--color-primary,#c06c84)]"
             />
             <button

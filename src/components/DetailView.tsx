@@ -1,3 +1,4 @@
+import { keywordRanking } from '../utils/keywords';
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Star,
@@ -167,6 +168,9 @@ export const DetailView: React.FC<DetailViewProps> = ({
 
   // Requirement 1: 網友關鍵字狀態
   const [trackKeywords, setTrackKeywords] = useState<string[]>(track.keywords || []);
+  const [keywordMeta, setKeywordMeta] = useState(track.keywordMeta || {});
+  const rankedKeywords = keywordRanking(tracks);
+  const sortedTrackKeywords = [...trackKeywords].sort((a,b) => { const ai=rankedKeywords.indexOf(a), bi=rankedKeywords.indexOf(b); return (ai < 0 ? Infinity : ai) - (bi < 0 ? Infinity : bi); });
   const [dbKeywords, setDbKeywords] = useState<string[]>([]);
   const [isAddingKeyword, setIsAddingKeyword] = useState(false);
   const [newKeywordInput, setNewKeywordInput] = useState('');
@@ -176,7 +180,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
 
   useEffect(() => {
     setTrackKeywords(track.keywords || []);
-  }, [track.id, track.keywords]);
+    setKeywordMeta(track.keywordMeta || {});
+  }, [track.id, track.keywords, track.keywordMeta]);
 
   const loadDbKeywords = async () => {
     try {
@@ -191,8 +196,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
   };
 
   useEffect(() => {
-    loadDbKeywords();
-  }, []);
+    if (isAddingKeyword) loadDbKeywords();
+  }, [isAddingKeyword]);
 
   // Requirement 2: 超級管理員、貢獻者，可以在「最大化視窗」直接修改音檔的「演講資訊與備註」或編輯修改新增「連結」。（但是貢獻者只能修改編輯自己上傳的音檔）
   const isSuperAdmin = isAdmin || currentUser?.email === 'yukidu@gmail.com' || currentUser?.role === '超級管理員';
@@ -202,9 +207,9 @@ export const DetailView: React.FC<DetailViewProps> = ({
 
   // Permissions for keywords (Requirement 1):
   // 已登入會員的「所有人」都有權限可以新增關鍵字，前提是最多不能超過20組關鍵字。
-  // 但是，只有「超級管理員、貢獻者」，才有權限可編輯或修改刪除關鍵字。
+  // 建立者可管理自己的關鍵字；超級管理員可管理全部。
   const canAddKeywords = currentUser !== null && trackKeywords.length < 20;
-  const canManageKeywords = isSuperAdmin || currentUser?.isContributor === true;
+  const canManageKeywords = (kw: string) => currentUser?.email?.toLowerCase().trim() === 'yukidu@gmail.com' || Boolean(currentUser && keywordMeta[kw]?.creatorId === currentUser.id);
 
   const handleAddKeyword = async (kw: string) => {
     const trimmed = kw.trim();
@@ -222,16 +227,17 @@ export const DetailView: React.FC<DetailViewProps> = ({
       const res = await fetch(`/api/tracks/${track.id}/keywords`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword: trimmed })
+        body: JSON.stringify({ keyword: trimmed, userEmail: currentUser?.email, userId: currentUser?.id })
       });
       if (res.ok) {
         const data = await res.json();
         setTrackKeywords(data.keywords || [...trackKeywords, trimmed]);
+        setKeywordMeta(data.keywordMeta || {});
         setNewKeywordInput('');
         setIsAddingKeyword(false);
-        loadDbKeywords();
+        setDbKeywords(prev => [...new Set([...prev, ...(data.keywords || [])])]);
         if (onUpdateTrack) {
-          await onUpdateTrack(track.id, { keywords: data.keywords }, { persist: false });
+          await onUpdateTrack(track.id, { keywords: data.keywords, keywordMeta: data.keywordMeta }, { persist: false });
         }
       } else {
         const err = await res.json().catch(() => ({}));
@@ -266,10 +272,11 @@ export const DetailView: React.FC<DetailViewProps> = ({
       if (res.ok) {
         const data = await res.json();
         setTrackKeywords(data.keywords);
+        setKeywordMeta(data.keywordMeta || {});
         setEditingKeywordOld(null);
-        loadDbKeywords();
+        setDbKeywords(prev => [...new Set([...prev, ...(data.keywords || [])])]);
         if (onUpdateTrack) {
-          await onUpdateTrack(track.id, { keywords: data.keywords }, { persist: false });
+          await onUpdateTrack(track.id, { keywords: data.keywords, keywordMeta: data.keywordMeta }, { persist: false });
         }
       }
     } catch (error) {
@@ -290,9 +297,10 @@ export const DetailView: React.FC<DetailViewProps> = ({
       if (res.ok) {
         const data = await res.json();
         setTrackKeywords(data.keywords);
-        loadDbKeywords();
+        setKeywordMeta(data.keywordMeta || {});
+        setDbKeywords(prev => [...new Set([...prev, ...(data.keywords || [])])]);
         if (onUpdateTrack) {
-          await onUpdateTrack(track.id, { keywords: data.keywords }, { persist: false });
+          await onUpdateTrack(track.id, { keywords: data.keywords, keywordMeta: data.keywordMeta }, { persist: false });
         }
       }
     } catch (error) {
@@ -461,11 +469,11 @@ export const DetailView: React.FC<DetailViewProps> = ({
         </div>
 
         {/* Keywords Tag Chips List */}
-        <div className="flex flex-wrap gap-1.5 items-center">
+        <div className="flex flex-wrap gap-x-1 gap-y-0.5 items-center">
           {trackKeywords.length === 0 ? (
             <span className="text-[11px] text-slate-400 italic">尚未設定網友關鍵字</span>
           ) : (
-            trackKeywords.map((kw, idx) => {
+            sortedTrackKeywords.map((kw, idx) => {
               const isEditing = editingKeywordOld === kw;
               if (isEditing) {
                 return (
@@ -510,7 +518,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
               return (
                 <div
                   key={idx}
-                  className="group inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold bg-amber-50/90 dark:bg-slate-800 text-amber-900 dark:text-amber-200 border border-amber-200/80 dark:border-slate-700 shadow-2xs hover:border-amber-400 transition-all"
+                  className="group inline-flex items-center gap-0.5 px-1 py-0 rounded-md text-xs font-semibold bg-amber-50/90 dark:bg-slate-800 text-amber-900 dark:text-amber-200 border border-amber-200/80 dark:border-slate-700 shadow-2xs hover:border-amber-400 transition-all"
                 >
                   {/* Requirement 5.11 (v2.7): 點選已新增的關鍵字，跳轉首頁篩選該關鍵字 */}
                   <button
@@ -522,8 +530,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
                     <span>{kw}</span>
                   </button>
 
-                  {/* Edit / Delete actions for Super Admin & Contributor only */}
-                  {canManageKeywords && (
+                  {/* Edit / Delete actions for creator or super administrator */}
+                  {canManageKeywords(kw) && (
                     <div className="flex items-center gap-0.5 ml-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
@@ -556,6 +564,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
           )}
         </div>
 
+        {keywordError && !isAddingKeyword && <p role="alert" className="text-xs text-rose-600 mt-1">{keywordError}</p>}
         {/* Inline Add Keyword Box - Requirement 5.10 (v2.7): 手機小裝置確保輸入框與 X 按鈕良好點擊而不被擠壓溢出 */}
         {isAddingKeyword && (
           <div className="mt-2.5 p-2 sm:p-2.5 rounded-2xl bg-amber-50/90 dark:bg-slate-800/90 border border-amber-200 dark:border-slate-700 space-y-2 animate-in fade-in max-w-full overflow-hidden">
@@ -616,8 +625,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
                 </span>
                 <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
                   {dbKeywords
-                    .filter(k => !trackKeywords.includes(k))
-                    .slice(0, 15)
+                    .filter(k => !trackKeywords.includes(k) && k.toLocaleLowerCase().includes(newKeywordInput.trim().toLocaleLowerCase()))
+                    .sort((a,b) => (rankedKeywords.includes(a) ? rankedKeywords.indexOf(a) : Infinity) - (rankedKeywords.includes(b) ? rankedKeywords.indexOf(b) : Infinity))
                     .map((kw, i) => (
                       <button
                         key={i}
@@ -642,8 +651,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
         {/* Main Speaker Avatar with Rotating animation when playing */}
         <div className="relative z-10 flex flex-col items-center text-center pt-1">
           <div className="relative mb-3">
-            <div
-              className={`w-36 h-36 sm:w-44 sm:h-44 rounded-full overflow-hidden shadow-xl bg-slate-100 dark:bg-slate-800 ${
+            <button type="button" onClick={e => onTogglePlay(e.currentTarget)} aria-label={isPlaying ? '暫停播放' : '開始播放'}
+              className={`cursor-pointer w-36 h-36 sm:w-44 sm:h-44 rounded-full overflow-hidden shadow-xl bg-slate-100 dark:bg-slate-800 ${
                 isPlaying ? 'animate-spin-slow' : ''
               }`}
               style={{
@@ -656,7 +665,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                 alt={track.speaker}
                 className="w-full h-full object-cover"
               />
-            </div>
+            </button>
 
             {/* Badge: Required permission (Requirement 11 v2.7: 私秘VIP顯示鎖頭+私秘VIP) */}
             <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-xs text-amber-300 text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-md border border-amber-500/40 whitespace-nowrap flex items-center gap-1 z-10">
@@ -840,15 +849,16 @@ export const DetailView: React.FC<DetailViewProps> = ({
           ))}
         </div>
 
-        {/* Speed Control Row (0.7x ~ 2.0x) - Requirement 4 (v2.8): 倍速調整字體縮小 */}
+        {/* Speed Control Row (0.7x ~ 2.3x) - Requirement 4 (v2.8): 倍速調整字體縮小 */}
         <div className="flex items-center justify-center gap-1 pt-0">
-          {[0.7, 1.0, 1.25, 1.5, 2.0].map(rate => (
+          {[0.7, 1.0, 1.25, 1.5, 2.0, 2.3].map(rate => (
             <button
               key={rate}
               onClick={() => onChangeSpeed(rate)}
+              aria-pressed={playbackRate === rate}
               className={`px-1.5 py-0.5 rounded-md text-[9px] font-mono font-medium transition-all cursor-pointer ${
                 playbackRate === rate
-                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 shadow-2xs font-bold'
+                  ? 'bg-[var(--color-primary)] text-white shadow-2xs font-bold'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >

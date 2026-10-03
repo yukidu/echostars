@@ -167,10 +167,10 @@ export const AudioCard: React.FC<AudioCardProps> = ({
             </div>
           </div>
 
-          <div className="mt-auto pt-1.5 space-y-1 sm:space-y-0 sm:flex sm:items-center sm:gap-3 border-t border-slate-100 dark:border-slate-800 pr-0">
+          <div className="mt-auto pt-1.5 flex flex-col items-start gap-1 border-t border-slate-100 dark:border-slate-800 pr-0">
             {/* Enlarged rating row */}
             <div
-              className="flex items-center flex-nowrap gap-[2px] min-w-0"
+              className="flex items-center flex-nowrap gap-[2px] min-w-0 order-2"
               onClick={e => e.stopPropagation()}
               title={hasReadAccess ? '點擊星星評分' : '無閱讀權限，無法評價'}
             >
@@ -204,7 +204,7 @@ export const AudioCard: React.FC<AudioCardProps> = ({
             </div>
 
             {/* Enlarged feedback + likes row */}
-            <div className="flex items-center gap-2.5 sm:gap-3 text-sm leading-none text-slate-600 dark:text-slate-400 sm:ml-auto">
+            <div className="flex items-center gap-2.5 sm:gap-3 text-sm leading-none text-slate-600 dark:text-slate-400 order-1">
               <button
                 type="button"
                 onClick={e => {

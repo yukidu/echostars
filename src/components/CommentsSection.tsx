@@ -393,7 +393,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
             ref={textareaRef}
             value={inputText}
             onChange={handleTextareaChange}
-            maxLength={500}
+            maxLength={2000}
             rows={3}
             placeholder={
               replyingTo
@@ -505,7 +505,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
             {/* Right: Counter & Submit */}
             <div className="flex items-center gap-3">
               <span className="text-xs text-slate-400 font-mono">
-                {inputText.length}/500
+                {inputText.length}/2000
               </span>
               <button
                 type="submit"
@@ -683,7 +683,7 @@ const threads = commentThreads(comments);
                   {/* Comment Body */}
                   {editingId === c.id ? (
                     <div className="mt-1.5 space-y-1.5 pl-5">
-                      <textarea
+                      <textarea maxLength={2000}
                         value={editContent}
                         onChange={e => setEditContent(e.target.value)}
                         className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/60 text-xs text-slate-800 dark:text-slate-100 outline-hidden"
