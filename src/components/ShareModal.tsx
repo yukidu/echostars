@@ -75,6 +75,15 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   // Requirement 4: 如果未登入的訪客，則預覽訊息不顯示暱稱，取消輸入暱稱的框框
   const shareText = `${track.speaker}《${track.title}》`;
 
+  const recordShareEvent = () => {
+    if (!currentUser) return;
+    void fetch('/api/share-events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackId: track.id })
+    }).catch(error => console.warn('Failed to record member share event:', error));
+  };
+
   const handleNativeShare = async () => {
     if (!shareUrl) return;
     if (navigator.share) {
@@ -84,6 +93,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
           text: shareText,
           url: shareUrl
         });
+        recordShareEvent();
         onClose();
         return;
       } catch (error) {
@@ -96,6 +106,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   const handleCopy = async () => {
     if (!shareUrl) return;
     try { await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`); } catch { return; }
+    recordShareEvent();
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
