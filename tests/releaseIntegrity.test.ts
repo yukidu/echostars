@@ -5,6 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 const sw = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const wrangler = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
+const workflow = readFileSync(new URL('../.github/workflows/regression.yml', import.meta.url), 'utf8');
 
 test('v71 is the single current PWA cache version', () => {
   assert.match(sw, /const CACHE_NAME = 'echostars-shell-v71'/);
@@ -21,9 +22,11 @@ test('service worker never caches API responses or personalized share HTML as ap
   assert.doesNotMatch(sw, /cacheableNavigation[\s\S]*url\.pathname\.startsWith\('\/share\/'\)/);
 });
 
-test('Cloudflare release build runs regression tests before the production build', () => {
+test('release verification keeps regression tests and the production build as the explicit gate', () => {
   assert.equal(pkg.scripts.verify, 'npm test && npm run build');
-  assert.match(wrangler, /\[build\][\s\S]*command = "npm run verify"/);
+  assert.match(workflow, /run: npm test/);
+  assert.match(workflow, /run: npm run build/);
+  assert.doesNotMatch(wrangler, /\[build\][\s\S]*command = "npm run verify"/);
 });
 
 test('preview configuration stays isolated from production storage bindings', () => {
