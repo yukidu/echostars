@@ -17,13 +17,17 @@ test('newcomer border shows a simultaneous 45-degree seven-color gradient that f
   for (const color of ['#ff3b30', '#ff9500', '#ffcc00', '#34c759', '#00c7be', '#007aff', '#af52de']) {
     assert.ok(css.includes(color), `missing rainbow color ${color}`);
   }
-  assert.match(css, /background-size:\s*100% 100%, 200% 100%/);
-  assert.match(css, /background-position:\s*0 0, 100% 50%/);
-  assert.match(css, /background-position:\s*0 0, 0% 50%/);
+  assert.match(css, /background-size:\s*200% 100%/);
+  assert.match(css, /background-position:\s*100% 50%/);
+  assert.match(css, /background-position:\s*0% 50%/);
   assert.match(css, /animation:\s*newcomerRainbowFlow 2\.4s linear infinite/);
 });
 
-test('rainbow gradient keeps the existing border thickness', () => {
+test('newcomer inner fill stays theme-colored while rainbow remains a 1px border', () => {
+  assert.match(css, /\.newcomer-rainbow-border::before/);
+  assert.match(css, /inset:\s*1px/);
+  assert.match(css, /background:\s*var\(--color-light-pill, #fae8ed\)/);
+  assert.match(css, /isolation:\s*isolate/);
   assert.doesNotMatch(css, /border-(?:width|style):/);
   assert.doesNotMatch(css, /border:\s*\d/);
 });
