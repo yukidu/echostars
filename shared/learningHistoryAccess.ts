@@ -23,6 +23,25 @@ export function learningIdentityAliases(identity: LearningHistoryIdentity | null
   return [...aliases];
 }
 
+// Public profile/leaderboard learning history is intentionally readable by
+// visitors and members. The requested member — never the viewer/session — is
+// the source of truth for the aliases used to read playback history.
+export function decidePublicLearningHistoryTarget(
+  requestedId: string,
+  target: LearningHistoryIdentity | null | undefined
+): LearningHistoryScopeDecision {
+  const requested = normalizeLearningIdentity(requestedId);
+  if (!requested) return { ok: false, status: 400, error: '缺少使用者識別' };
+  if (!target) return { ok: false, status: 404, error: '找不到指定會員' };
+
+  const aliases = learningIdentityAliases(target);
+  if (!aliases.includes(requested)) {
+    return { ok: false, status: 404, error: '找不到指定會員' };
+  }
+
+  return { ok: true, aliases, isOwn: false };
+}
+
 export function canInspectOtherLearningHistory(actor: LearningHistoryIdentity | null | undefined) {
   if (!actor) return false;
   const email = normalizeLearningIdentity(actor.email);
@@ -35,6 +54,8 @@ export function canInspectOtherLearningHistory(actor: LearningHistoryIdentity | 
   );
 }
 
+// Authenticated scope is kept for destructive/self-service actions such as
+// clearing history. Public GET reads use decidePublicLearningHistoryTarget().
 export function decideLearningHistoryScope(
   actor: LearningHistoryIdentity | null | undefined,
   requestedId: string,
