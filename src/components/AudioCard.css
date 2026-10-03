@@ -1,13 +1,44 @@
-@keyframes newcomerRainbowBorder {
-  0%, 100% { border-color: #ff3b30; }
-  16% { border-color: #ff9500; }
-  33% { border-color: #ffcc00; }
-  50% { border-color: #34c759; }
-  66% { border-color: #00a8ff; }
-  83% { border-color: #8e44ff; }
+@keyframes newcomerRainbowFlow {
+  from {
+    background-position: 0 0, 100% 50%;
+  }
+  to {
+    background-position: 0 0, 0% 50%;
+  }
 }
 
-/* Keep the existing border width/radius; animate color only. */
+/*
+ * 「新人」標籤：保留既有 1px border，只把 border paint 改成 45deg 七色漸層。
+ * 第二層包含兩組相同七色序列，讓整條彩虹由左往右無縫循環流動。
+ */
 .newcomer-rainbow-border {
-  animation: newcomerRainbowBorder 2.8s linear infinite;
+  border-color: transparent !important;
+  background-image:
+    linear-gradient(
+      var(--color-light-pill, #fae8ed),
+      var(--color-light-pill, #fae8ed)
+    ),
+    linear-gradient(
+      45deg,
+      #ff3b30 0%,
+      #ff9500 7.14%,
+      #ffcc00 14.28%,
+      #34c759 21.42%,
+      #00c7be 28.56%,
+      #007aff 35.70%,
+      #af52de 42.84%,
+      #ff3b30 50%,
+      #ff9500 57.14%,
+      #ffcc00 64.28%,
+      #34c759 71.42%,
+      #00c7be 78.56%,
+      #007aff 85.70%,
+      #af52de 92.84%,
+      #ff3b30 100%
+    );
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  background-size: 100% 100%, 200% 100%;
+  background-repeat: no-repeat, repeat;
+  animation: newcomerRainbowFlow 2.4s linear infinite;
 }
