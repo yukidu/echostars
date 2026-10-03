@@ -22,8 +22,15 @@ test('media session publishes title, speaker, artwork and app album name', () =>
   assert.match(policy, /title,/);
   assert.match(policy, /artist,/);
   assert.match(policy, /album: APP_TITLE/);
-  assert.match(policy, /artwork:/);
+  assert.match(policy, /artwork: artworkEntries/);
   assert.match(policy, /player\.dataset\.mediaArtwork/);
+});
+
+test('real speaker portrait is the only artwork candidate so OS cannot prefer app icons', () => {
+  assert.match(policy, /mediaArtworkEntries/);
+  assert.match(policy, /if \(!isDefaultArtworkUrl\(artwork\)\)/);
+  assert.match(policy, /return \[\{ src: artwork \}\]/);
+  assert.match(policy, /DEFAULT_ARTWORK_PATHS/);
 });
 
 test('system playback controls support play pause and seeking without desyncing React state', () => {
@@ -47,6 +54,6 @@ test('media session module loads before React and PWA exposes monochrome icon', 
   assert.ok(mediaIndex < mainIndex);
   assert.match(manifest, /icon-monochrome\.svg/);
   assert.match(manifest, /"purpose": "monochrome"/);
-  assert.match(serviceWorker, /echostars-shell-v53/);
+  assert.match(serviceWorker, /echostars-shell-v56/);
   assert.match(serviceWorker, /icon-monochrome\.svg/);
 });
