@@ -123,6 +123,26 @@ function aliasesFor(user: any, requestedId = '') {
   return [...aliases];
 }
 
+// Older playback rows sometimes kept the correct member identity only in the
+// primary key (`<identity>_<trackId>`) while userIdentifier was blank or used an
+// earlier format. Match both representations so historical progress can never
+// disappear after a schema/router upgrade.
+function playbackIdentityFilter(aliases: string[]) {
+  const clauses: string[] = [];
+  const bindings: string[] = [];
+  for (const alias of aliases) {
+    clauses.push(`(
+      LOWER(TRIM(userIdentifier)) = ?
+      OR LOWER(SUBSTR(TRIM(key), 1, LENGTH(?) + 1)) = ?
+    )`);
+    bindings.push(alias, alias, `${alias}_`);
+  }
+  return {
+    where: clauses.length ? clauses.join(' OR ') : '0',
+    bindings
+  };
+}
+
 async function trackMetaMap(db: any, trackIds: string[]) {
   const ids = [...new Set(trackIds.filter(Boolean))];
   if (!ids.length) return {} as Record<string, TrackProgressMeta>;
@@ -140,12 +160,12 @@ async function trackMetaMap(db: any, trackIds: string[]) {
 async function canonicalRecords(env: Env, aliases: string[]): Promise<Record<string, CanonicalPlaybackRecord>> {
   if (!env.DB || !aliases.length) return {};
   await ensureLearningSchema(env.DB);
-  const placeholders = aliases.map(() => '?').join(',');
+  const filter = playbackIdentityFilter(aliases);
   const { results } = await env.DB.prepare(`
     SELECT * FROM playback_memories
-    WHERE LOWER(TRIM(userIdentifier)) IN (${placeholders})
+    WHERE ${filter.where}
     ORDER BY COALESCE(lastPlayedAt, 0) ASC
-  `).bind(...aliases).all();
+  `).bind(...filter.bindings).all();
 
   const rows = results || [];
   const meta = await trackMetaMap(env.DB, rows.map((row: any) => String(row.trackId || '')));
@@ -171,9 +191,9 @@ async function deleteHistory(request: Request, requestedId: string, env: Env) {
   const aliases = aliasesFor(user, requestedId);
   if (!aliases.length) return json({ success: true });
   await ensureLearningSchema(env.DB);
-  const placeholders = aliases.map(() => '?').join(',');
+  const filter = playbackIdentityFilter(aliases);
   const statements = [
-    env.DB.prepare(`DELETE FROM playback_memories WHERE LOWER(TRIM(userIdentifier)) IN (${placeholders})`).bind(...aliases)
+    env.DB.prepare(`DELETE FROM playback_memories WHERE ${filter.where}`).bind(...filter.bindings)
   ];
   if (user) {
     statements.push(
