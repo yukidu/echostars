@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const css = readFileSync(new URL('../src/mobileMenuHalfLayout.css', import.meta.url), 'utf8');
 const main = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8');
+const theme = readFileSync(new URL('../src/utils/theme.ts', import.meta.url), 'utf8');
 const sw = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 
 test('mobile menu layout policy is loaded after the base stylesheet', () => {
@@ -13,10 +14,12 @@ test('mobile menu layout policy is loaded after the base stylesheet', () => {
   assert.ok(menu > base);
 });
 
-test('mobile drawer stays right aligned and half width', () => {
+test('mobile drawer stays right aligned, half width, and out of document flow', () => {
+  assert.match(css, /position:\s*absolute\s*!important/);
+  assert.match(css, /top:\s*100%\s*!important/);
+  assert.match(css, /right:\s*0\s*!important/);
   assert.match(css, /width:\s*50vw\s*!important/);
   assert.match(css, /max-width:\s*50vw\s*!important/);
-  assert.match(css, /margin-left:\s*auto\s*!important/);
   assert.match(css, /max-height:\s*calc\(100dvh - 64px\)/);
 });
 
@@ -41,6 +44,18 @@ test('install status is positioned under the install label', () => {
   assert.match(css, /grid-row:\s*2/);
 });
 
-test('PWA shell cache advances for mobile menu layout fix', () => {
-  assert.match(sw, /echostars-shell-v69/);
+test('mobile install entry always keeps a download arrow on the left', () => {
+  assert.match(css, /button\[aria-label="繁星回聲已安裝"\]::before/);
+  assert.match(css, /mask:\s*url\("data:image\/svg\+xml/);
+  assert.match(css, /background-color:\s*currentColor/);
+  assert.match(css, /> svg:first-child[\s\S]*display:\s*none\s*!important/);
+});
+
+test('palette primary color is synced to browser and standalone PWA chrome', () => {
+  assert.match(theme, /querySelector<HTMLMetaElement>\('meta\[name="theme-color"\]'\)/);
+  assert.match(theme, /themeColorMeta\.content\s*=\s*palette\.primary/);
+});
+
+test('PWA shell cache advances for overlay and theme color fix', () => {
+  assert.match(sw, /echostars-shell-v70/);
 });
