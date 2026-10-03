@@ -119,6 +119,9 @@ CREATE TABLE IF NOT EXISTS categories (
   createdAt INTEGER
 );
 
+-- 分類完全由後台管理中心維護。
+-- 不在 schema.sql 重新寫入預設分類，避免管理員已刪除的分類在日後重跑 schema 時復活。
+
 -- 5. 播放進度記憶。memberId 是新的唯一 canonical owner；
 -- userIdentifier / key 保留只為相容歷史 email、舊 user id、匿名 device id。
 CREATE TABLE IF NOT EXISTS playback_memories (
@@ -175,14 +178,5 @@ CREATE TABLE IF NOT EXISTS user_activity_logs (
   timestamp INTEGER NOT NULL,
   createdAt TEXT NOT NULL
 );
-
--- 初始分類標籤
-INSERT OR IGNORE INTO categories (name, createdAt) VALUES 
-('事業', 1727654400000),
-('心態思維', 1727654400000),
-('營養', 1727654400000),
-('安麗產品', 1727654400000),
-('影集', 1727654400000),
-('未分類', 1727654400000);
 
 -- 會員在首次 Google 登入時建立，不預先寫入個人範例資料。
