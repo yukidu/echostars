@@ -1,0 +1,129 @@
+type ChangelogEntry = {
+  version: string;
+  date: string;
+  isLatest?: boolean;
+  summary: string;
+  added: string[];
+  modified: string[];
+  removed: string[];
+};
+
+export const CUMULATIVE_RELEASE_NOTES: ChangelogEntry = {
+  version: 'v3.8',
+  date: '2026/10/04',
+  isLatest: true,
+  summary:
+    '彙整 10/02～10/04 近期累積更新：強化跨平台背景播放與系統媒體控制、Google 登入與分享連結身分恢復、會員學習進度整合、分類標籤管理、上傳／編輯介面、首頁播放清單密度與視覺，以及搜尋引擎與 AI 爬蟲隱私防護。',
+  added: [
+    '跨平台系統媒體控制：Android、iOS／iPadOS、macOS、Windows 在平台支援時，可於鎖定畫面、通知中心或系統媒體面板同步目前錄音名稱、主講者、人物封面、播放／暫停與播放進度。',
+    '永久可讀的音檔分享網址：分享連結改用主講者拼音＋序號的固定網址，分享後同一音檔網址不再任意改變。',
+    '會員學習進度整合：以會員帳號作為穩定學習紀錄身分，可公開查看指定會員的播放學習進度，登入時也會安全匯入原裝置已存在的本機播放進度。',
+    '分享頁登入恢復：從 LINE、分享網址或私秘 VIP 連結進站時，會先嘗試恢復已驗證的 Google 會員身分，降低已登入會員被誤判成訪客的情況。',
+    '長期登入保存：網站登入 Session 改為長期保存並持續刷新，不再以 30 天作為網站端固定失效期限；主動登出或清除網站資料時仍會失效。',
+    '上傳介面關鍵字即時搜尋：輸入網友關鍵字時，會從既有關鍵字清單即時篩選相關候選字，並優先排列由輸入文字開頭的項目。',
+    '搜尋引擎與 AI 爬蟲防護：全站加入 noindex／nofollow、robots.txt 全站禁止抓取、X-Robots-Tag，以及主要搜尋引擎與已知 AI crawler 的阻擋規則。'
+  ],
+  modified: [
+    '背景播放封面同步修正：只要錄音有主講人物照片，系統 Media Session 就只提供人物照片；真的沒有封面時才使用繁星回聲網站圖示，避免系統自行選錯成網站 icon。',
+    '系統播放／暫停按鈕改為回到網站原本播放器狀態控制，避免系統媒體面板與網站動畫、播放狀態不同步。',
+    'Google 登入安全續存改為第一方 HttpOnly Session Cookie＋伺服器 Session；分享頁會自動恢復會員狀態，不把會員資料或登入 Token 放進分享網址。',
+    '分類標籤改以後台管理中心為唯一管理入口：上傳／編輯音檔只能選既有分類，不能新增、改名或刪除；後台刪除分類增加第二次確認。',
+    '分類排序支援手機長按拖曳與桌面拖曳，後台分類順序會同步成首頁播放清單分類下拉選單順序。',
+    '分類資料來源改以後端分類清單為權威來源，已刪除分類不再因舊前端預設值或舊快取被重新寫入新音檔。',
+    '上傳／編輯介面重新整理：頂部整合主講照片、音檔、瀏覽權限與私秘 VIP；網友關鍵字移除 #、✓、＋ 等多餘符號，「加入關鍵字」簡化為「加入」。',
+    'R2 封面圖庫名稱會依卡片寬度自動縮小，極長名稱必要時完整換行，避免檔名被省略號截斷。',
+    '上傳介面的說明文字大幅精簡，私秘 VIP 說明保留；新上傳的演講日期與系列順序不再預填固定值。',
+    '全站主選單改為固定置頂，首頁、音檔詳細頁、排行榜、通知、個人中心等主要頁面捲動時仍保持在最上方。',
+    '首頁整體密度提高：搜尋區、排序列、區塊上下留白、音檔卡片間距與卡片內行高全面縮小，手機與桌面都能在同一畫面看到更多內容。',
+    '首頁音檔資訊卡重新建立文字層級：曲目名稱使用目前調色盤主色、字體加大並保留粗體；其餘卡片文字統一一般字重。',
+    '首頁「按讚數」文字改為與左側「心得數」完全相同的文字顏色，淺色與深色模式都同步；愛心圖示仍保留原本已按讚主色效果。',
+    'PWA 持續採靜默更新：新版 Service Worker 在背景更新，不主動彈出版本提示或強制重新整理，以避免打斷正在播放的音檔。'
+  ],
+  removed: [
+    '停止使用舊版 /share/t-* 分享網址，統一改用新的固定可讀分享網址。',
+    '移除上傳／編輯音檔頁面直接新增、修改、刪除分類標籤的入口，避免分類來源分裂。',
+    '移除音檔資訊卡除曲目名稱以外的粗體字重，讓主題名稱成為唯一主要視覺焦點。'
+  ]
+};
+
+const runtime = window as Window &
+  typeof globalThis & {
+    __ECHOSTARS_CHANGELOG_RELEASE_PATCH__?: boolean;
+  };
+
+const unique = (items: string[]) => [...new Set(items.filter(Boolean))];
+
+const mergeRelease = (data: unknown): ChangelogEntry[] => {
+  const list = Array.isArray(data) ? data.filter(item => item && typeof item === 'object') as ChangelogEntry[] : [];
+  const existing = list.find(item => item.version === CUMULATIVE_RELEASE_NOTES.version);
+  const rest = list.filter(item => item.version !== CUMULATIVE_RELEASE_NOTES.version);
+
+  const merged: ChangelogEntry = existing
+    ? {
+        ...CUMULATIVE_RELEASE_NOTES,
+        ...existing,
+        version: CUMULATIVE_RELEASE_NOTES.version,
+        date: existing.date || CUMULATIVE_RELEASE_NOTES.date,
+        summary: existing.summary || CUMULATIVE_RELEASE_NOTES.summary,
+        added: unique([...(CUMULATIVE_RELEASE_NOTES.added || []), ...(existing.added || [])]),
+        modified: unique([...(CUMULATIVE_RELEASE_NOTES.modified || []), ...(existing.modified || [])]),
+        removed: unique([...(CUMULATIVE_RELEASE_NOTES.removed || []), ...(existing.removed || [])]),
+        isLatest: true
+      }
+    : CUMULATIVE_RELEASE_NOTES;
+
+  return [merged, ...rest];
+};
+
+const isChangelogGet = (
+  input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1]
+) => {
+  const method = String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+  if (method !== 'GET') return false;
+
+  try {
+    const rawUrl = input instanceof Request ? input.url : String(input);
+    const url = new URL(rawUrl, window.location.origin);
+    return url.origin === window.location.origin && url.pathname === '/api/changelog';
+  } catch {
+    return false;
+  }
+};
+
+if (!runtime.__ECHOSTARS_CHANGELOG_RELEASE_PATCH__) {
+  runtime.__ECHOSTARS_CHANGELOG_RELEASE_PATCH__ = true;
+  const nativeFetch = window.fetch.bind(window);
+
+  window.fetch = (async (...args: Parameters<typeof fetch>) => {
+    const [input, init] = args;
+    if (!isChangelogGet(input, init)) return nativeFetch(...args);
+
+    try {
+      const response = await nativeFetch(...args);
+      if (!response.ok) {
+        return new Response(JSON.stringify(mergeRelease([])), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json; charset=utf-8' }
+        });
+      }
+
+      const data = await response.clone().json().catch(() => []);
+      const headers = new Headers(response.headers);
+      headers.set('Content-Type', 'application/json; charset=utf-8');
+      headers.delete('Content-Length');
+      headers.delete('Content-Encoding');
+
+      return new Response(JSON.stringify(mergeRelease(data)), {
+        status: response.status,
+        statusText: response.statusText,
+        headers
+      });
+    } catch {
+      return new Response(JSON.stringify(mergeRelease([])), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json; charset=utf-8' }
+      });
+    }
+  }) as typeof window.fetch;
+}
