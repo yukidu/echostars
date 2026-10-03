@@ -1,0 +1,102 @@
+name: Regression audit
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: audioCardTypography
+        if: always()
+        run: node --import tsx --test tests/audioCardTypography.test.ts
+      - name: categoryIntegrity
+        if: always()
+        run: node --import tsx --test tests/categoryIntegrity.test.ts
+      - name: categoryManagementPolicy
+        if: always()
+        run: node --import tsx --test tests/categoryManagementPolicy.test.ts
+      - name: changelogReleaseNotes
+        if: always()
+        run: node --import tsx --test tests/changelogReleaseNotes.test.ts
+      - name: changelogV37PublicPolicy
+        if: always()
+        run: node --import tsx --test tests/changelogV37PublicPolicy.test.ts
+      - name: commentModerationRemoval
+        if: always()
+        run: node --import tsx --test tests/commentModerationRemoval.test.ts
+      - name: community
+        if: always()
+        run: node --import tsx --test tests/community.test.ts
+      - name: globalNavigation
+        if: always()
+        run: node --import tsx --test tests/globalNavigation.test.ts
+      - name: googleAuthSecurity
+        if: always()
+        run: node --import tsx --test tests/googleAuthSecurity.test.ts
+      - name: homeAudioCardTheme
+        if: always()
+        run: node --import tsx --test tests/homeAudioCardTheme.test.ts
+      - name: homeDensity
+        if: always()
+        run: node --import tsx --test tests/homeDensity.test.ts
+      - name: imageExportQuality
+        if: always()
+        run: node --import tsx --test tests/imageExportQuality.test.ts
+      - name: learningHistoryAccess
+        if: always()
+        run: node --import tsx --test tests/learningHistoryAccess.test.ts
+      - name: learningHistoryCompatibility
+        if: always()
+        run: node --import tsx --test tests/learningHistoryCompatibility.test.ts
+      - name: learningProgress
+        if: always()
+        run: node --import tsx --test tests/learningProgress.test.ts
+      - name: mediaSessionPolicy
+        if: always()
+        run: node --import tsx --test tests/mediaSessionPolicy.test.ts
+      - name: mobileMenuHalfLayout
+        if: always()
+        run: node --import tsx --test tests/mobileMenuHalfLayout.test.ts
+      - name: mobileMenuWidth
+        if: always()
+        run: node --import tsx --test tests/mobileMenuWidth.test.ts
+      - name: newcomerRainbow
+        if: always()
+        run: node --import tsx --test tests/newcomerRainbow.test.ts
+      - name: playbackOwnerRouter
+        if: always()
+        run: node --import tsx --test tests/playbackOwnerRouter.test.ts
+      - name: privacyCrawler
+        if: always()
+        run: node --import tsx --test tests/privacyCrawler.test.ts
+      - name: publicLearningHistoryRoute
+        if: always()
+        run: node --import tsx --test tests/publicLearningHistoryRoute.test.ts
+      - name: releaseIntegrity
+        if: always()
+        run: node --import tsx --test tests/releaseIntegrity.test.ts
+      - name: shareLinks
+        if: always()
+        run: node --import tsx --test tests/shareLinks.test.ts
+      - name: uploadModalPresentationPolicy
+        if: always()
+        run: node --import tsx --test tests/uploadModalPresentationPolicy.test.ts
+      - name: vipAutoplay
+        if: always()
+        run: node --import tsx --test tests/vipAutoplay.test.ts
+      - name: TypeScript diagnostic
+        if: always()
+        run: npm run lint
+      - name: Production build diagnostic
+        if: always()
+        run: npm run build
