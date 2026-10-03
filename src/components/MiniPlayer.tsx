@@ -44,11 +44,20 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   const drag = useRef<{x:number;y:number;left:number;top:number}|null>(null);
   {
     return (
-      <div onClick={()=>onSetPlayerMode('expanded')} style={position?{left:position.left,top:position.top,bottom:'auto',right:'auto'}:undefined} className="fixed bottom-5 right-2 sm:right-4 z-[70] flex items-center gap-1.5 max-w-[calc(100vw-8px)]">
+      <div
+        data-echostars-media-session="1"
+        data-media-title={track.title}
+        data-media-artist={`${track.speaker}${track.speakerRank ? ` ${track.speakerRank}` : ''}`}
+        data-media-artwork={track.speakerAvatar || '/icon-512.png'}
+        onClick={()=>onSetPlayerMode('expanded')}
+        style={position?{left:position.left,top:position.top,bottom:'auto',right:'auto'}:undefined}
+        className="fixed bottom-5 right-2 sm:right-4 z-[70] flex items-center gap-1.5 max-w-[calc(100vw-8px)]"
+      >
         <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-[var(--theme-border-subtle,#f1e7ea)] dark:border-slate-700 shadow-2xl rounded-full p-1.5 pl-2 pr-2.5 flex items-center gap-2 hover:shadow-rose-500/15 transition-all group/bubble min-w-0">
           {/* Rotating Photo when playing (Clicking photo toggles play/pause) */}
           <button
             type="button"
+            data-echostars-media-toggle="1"
             onClick={(e) => {
               e.stopPropagation();
               onTogglePlay();
