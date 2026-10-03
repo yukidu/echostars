@@ -8,10 +8,33 @@ type ChangelogEntry = {
   removed: string[];
 };
 
+export const HEALTHCHECK_RELEASE_NOTES: ChangelogEntry = {
+  version: 'v3.9',
+  date: '2026/10/04',
+  isLatest: true,
+  summary:
+    '進行一次全站功能健檢，把近期多次改版留下的衝突風險重新盤查。這次特別檢查個人學習紀錄圖卡、訪客與會員流程、分類、分享、播放、登入、PWA 與部署測試，並修正實際找到的問題。',
+  added: [
+    '正式部署前增加完整自動檢查：每次新版都會先跑回歸測試與網站建置，通過後才能繼續部署，降低舊功能被新修改意外影響的機率。',
+    '分類資料增加安全整理機制：舊音檔若還留著已被後台刪除的分類，系統會自動清掉；沒有分類的音檔就保持沒有分類，不會自己補回已刪除的名稱。',
+    '分享圖產生失敗時會顯示明確錯誤，不再只有畫面一直停在讀取狀態。'
+  ],
+  modified: [
+    '個人學習紀錄圖卡重新盤查：確認使用會員自己的正式學習紀錄、完成狀態、聆聽進度、評分與心得資料製圖，並保留 1280px 高畫質 JPEG 輸出。',
+    '黑白心得圖與評價清單圖的預覽流程更穩定：關閉或切換圖卡後會釋放舊預覽資源，避免長時間使用後累積不必要的記憶體。',
+    '分類標籤以後台分類清單作為唯一來源；刪除分類後，首頁快取、舊音檔資料與新上傳資料都會跟著一致，不再讓「未分類」或其他已刪標籤自行復活。',
+    '重新整理自動測試：移除只檢查過去舊版本號、已經不符合現行架構的測試，改成檢查現在真正需要保護的登入、分享、學習紀錄、播放、分類、首頁、PWA 與手機選單功能。',
+    '重新核對訪客與登入會員的功能界線：訪客仍可使用公開播放與可用的分享圖功能；會員學習紀錄、個人學習圖卡與需要身分的操作仍以已驗證會員身分為準。'
+  ],
+  removed: [
+    '移除多個已過期、只綁定舊 PWA 快取版本號的回歸測試，避免網站明明正常更新卻因歷史版本號而被誤判失敗。',
+    '移除分享圖錯誤畫面中沒有用途的隱藏控制元件。'
+  ]
+};
+
 export const CUMULATIVE_RELEASE_NOTES: ChangelogEntry = {
   version: 'v3.8',
   date: '2026/10/04',
-  isLatest: true,
   summary:
     '彙整 10/02～10/04 近期累積更新：強化跨平台背景播放與系統媒體控制、Google 登入與分享連結身分恢復、會員學習進度整合、分類標籤管理、上傳／編輯介面、首頁播放清單密度與視覺，以及搜尋引擎與 AI 爬蟲隱私防護。',
   added: [
@@ -46,6 +69,8 @@ export const CUMULATIVE_RELEASE_NOTES: ChangelogEntry = {
   ]
 };
 
+const RELEASE_NOTES = [HEALTHCHECK_RELEASE_NOTES, CUMULATIVE_RELEASE_NOTES];
+
 const runtime = window as Window &
   typeof globalThis & {
     __ECHOSTARS_CHANGELOG_RELEASE_PATCH__?: boolean;
@@ -53,26 +78,33 @@ const runtime = window as Window &
 
 const unique = (items: string[]) => [...new Set(items.filter(Boolean))];
 
-const mergeRelease = (data: unknown): ChangelogEntry[] => {
-  const list = Array.isArray(data) ? data.filter(item => item && typeof item === 'object') as ChangelogEntry[] : [];
-  const existing = list.find(item => item.version === CUMULATIVE_RELEASE_NOTES.version);
-  const rest = list.filter(item => item.version !== CUMULATIVE_RELEASE_NOTES.version);
-
+const mergeOneRelease = (list: ChangelogEntry[], release: ChangelogEntry): ChangelogEntry[] => {
+  const existing = list.find(item => item.version === release.version);
+  const rest = list.filter(item => item.version !== release.version);
   const merged: ChangelogEntry = existing
     ? {
-        ...CUMULATIVE_RELEASE_NOTES,
+        ...release,
         ...existing,
-        version: CUMULATIVE_RELEASE_NOTES.version,
-        date: existing.date || CUMULATIVE_RELEASE_NOTES.date,
-        summary: existing.summary || CUMULATIVE_RELEASE_NOTES.summary,
-        added: unique([...(CUMULATIVE_RELEASE_NOTES.added || []), ...(existing.added || [])]),
-        modified: unique([...(CUMULATIVE_RELEASE_NOTES.modified || []), ...(existing.modified || [])]),
-        removed: unique([...(CUMULATIVE_RELEASE_NOTES.removed || []), ...(existing.removed || [])]),
-        isLatest: true
+        version: release.version,
+        date: existing.date || release.date,
+        summary: existing.summary || release.summary,
+        added: unique([...(release.added || []), ...(existing.added || [])]),
+        modified: unique([...(release.modified || []), ...(existing.modified || [])]),
+        removed: unique([...(release.removed || []), ...(existing.removed || [])]),
+        isLatest: release.isLatest === true
       }
-    : CUMULATIVE_RELEASE_NOTES;
+    : release;
+  return [merged, ...rest.map(item => ({ ...item, isLatest: false }))];
+};
 
-  return [merged, ...rest];
+const mergeRelease = (data: unknown): ChangelogEntry[] => {
+  let list = Array.isArray(data)
+    ? data.filter(item => item && typeof item === 'object') as ChangelogEntry[]
+    : [];
+  for (const release of [...RELEASE_NOTES].reverse()) {
+    list = mergeOneRelease(list, release);
+  }
+  return list;
 };
 
 const isChangelogGet = (

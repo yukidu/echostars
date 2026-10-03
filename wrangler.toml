@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 # Storage bindings are omitted here so preview branches cannot read/write production D1, KV or R2.
 previews = { }
 
-# 建置指令 (確保 Cloudflare Workers CI 自動執行 Vite 打包產出 dist)
+# 保留原本 Cloudflare 建置流程；回歸測試由 GitHub Actions 額外把關。
 [build]
 command = "npm run build"
 

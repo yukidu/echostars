@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 
 const policy = readFileSync(new URL('../src/homeDensityPolicy.ts', import.meta.url), 'utf8');
 const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const sw = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 
 test('home density policy only activates when the audio card grid is present', () => {
   assert.match(policy, /HOME_GRID_SELECTOR = '\.audio-card-grid'/);
@@ -24,8 +23,4 @@ test('homepage spacing and audio card vertical density are tightened', () => {
 
 test('home density policy is loaded globally but scopes itself to the homepage', () => {
   assert.match(index, /\/src\/homeDensityPolicy\.ts/);
-});
-
-test('PWA shell cache advances for compact homepage release', () => {
-  assert.match(sw, /echostars-shell-v60/);
 });

@@ -43,9 +43,11 @@ export const AudioCard: React.FC<AudioCardProps> = ({
   onSeek,
   onOpenCommentPreview
 }) => {
-  const categories = track.categories && track.categories.length > 0
-    ? track.categories
-    : track.category ? [track.category] : ['未分類'];
+  // Categories are authoritative only when returned by the live categories system.
+  // An empty list is a valid state; never invent 「未分類」 or revive legacy track.category.
+  const categories = Array.isArray(track.categories)
+    ? track.categories.map(cat => String(cat || '').trim()).filter(Boolean)
+    : [];
 
   // Requirement 10 & 14: Progress badges calculation & accurate duration/time
   const safeDuration = (liveDuration && liveDuration > 0)
@@ -92,7 +94,6 @@ export const AudioCard: React.FC<AudioCardProps> = ({
       }`}
     >
       <div className={`flex items-start gap-3 sm:gap-4 transition-opacity ${hasReadAccess ? 'opacity-100' : 'opacity-25'}`}>
-        {/* Left: large portrait + progress + duration + access level */}
         <div className="shrink-0 w-28 sm:w-32">
           <button
             type="button"
@@ -109,7 +110,6 @@ export const AudioCard: React.FC<AudioCardProps> = ({
               loading="lazy"
             />
 
-            {/* Listening progress: always one line, compact font. */}
             {isCompleted ? (
               <div
                 className="absolute top-0 inset-x-0 text-white text-[8px] sm:text-[9px] font-bold text-center px-1 py-1 whitespace-nowrap overflow-hidden flex items-center justify-center gap-0.5 z-30 shadow-2xs leading-none"
@@ -127,7 +127,6 @@ export const AudioCard: React.FC<AudioCardProps> = ({
               </div>
             ) : null}
 
-            {/* Access level sits inside the portrait at the bottom. */}
             <div
               className="absolute bottom-0 inset-x-0 z-30 flex items-center justify-center gap-0.5 bg-black/35 px-1 py-[2px] sm:py-0.5 text-[8px] sm:text-[9px] leading-none font-black text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)] whitespace-nowrap overflow-hidden"
               title={`收聽權限：${displayRequiredRank}`}
@@ -137,15 +136,12 @@ export const AudioCard: React.FC<AudioCardProps> = ({
             </div>
           </button>
 
-          {/* Duration moved below portrait */}
           <div className="mt-1 flex items-center justify-center gap-1 text-[9px] sm:text-[10px] leading-none text-slate-500 dark:text-slate-400 font-mono whitespace-nowrap">
             <Clock className="w-2.5 h-2.5 shrink-0" />
             <span>{displayDuration}</span>
           </div>
-
         </div>
 
-        {/* Right: all remaining card information. Right padding intentionally 0. */}
         <div className="flex-1 min-w-0 flex flex-col self-stretch pr-0">
           <div className="pr-0">
             <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 leading-tight break-words line-clamp-3 group-hover:text-[var(--color-primary,#c06c84)] dark:group-hover:text-rose-400 transition-colors">
@@ -156,29 +152,30 @@ export const AudioCard: React.FC<AudioCardProps> = ({
               {speakerDisplay}
             </p>
 
-            <div className="flex flex-nowrap items-center gap-1 mt-1 w-full overflow-hidden">
-              {categories.slice(0, 3).map((cat, idx) => {
-                const isNewcomer = cat.trim() === '新人';
-                return (
-                  <span
-                    key={idx}
-                    className={`inline-flex w-fit max-w-[32%] shrink-0 box-border text-[9px] sm:text-[10px] leading-none font-semibold p-1 rounded-md border text-center truncate whitespace-nowrap ${isNewcomer ? 'newcomer-rainbow-border' : ''}`}
-                    style={{
-                      backgroundColor: 'var(--color-light-pill, #fae8ed)',
-                      color: 'var(--color-primary, #c06c84)',
-                      borderColor: isNewcomer ? undefined : 'var(--theme-border-subtle, #f1e7ea)'
-                    }}
-                    title={cat}
-                  >
-                    {cat}
-                  </span>
-                );
-              })}
-            </div>
+            {categories.length > 0 && (
+              <div className="flex flex-nowrap items-center gap-1 mt-1 w-full overflow-hidden">
+                {categories.slice(0, 3).map((cat, idx) => {
+                  const isNewcomer = cat.trim() === '新人';
+                  return (
+                    <span
+                      key={idx}
+                      className={`inline-flex w-fit max-w-[32%] shrink-0 box-border text-[9px] sm:text-[10px] leading-none font-semibold p-1 rounded-md border text-center truncate whitespace-nowrap ${isNewcomer ? 'newcomer-rainbow-border' : ''}`}
+                      style={{
+                        backgroundColor: 'var(--color-light-pill, #fae8ed)',
+                        color: 'var(--color-primary, #c06c84)',
+                        borderColor: isNewcomer ? undefined : 'var(--theme-border-subtle, #f1e7ea)'
+                      }}
+                      title={cat}
+                    >
+                      {cat}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="mt-auto pt-1.5 flex flex-col items-start gap-1 border-t border-slate-100 dark:border-slate-800 pr-0">
-            {/* Enlarged rating row */}
             <div
               className="flex items-center flex-nowrap gap-[2px] min-w-0 order-2"
               onClick={e => e.stopPropagation()}
@@ -213,7 +210,6 @@ export const AudioCard: React.FC<AudioCardProps> = ({
               </span>
             </div>
 
-            {/* Enlarged feedback + likes row */}
             <div className="flex items-center gap-2.5 sm:gap-3 text-sm leading-none text-slate-600 dark:text-slate-400 order-1">
               <button
                 type="button"

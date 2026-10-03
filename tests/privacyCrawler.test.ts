@@ -6,7 +6,6 @@ const router = readFileSync(new URL('../worker/privacyCrawlerRouter.ts', import.
 const robots = readFileSync(new URL('../public/robots.txt', import.meta.url), 'utf8');
 const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
-const sw = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 
 test('site declares global noindex and nofollow directives', () => {
   assert.match(index, /name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex"/);
@@ -32,8 +31,4 @@ test('worker blocks known search and AI crawler user agents', () => {
 test('all site requests run through privacy crawler router', () => {
   assert.match(wrangler, /main = "worker\/privacyCrawlerRouter\.ts"/);
   assert.match(wrangler, /run_worker_first = \["\/\*"\]/);
-});
-
-test('PWA shell cache advances for crawler privacy release', () => {
-  assert.match(sw, /echostars-shell-v58/);
 });

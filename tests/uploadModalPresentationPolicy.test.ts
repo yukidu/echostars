@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 
 const policy = readFileSync(new URL('../src/uploadModalPresentationPolicy.ts', import.meta.url), 'utf8');
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const serviceWorker = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 
 test('upload modal top controls use cover, audio, permission, VIP order', () => {
   assert.match(policy, /grid-template-columns: repeat\(8/);
@@ -63,11 +62,10 @@ test('non VIP explanatory notes are hidden while VIP copy is exempt', () => {
   assert.match(policy, /每首音檔最多 20 組關鍵字/);
 });
 
-test('presentation policy is loaded before React and PWA cache is bumped', () => {
+test('presentation policy is loaded before the React bootstrap', () => {
   const policyIndex = indexHtml.indexOf('/src/uploadModalPresentationPolicy.ts');
-  const mainIndex = indexHtml.indexOf('/src/main.tsx');
+  const bootstrapIndex = indexHtml.indexOf('/src/categoryIntegrityBootstrap.ts');
   assert.ok(policyIndex >= 0);
-  assert.ok(mainIndex >= 0);
-  assert.ok(policyIndex < mainIndex);
-  assert.match(serviceWorker, /echostars-shell-v52/);
+  assert.ok(bootstrapIndex >= 0);
+  assert.ok(policyIndex < bootstrapIndex);
 });
