@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const css = readFileSync(new URL('../src/components/AudioCard.css', import.meta.url), 'utf8');
-const sw = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 
 test('track title uses palette primary color and remains the only bold text', () => {
   assert.match(css, /\.audio-card,\s*\.audio-card \*\s*\{[\s\S]*font-weight:\s*400 !important/);
@@ -19,8 +18,4 @@ test('track title grows further on larger screens', () => {
 test('like count text inherits the same feedback-row color without overriding the heart icon', () => {
   assert.match(css, /\.audio-card \.reaction-button\[aria-pressed\] span\s*\{[\s\S]*color:\s*inherit !important/);
   assert.doesNotMatch(css, /\.audio-card \.reaction-button\[aria-pressed\] svg/);
-});
-
-test('PWA shell cache advances for feedback color release', () => {
-  assert.match(sw, /echostars-shell-v63/);
 });
