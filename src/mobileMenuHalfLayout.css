@@ -1,0 +1,129 @@
+/* v69: Mobile hamburger menu is intentionally half-width and right-aligned.
+   These rules make the existing React menu readable at 50vw without changing
+   navigation behavior. */
+@media (max-width: 767px) {
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] {
+    width: 50vw !important;
+    max-width: 50vw !important;
+    margin-left: auto !important;
+    margin-right: 0 !important;
+    padding: 0.55rem max(0.5rem, env(safe-area-inset-right)) 0.65rem 0.5rem !important;
+    max-height: calc(100dvh - 64px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-left: 1px solid var(--theme-border-subtle, #f1e7ea);
+    border-bottom-left-radius: 1rem;
+    box-shadow: -10px 14px 30px rgba(15, 23, 42, 0.14);
+  }
+
+  .dark header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] {
+    border-left-color: #1e293b;
+    box-shadow: -10px 14px 30px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Keep every menu item compact and left aligned. */
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button {
+    min-height: 46px;
+    padding: 0.5rem 0.55rem !important;
+    gap: 0.5rem !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+    font-size: 0.875rem !important;
+    line-height: 1.25 !important;
+  }
+
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button > svg {
+    width: 18px !important;
+    height: 18px !important;
+    flex: 0 0 18px;
+  }
+
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button > span,
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button > div > span {
+    min-width: 0;
+    white-space: normal !important;
+    word-break: keep-all;
+    overflow-wrap: normal;
+    line-height: 1.25 !important;
+    text-align: left;
+  }
+
+  /* Notification row: let the label own the width; put a pending badge below
+     instead of squeezing it into the same horizontal line. */
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button > div {
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 0.5rem !important;
+    align-items: center;
+  }
+
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button > div > svg {
+    width: 18px !important;
+    height: 18px !important;
+    flex: 0 0 18px;
+  }
+
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button > div + span {
+    margin-left: 26px !important;
+    margin-right: 0 !important;
+    align-self: flex-start;
+    font-size: 0.7rem !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+  }
+
+  /* Install row: status such as 「已安裝」 belongs under 「安裝到桌面」.
+     This also keeps iOS/Chromium status text from colliding with the label. */
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="繁星回聲已安裝"],
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="安裝到桌面"] {
+    display: grid !important;
+    grid-template-columns: 18px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 0.5rem !important;
+    row-gap: 0.1rem !important;
+    align-items: center;
+  }
+
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="繁星回聲已安裝"] > svg:first-child,
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="安裝到桌面"] > svg:first-child {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="繁星回聲已安裝"] > span:first-of-type,
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="安裝到桌面"] > span:first-of-type {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0 !important;
+    font-size: 0.875rem !important;
+    line-height: 1.2 !important;
+  }
+
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="繁星回聲已安裝"] > span:nth-of-type(2),
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="安裝到桌面"] > span:nth-of-type(2) {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+    margin: 0 !important;
+    font-size: 0.68rem !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+  }
+
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="繁星回聲已安裝"] > span:nth-of-type(2) svg,
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button[aria-label="安裝到桌面"] > span:nth-of-type(2) svg {
+    width: 12px !important;
+    height: 12px !important;
+  }
+
+  /* Prevent awkward one-character wrapping on the smallest supported phones. */
+  @media (max-width: 360px) {
+    header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] > button {
+      padding-left: 0.4rem !important;
+      padding-right: 0.4rem !important;
+      gap: 0.4rem !important;
+      font-size: 0.8125rem !important;
+    }
+  }
+}
