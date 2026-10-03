@@ -8,6 +8,9 @@ declare global {
 }
 
 const USER_KEY = 'sq_current_user_v1';
+const VISITOR_KEY = 'sq_visitor_identity_v1';
+const PLAYBACK_PREFIX = 'sq_audio_progress_v1_';
+const CLAIM_MARKER_PREFIX = 'echostars_playback_claim_v1';
 const SESSION_CHECK_KEY = 'echostars_auth_session_checked_at';
 const SESSION_CHECK_TTL = 10 * 60 * 1000;
 const originalFetch = window.fetch.bind(window);
@@ -24,6 +27,87 @@ function readCachedUser(): any | null {
 function authToken() {
   const user = readCachedUser();
   return typeof user?._authToken === 'string' ? user._authToken : '';
+}
+
+function readDeviceId() {
+  try {
+    const raw = localStorage.getItem(VISITOR_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return typeof parsed?.deviceId === 'string' ? parsed.deviceId.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+function collectLocalPlayback() {
+  const rows: Array<{
+    trackId: string;
+    currentTime: number;
+    duration: number;
+    completed: boolean;
+    percentage: number;
+  }> = [];
+  try {
+    for (let index = 0; index < localStorage.length && rows.length < 300; index += 1) {
+      const key = localStorage.key(index);
+      if (!key?.startsWith(PLAYBACK_PREFIX)) continue;
+      const trackId = key.slice(PLAYBACK_PREFIX.length).trim();
+      if (!trackId) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const value = JSON.parse(raw);
+      rows.push({
+        trackId,
+        currentTime: Math.max(0, Number(value?.currentTime) || 0),
+        duration: Math.max(0, Number(value?.duration) || 0),
+        completed: Boolean(value?.completed),
+        percentage: Math.max(0, Math.min(100, Number(value?.percentage) || 0))
+      });
+    }
+  } catch {
+    // A malformed local row must never block login or the rest of the app.
+  }
+  return rows;
+}
+
+async function claimLocalPlayback(user: any) {
+  const token = typeof user?._authToken === 'string' ? user._authToken : '';
+  const memberId = String(user?.id || '').trim();
+  const deviceId = readDeviceId();
+  if (!token || !memberId || !deviceId) return;
+
+  const markerKey = `${CLAIM_MARKER_PREFIX}_${memberId}_${deviceId}`;
+  if (localStorage.getItem(markerKey) === '1' || sessionStorage.getItem(markerKey) === 'conflict') return;
+
+  try {
+    const response = await originalFetch('/api/playback/claim-local', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        deviceId,
+        localPlayback: collectLocalPlayback()
+      }),
+      cache: 'no-store'
+    });
+
+    if (response.ok) {
+      // Once this verified device is bound to the member, all future logged-in
+      // playback writes already go directly to the canonical member id.
+      localStorage.setItem(markerKey, '1');
+      return;
+    }
+
+    if (response.status === 409) {
+      // Shared devices are intentionally not transferred between accounts.
+      // Remember the conflict only for this tab/session to avoid repeated writes.
+      sessionStorage.setItem(markerKey, 'conflict');
+    }
+  } catch {
+    // Best effort. Keep the marker unset so a later online load can retry.
+  }
 }
 
 function sameOriginApi(input: RequestInfo | URL) {
@@ -68,7 +152,10 @@ async function validateCachedSession() {
   }
 
   const lastChecked = Number(sessionStorage.getItem(SESSION_CHECK_KEY) || 0);
-  if (Date.now() - lastChecked < SESSION_CHECK_TTL) return;
+  if (Date.now() - lastChecked < SESSION_CHECK_TTL) {
+    await claimLocalPlayback(user);
+    return;
+  }
 
   try {
     const response = await originalFetch('/api/auth/session', {
@@ -82,9 +169,10 @@ async function validateCachedSession() {
       return;
     }
     sessionStorage.setItem(SESSION_CHECK_KEY, String(Date.now()));
+    await claimLocalPlayback(user);
   } catch {
     // Offline use remains available. Do not sign a user out merely because the
-    // network is temporarily unavailable.
+    // network is temporarily unavailable. The claim will retry when online.
   }
 }
 
@@ -125,7 +213,8 @@ async function handleGoogleCredential(response: any) {
     };
     localStorage.setItem(USER_KEY, JSON.stringify(user));
     sessionStorage.setItem(SESSION_CHECK_KEY, String(Date.now()));
-    setStatus('登入成功，正在載入會員資料…');
+    setStatus('登入成功，正在同步學習紀錄…');
+    await claimLocalPlayback(user);
     window.location.reload();
   } catch (error) {
     console.error('Secure Google sign-in failed:', error);
