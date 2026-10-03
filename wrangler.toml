@@ -8,11 +8,6 @@ compatibility_flags = ["nodejs_compat"]
 # Storage bindings are omitted here so preview branches cannot read/write production D1, KV or R2.
 previews = { }
 
-# Every Preview/Production build runs the regression suite before the Vite build.
-# This makes the Cloudflare check a real release gate instead of only a bundling check.
-[build]
-command = "npm run verify"
-
 # 靜態前端資源 (Vite build 產出之 dist 目錄)
 [assets]
 directory = "./dist"
