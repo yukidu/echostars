@@ -23,9 +23,9 @@
   font-weight: 900 !important;
 }
 
-/* 只固定按讚數文字為黑色；Heart SVG 的既有主色/填色邏輯不受影響。 */
+/* 按讚數文字直接繼承回饋列顏色，淺色/深色模式都與左側心得數一致；Heart SVG 不受影響。 */
 .audio-card .reaction-button[aria-pressed] span {
-  color: #000 !important;
+  color: inherit !important;
 }
 
 @media (min-width: 640px) {
