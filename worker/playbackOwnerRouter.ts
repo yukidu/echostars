@@ -1,5 +1,4 @@
 import learningWorker from './learningCardRouter';
-import appWorker from './shareRouter';
 import type { Env } from './index';
 import {
   mergePlaybackRows,
@@ -89,13 +88,17 @@ async function ensureOwnershipSchema(db: any) {
         db.prepare(`
           INSERT OR IGNORE INTO playback_identity_aliases(alias, memberId, aliasType, source, updatedAt)
           SELECT LOWER(TRIM(email)), id, 'email', 'users', ?
-          FROM users WHERE email IS NOT NULL AND TRIM(email) <> ''
+          FROM users
+          WHERE email IS NOT NULL AND TRIM(email) <> ''
         `).bind(now),
         db.prepare(`
           INSERT OR IGNORE INTO playback_identity_aliases(alias, memberId, aliasType, source, updatedAt)
           SELECT LOWER(TRIM(id)), id, 'userId', 'users', ?
-          FROM users WHERE id IS NOT NULL AND TRIM(id) <> ''
+          FROM users
+          WHERE id IS NOT NULL AND TRIM(id) <> ''
         `).bind(now),
+        // A device id is historical identity evidence only when every named
+        // member comment made from that device belongs to one registered user.
         db.prepare(`
           INSERT OR IGNORE INTO playback_identity_aliases(alias, memberId, aliasType, source, updatedAt)
           SELECT LOWER(TRIM(c.deviceId)), MIN(u.id), 'device', 'comment', ?
@@ -103,22 +106,33 @@ async function ensureOwnershipSchema(db: any) {
           JOIN users u ON LOWER(TRIM(c.authorEmail)) = LOWER(TRIM(u.email))
           WHERE c.deviceId IS NOT NULL AND TRIM(c.deviceId) <> ''
             AND c.authorEmail IS NOT NULL AND TRIM(c.authorEmail) <> ''
+            AND NOT EXISTS (
+              SELECT 1
+              FROM comments other
+              WHERE LOWER(TRIM(other.deviceId)) = LOWER(TRIM(c.deviceId))
+                AND other.authorEmail IS NOT NULL AND TRIM(other.authorEmail) <> ''
+                AND LOWER(TRIM(other.authorEmail)) <> LOWER(TRIM(c.authorEmail))
+            )
           GROUP BY LOWER(TRIM(c.deviceId))
           HAVING COUNT(DISTINCT u.id) = 1
         `).bind(now)
       ]);
 
+      // Non-destructive migration: only fill the new owner column when an old
+      // identifier can be proved to belong to one canonical member.
       await db.prepare(`
         UPDATE playback_memories
         SET memberId = (
-          SELECT a.memberId FROM playback_identity_aliases a
+          SELECT a.memberId
+          FROM playback_identity_aliases a
           WHERE LOWER(TRIM(playback_memories.userIdentifier)) = a.alias
              OR LOWER(SUBSTR(TRIM(playback_memories.key), 1, LENGTH(a.alias) + 1)) = a.alias || '_'
           LIMIT 1
         )
         WHERE (memberId IS NULL OR TRIM(memberId) = '')
           AND EXISTS (
-            SELECT 1 FROM playback_identity_aliases a
+            SELECT 1
+            FROM playback_identity_aliases a
             WHERE LOWER(TRIM(playback_memories.userIdentifier)) = a.alias
                OR LOWER(SUBSTR(TRIM(playback_memories.key), 1, LENGTH(a.alias) + 1)) = a.alias || '_'
           )
@@ -134,7 +148,8 @@ async function authenticatedUser(request: Request, env: Env) {
   const authorization = request.headers.get('Authorization') || '';
   if (!authorization) return null;
   const response = await learningWorker.fetch(new Request(new URL('/api/auth/session', request.url), {
-    method: 'GET', headers: { Authorization: authorization }
+    method: 'GET',
+    headers: { Authorization: authorization }
   }), env);
   if (!response.ok) return null;
   const data: any = await response.json().catch(() => ({}));
@@ -145,7 +160,8 @@ async function resolveMember(db: any, requestedId: string) {
   const requested = normalize(requestedId);
   if (!requested) return null;
   return db.prepare(`
-    SELECT id, email, name FROM users
+    SELECT id, email, name
+    FROM users
     WHERE LOWER(TRIM(id)) = ? OR LOWER(TRIM(email)) = ?
     LIMIT 1
   `).bind(requested, requested).first();
@@ -165,6 +181,7 @@ async function aliasesForMember(db: any, member: any) {
     if (alias) aliases.add(alias);
   }
 
+  // Read-time recovery for old device rows. A shared browser/device is excluded.
   if (email) {
     const commentDevices = await db.prepare(`
       SELECT DISTINCT LOWER(TRIM(c.deviceId)) AS alias
@@ -172,7 +189,8 @@ async function aliasesForMember(db: any, member: any) {
       WHERE LOWER(TRIM(c.authorEmail)) = ?
         AND c.deviceId IS NOT NULL AND TRIM(c.deviceId) <> ''
         AND NOT EXISTS (
-          SELECT 1 FROM comments other
+          SELECT 1
+          FROM comments other
           WHERE LOWER(TRIM(other.deviceId)) = LOWER(TRIM(c.deviceId))
             AND other.authorEmail IS NOT NULL AND TRIM(other.authorEmail) <> ''
             AND LOWER(TRIM(other.authorEmail)) <> ?
@@ -202,7 +220,8 @@ async function trackMetaMap(db: any, trackIds: string[]) {
   const placeholders = ids.map(() => '?').join(',');
   const result = await db.prepare(`
     SELECT id, title, speaker, speakerRank, durationSeconds
-    FROM tracks WHERE id IN (${placeholders})
+    FROM tracks
+    WHERE id IN (${placeholders})
   `).bind(...ids).all();
   const map: Record<string, TrackProgressMeta> = {};
   for (const row of result.results || []) map[String((row as any).id)] = row as TrackProgressMeta;
@@ -215,14 +234,18 @@ async function canonicalRecordsForMember(env: Env, member: any): Promise<Record<
   const aliases = await aliasesForMember(env.DB, member);
   const legacy = legacyIdentityFilter(aliases);
   const result = await env.DB.prepare(`
-    SELECT * FROM playback_memories
+    SELECT *
+    FROM playback_memories
     WHERE memberId = ? OR ${legacy.where}
     ORDER BY COALESCE(lastPlayedAt, 0) ASC
   `).bind(String(member.id), ...legacy.bindings).all();
+
   const rows = result.results || [];
   const meta = await trackMetaMap(env.DB, rows.map((row: any) => String(row.trackId || '')));
   const merged = mergePlaybackRows(rows as any[], meta);
-  for (const [trackId, record] of Object.entries(merged)) record.isDeleted = !meta[trackId] || record.isDeleted;
+  for (const [trackId, record] of Object.entries(merged)) {
+    record.isDeleted = !meta[trackId] || record.isDeleted;
+  }
   return merged;
 }
 
@@ -238,18 +261,31 @@ async function resolveMemberForWrite(request: Request, env: Env, identifier: str
   if (!env.DB) return null;
   const auth = await authenticatedUser(request, env);
   if (auth?.id) return auth;
+
   const direct = await resolveMember(env.DB, identifier);
   if (direct) return direct;
+
   const alias = normalize(identifier);
   if (!alias) return null;
   return env.DB.prepare(`
     SELECT u.id, u.email, u.name
-    FROM playback_identity_aliases a JOIN users u ON u.id = a.memberId
-    WHERE a.alias = ? LIMIT 1
+    FROM playback_identity_aliases a
+    JOIN users u ON u.id = a.memberId
+    WHERE a.alias = ?
+    LIMIT 1
   `).bind(alias).first();
 }
 
-function playbackStatement(db: any, ownerIdentifier: string, memberId: string, track: any, current: number, duration: number, completedHint = false, playedAt = Date.now()) {
+function playbackStatement(
+  db: any,
+  ownerIdentifier: string,
+  memberId: string,
+  track: any,
+  current: number,
+  duration: number,
+  completedHint = false,
+  playedAt = Date.now()
+) {
   const safeDuration = Math.max(1, Number(duration) || Number(track?.durationSeconds) || 600);
   const safeCurrent = Math.min(safeDuration, Math.max(0, Number(current) || 0));
   const rawProgress = Math.min(100, Math.max(0, safeCurrent / safeDuration * 100));
@@ -281,100 +317,111 @@ async function recordPlayback(request: Request, env: Env) {
   const body: any = await request.clone().json().catch(() => ({}));
   const trackId = String(body.trackId || '').trim();
   const suppliedIdentifier = normalize(body.userIdOrDeviceId);
-  if (!trackId || !suppliedIdentifier) return json({ error: '缺少必要參數 (trackId, userIdOrDeviceId)' }, 400);
+  if (!trackId || !suppliedIdentifier) {
+    return json({ error: '缺少必要參數 (trackId, userIdOrDeviceId)' }, 400);
+  }
+
   const member: any = await resolveMemberForWrite(request, env, suppliedIdentifier);
   const memberId = member?.id ? String(member.id) : '';
   const identifier = memberId || suppliedIdentifier;
-  const track: any = await env.DB.prepare(`SELECT id, title, speaker, speakerRank, durationSeconds FROM tracks WHERE id = ? LIMIT 1`)
-    .bind(trackId).first();
+  const track: any = await env.DB.prepare(`
+    SELECT id, title, speaker, speakerRank, durationSeconds
+    FROM tracks
+    WHERE id = ?
+    LIMIT 1
+  `).bind(trackId).first();
   if (!track) return json({ error: '找不到音檔' }, 404);
-  await playbackStatement(env.DB, identifier, memberId, track, Number(body.currentTime), Number(body.duration)).run();
+
+  await playbackStatement(
+    env.DB,
+    identifier,
+    memberId,
+    track,
+    Number(body.currentTime),
+    Number(body.duration),
+    Boolean(body.completed)
+  ).run();
+
   const records = memberId ? await canonicalRecordsForMember(env, member) : {};
   return json({ success: true, owner: memberId || null, record: records[trackId] || null });
 }
 
-async function googleUserInfo(accessToken: string) {
-  if (!accessToken) return null;
-  const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  if (!response.ok) return null;
-  const data: any = await response.json().catch(() => null);
-  const email = normalize(data?.email);
-  if (!email || data?.email_verified !== true) return null;
-  return { email, name: String(data.name || email.split('@')[0]), avatar: String(data.picture || '') };
-}
-
-async function verifiedGoogleSync(request: Request, env: Env) {
+async function claimLocalPlayback(request: Request, env: Env) {
   if (!env.DB) return json({ error: '資料庫尚未連線' }, 503);
   await ensureOwnershipSchema(env.DB);
+
+  // Device/localStorage claims are never trusted from an email in the body.
+  // The existing Google-backed Bearer session is the sole owner authority.
+  const member: any = await authenticatedUser(request, env);
+  if (!member?.id) return json({ error: '請先以 Google 帳號登入' }, 401);
+
   const body: any = await request.clone().json().catch(() => ({}));
-  const identity = await googleUserInfo(String(body.accessToken || ''));
-  if (!identity) return json({ error: 'Google 登入驗證失敗，請重新登入。' }, 401);
-
-  const verifiedRequest = new Request(new URL('/api/users/google-sync', request.url), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(identity)
-  });
-  const response = await appWorker.fetch(verifiedRequest, env);
-  const data: any = await response.clone().json().catch(() => ({}));
-  if (!response.ok || !data?.user?.id) return response;
-
-  const memberId = String(data.user.id);
   const deviceId = normalize(body.deviceId);
-  let claimStatus = 'none';
-  let importedCount = 0;
-
-  if (deviceId) {
-    const existing: any = await env.DB.prepare('SELECT memberId FROM playback_identity_aliases WHERE alias = ? LIMIT 1')
-      .bind(deviceId).first();
-    if (existing && String(existing.memberId) !== memberId) {
-      claimStatus = 'conflict';
-    } else {
-      await env.DB.prepare(`
-        INSERT INTO playback_identity_aliases(alias, memberId, aliasType, source, updatedAt)
-        VALUES (?, ?, 'device', 'verified-google-login', ?)
-        ON CONFLICT(alias) DO UPDATE SET
-          memberId = excluded.memberId,
-          aliasType = excluded.aliasType,
-          source = excluded.source,
-          updatedAt = excluded.updatedAt
-        WHERE playback_identity_aliases.memberId = excluded.memberId
-      `).bind(deviceId, memberId, Date.now()).run();
-
-      // Existing D1 rows under this device can now be attributed safely.
-      await env.DB.prepare(`
-        UPDATE playback_memories SET memberId = ?
-        WHERE (memberId IS NULL OR TRIM(memberId) = '')
-          AND (
-            LOWER(TRIM(userIdentifier)) = ?
-            OR LOWER(SUBSTR(TRIM(key), 1, LENGTH(?) + 1)) = ?
-          )
-      `).bind(memberId, deviceId, deviceId, `${deviceId}_`).run();
-
-      const localRows = Array.isArray(body.localPlayback) ? body.localPlayback.slice(0, 300) : [];
-      const ids = [...new Set(localRows.map((row: any) => String(row?.trackId || '').trim()).filter(Boolean))];
-      const meta = await trackMetaMap(env.DB, ids);
-      const statements = [];
-      for (const row of localRows) {
-        const trackId = String(row?.trackId || '').trim();
-        const track = meta[trackId];
-        if (!track) continue;
-        const duration = Number(row?.duration) || Number(track.durationSeconds) || 0;
-        const current = Number(row?.currentTime) || (duration > 0 ? duration * Math.max(0, Math.min(100, Number(row?.percentage) || 0)) / 100 : 0);
-        const completed = Boolean(row?.completed) || Number(row?.percentage) >= 95;
-        statements.push(playbackStatement(env.DB, memberId, memberId, track, current, duration, completed));
-      }
-      if (statements.length) {
-        await env.DB.batch(statements);
-        importedCount = statements.length;
-      }
-      claimStatus = 'claimed';
-    }
+  if (!/^dev-[a-z0-9-]+$/i.test(deviceId)) {
+    return json({ error: '裝置識別格式錯誤' }, 400);
   }
 
-  return json({ ...data, playbackClaim: claimStatus, importedPlaybackCount: importedCount });
+  const memberId = String(member.id);
+  const existing: any = await env.DB.prepare(`
+    SELECT memberId
+    FROM playback_identity_aliases
+    WHERE alias = ?
+    LIMIT 1
+  `).bind(deviceId).first();
+
+  // Never transfer a device already proven to belong to another account.
+  if (existing && String(existing.memberId) !== memberId) {
+    return json({ error: '此裝置已有其他會員歸戶紀錄，已停止自動合併。', conflict: true }, 409);
+  }
+
+  await env.DB.prepare(`
+    INSERT INTO playback_identity_aliases(alias, memberId, aliasType, source, updatedAt)
+    VALUES (?, ?, 'device', 'verified-session', ?)
+    ON CONFLICT(alias) DO UPDATE SET
+      updatedAt = excluded.updatedAt,
+      source = excluded.source
+    WHERE playback_identity_aliases.memberId = excluded.memberId
+  `).bind(deviceId, memberId, Date.now()).run();
+
+  // Existing cloud rows under this device become owned by this verified member.
+  await env.DB.prepare(`
+    UPDATE playback_memories
+    SET memberId = ?
+    WHERE (memberId IS NULL OR TRIM(memberId) = '')
+      AND (
+        LOWER(TRIM(userIdentifier)) = ?
+        OR LOWER(SUBSTR(TRIM(key), 1, LENGTH(?) + 1)) = ?
+      )
+  `).bind(memberId, deviceId, deviceId, `${deviceId}_`).run();
+
+  const localRows = Array.isArray(body.localPlayback) ? body.localPlayback.slice(0, 300) : [];
+  const trackIds = [...new Set(
+    localRows.map((row: any) => String(row?.trackId || '').trim()).filter(Boolean)
+  )];
+  const meta = await trackMetaMap(env.DB, trackIds);
+  const statements: any[] = [];
+
+  for (const row of localRows) {
+    const trackId = String(row?.trackId || '').trim();
+    const track = meta[trackId];
+    if (!track) continue;
+    const duration = Number(row?.duration) || Number(track.durationSeconds) || 0;
+    const percentage = Math.max(0, Math.min(100, Number(row?.percentage) || 0));
+    const current = Number(row?.currentTime) || (duration > 0 ? duration * percentage / 100 : 0);
+    const completed = Boolean(row?.completed) || percentage >= 95;
+    statements.push(
+      playbackStatement(env.DB, memberId, memberId, track, current, duration, completed)
+    );
+  }
+
+  if (statements.length) await env.DB.batch(statements);
+  const records = await canonicalRecordsForMember(env, member);
+  return json({
+    success: true,
+    memberId,
+    importedCount: statements.length,
+    totalCount: Object.keys(records).length
+  });
 }
 
 async function memberStats(request: Request, env: Env) {
@@ -385,14 +432,26 @@ async function memberStats(request: Request, env: Env) {
   let member: any = requested ? await resolveMember(env.DB, requested) : null;
   if (!member) member = await authenticatedUser(request, env);
   if (!member?.id) return json({ error: '找不到會員' }, 404);
+
   const records = await canonicalRecordsForMember(env, member);
   const summary = summarizePlaybackRecords(records);
   const email = normalize(member.email);
-  const comments: any = await env.DB.prepare('SELECT COUNT(*) AS count FROM comments WHERE LOWER(TRIM(authorEmail)) = ?')
-    .bind(email).first();
-  const shares: any = await env.DB.prepare(`SELECT COUNT(*) AS count FROM share_events WHERE userId = ? OR LOWER(TRIM(userEmail)) = ?`)
-    .bind(String(member.id), email).first();
-  return json({ ...summary, commentCount: Number(comments?.count) || 0, shareCount: Number(shares?.count) || 0 });
+  const comments: any = await env.DB.prepare(`
+    SELECT COUNT(*) AS count
+    FROM comments
+    WHERE LOWER(TRIM(authorEmail)) = ?
+  `).bind(email).first();
+  const shares: any = await env.DB.prepare(`
+    SELECT COUNT(*) AS count
+    FROM share_events
+    WHERE userId = ? OR LOWER(TRIM(userEmail)) = ?
+  `).bind(String(member.id), email).first();
+
+  return json({
+    ...summary,
+    commentCount: Number(comments?.count) || 0,
+    shareCount: Number(shares?.count) || 0
+  });
 }
 
 export default {
@@ -401,13 +460,20 @@ export default {
     const path = url.pathname;
     const method = request.method.toUpperCase();
 
-    if (path === '/api/users/google-sync' && method === 'POST') return verifiedGoogleSync(request, env);
-    if (path === '/api/playback/record' && method === 'POST') return recordPlayback(request, env);
+    if (path === '/api/playback/claim-local' && method === 'POST') {
+      return claimLocalPlayback(request, env);
+    }
+    if (path === '/api/playback/record' && method === 'POST') {
+      return recordPlayback(request, env);
+    }
     if (path.startsWith('/api/playback/history/') && method === 'GET') {
       const requestedId = decodeURIComponent(path.slice('/api/playback/history/'.length));
       return publicHistory(requestedId, env);
     }
-    if (path === '/api/member-learning-card-stats' && method === 'GET') return memberStats(request, env);
+    if (path === '/api/member-learning-card-stats' && method === 'GET') {
+      return memberStats(request, env);
+    }
+
     return learningWorker.fetch(request, env);
   }
 };
