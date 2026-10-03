@@ -10,9 +10,11 @@ const learningRouterSource = readFileSync(new URL('../worker/learningCardRouter.
 const jpegPolicySource = readFileSync(new URL('../src/jpegExportPolicy.ts', import.meta.url), 'utf8');
 const indexSource = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
-test('personal learning record export uses the dedicated 1280px JPEG module', () => {
+test('personal learning record export uses the dedicated 1280px JPEG module and rejects empty output', () => {
   assert.match(canvasExportSource, /exportMemberLearningCard/);
-  assert.match(canvasExportSource, /exportMemberProfileAndListeningImage = exportMemberLearningCard/);
+  assert.match(canvasExportSource, /export async function exportMemberProfileAndListeningImage/);
+  assert.match(canvasExportSource, /blob instanceof Blob/);
+  assert.match(canvasExportSource, /blob\.size <= 0/);
   assert.match(learningCardSource, /JPEG_EXPORT_WIDTH/);
   assert.match(learningCardSource, /JPEG_EXPORT_QUALITY/);
   assert.match(learningCardSource, /個人學習卡/);
