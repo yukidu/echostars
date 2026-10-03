@@ -15,6 +15,14 @@ const SESSION_CHECK_KEY = 'echostars_auth_session_checked_at';
 const SESSION_CHECK_TTL = 10 * 60 * 1000;
 const originalFetch = window.fetch.bind(window);
 
+type LocalPlaybackRow = {
+  trackId: string;
+  currentTime: number;
+  duration: number;
+  completed: boolean;
+  percentage: number;
+};
+
 function readCachedUser(): any | null {
   try {
     const raw = localStorage.getItem(USER_KEY);
@@ -39,14 +47,8 @@ function readDeviceId() {
   }
 }
 
-function collectLocalPlayback() {
-  const rows: Array<{
-    trackId: string;
-    currentTime: number;
-    duration: number;
-    completed: boolean;
-    percentage: number;
-  }> = [];
+function collectLocalPlayback(): LocalPlaybackRow[] {
+  const rows: LocalPlaybackRow[] = [];
   try {
     for (let index = 0; index < localStorage.length && rows.length < 300; index += 1) {
       const key = localStorage.key(index);
@@ -70,14 +72,31 @@ function collectLocalPlayback() {
   return rows;
 }
 
+function playbackFingerprint(rows: LocalPlaybackRow[]) {
+  if (!rows.length) return 'empty';
+  return rows
+    .slice()
+    .sort((a, b) => a.trackId.localeCompare(b.trackId))
+    .map(row => [
+      row.trackId,
+      Math.round(row.currentTime),
+      Math.round(row.duration),
+      row.completed ? 1 : 0,
+      Math.round(row.percentage * 10) / 10
+    ].join(':'))
+    .join('|');
+}
+
 async function claimLocalPlayback(user: any) {
   const token = typeof user?._authToken === 'string' ? user._authToken : '';
   const memberId = String(user?.id || '').trim();
   const deviceId = readDeviceId();
   if (!token || !memberId || !deviceId) return;
 
+  const localPlayback = collectLocalPlayback();
+  const fingerprint = playbackFingerprint(localPlayback);
   const markerKey = `${CLAIM_MARKER_PREFIX}_${memberId}_${deviceId}`;
-  if (localStorage.getItem(markerKey) === '1' || sessionStorage.getItem(markerKey) === 'conflict') return;
+  if (localStorage.getItem(markerKey) === fingerprint || sessionStorage.getItem(markerKey) === 'conflict') return;
 
   try {
     const response = await originalFetch('/api/playback/claim-local', {
@@ -86,17 +105,15 @@ async function claimLocalPlayback(user: any) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({
-        deviceId,
-        localPlayback: collectLocalPlayback()
-      }),
+      body: JSON.stringify({ deviceId, localPlayback }),
       cache: 'no-store'
     });
 
     if (response.ok) {
-      // Once this verified device is bound to the member, all future logged-in
-      // playback writes already go directly to the canonical member id.
-      localStorage.setItem(markerKey, '1');
+      // Store the exact local progress state that has already been imported.
+      // If the member later listens while logged out, the fingerprint changes
+      // and the next verified login safely imports the new progress again.
+      localStorage.setItem(markerKey, fingerprint);
       return;
     }
 
@@ -106,7 +123,7 @@ async function claimLocalPlayback(user: any) {
       sessionStorage.setItem(markerKey, 'conflict');
     }
   } catch {
-    // Best effort. Keep the marker unset so a later online load can retry.
+    // Best effort. Keep the marker stale so a later online load can retry.
   }
 }
 
