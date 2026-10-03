@@ -2,6 +2,7 @@ import React from 'react';
 import { Star, MessageSquare, Heart, Clock, Lock, CheckCircle2 } from 'lucide-react';
 import { Track } from '../types';
 import { AudioMemory } from '../utils/audio';
+import './AudioCard.css';
 
 interface AudioCardProps {
   track: Track;
@@ -150,20 +151,23 @@ export const AudioCard: React.FC<AudioCardProps> = ({
             </p>
 
             <div className="flex flex-nowrap items-center gap-1 mt-1 w-full overflow-hidden">
-              {categories.slice(0, 3).map((cat, idx) => (
-                <span
-                  key={idx}
-                  className="inline-flex w-fit max-w-[32%] shrink-0 box-border text-[9px] sm:text-[10px] leading-none font-semibold p-1 rounded-md border text-center truncate whitespace-nowrap"
-                  style={{
-                    backgroundColor: 'var(--color-light-pill, #fae8ed)',
-                    color: 'var(--color-primary, #c06c84)',
-                    borderColor: 'var(--theme-border-subtle, #f1e7ea)'
-                  }}
-                  title={cat}
-                >
-                  {cat}
-                </span>
-              ))}
+              {categories.slice(0, 3).map((cat, idx) => {
+                const isNewcomer = cat.trim() === '新人';
+                return (
+                  <span
+                    key={idx}
+                    className={`inline-flex w-fit max-w-[32%] shrink-0 box-border text-[9px] sm:text-[10px] leading-none font-semibold p-1 rounded-md border text-center truncate whitespace-nowrap ${isNewcomer ? 'newcomer-rainbow-border' : ''}`}
+                    style={{
+                      backgroundColor: 'var(--color-light-pill, #fae8ed)',
+                      color: 'var(--color-primary, #c06c84)',
+                      borderColor: isNewcomer ? undefined : 'var(--theme-border-subtle, #f1e7ea)'
+                    }}
+                    title={cat}
+                  >
+                    {cat}
+                  </span>
+                );
+              })}
             </div>
           </div>
 
