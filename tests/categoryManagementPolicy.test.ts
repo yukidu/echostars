@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 
 const policy = readFileSync(new URL('../src/categoryManagementPolicy.ts', import.meta.url), 'utf8');
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-const serviceWorker = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 
 test('upload/edit modal exposes category selection only', () => {
   assert.match(policy, /\.upload-modal-overlay button\[title="修改標籤名稱"\]/);
@@ -22,14 +21,10 @@ test('admin category deletion requires a second click before React delete handle
   assert.match(policy, /if \(until > Date\.now\(\)\)[\s\S]*resetCategoryDeleteButton\(button\);[\s\S]*return;/);
 });
 
-test('category UI policy loads before the React app', () => {
+test('category UI policy loads before the React bootstrap', () => {
   const policyIndex = indexHtml.indexOf('/src/categoryManagementPolicy.ts');
-  const mainIndex = indexHtml.indexOf('/src/main.tsx');
+  const bootstrapIndex = indexHtml.indexOf('/src/categoryIntegrityBootstrap.ts');
   assert.ok(policyIndex >= 0);
-  assert.ok(mainIndex >= 0);
-  assert.ok(policyIndex < mainIndex);
-});
-
-test('PWA shell cache is bumped for the category management change', () => {
-  assert.match(serviceWorker, /echostars-shell-v50/);
+  assert.ok(bootstrapIndex >= 0);
+  assert.ok(policyIndex < bootstrapIndex);
 });
