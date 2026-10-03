@@ -10,6 +10,7 @@ const serviceWorker = readFileSync(new URL('../public/sw.js', import.meta.url), 
 
 test('mini player exposes current track metadata to the system media policy', () => {
   assert.match(miniPlayer, /data-echostars-media-session="1"/);
+  assert.match(miniPlayer, /data-echostars-media-toggle="1"/);
   assert.match(miniPlayer, /data-media-title=\{track\.title\}/);
   assert.match(miniPlayer, /data-media-artist=/);
   assert.match(miniPlayer, /data-media-artwork=\{track\.speakerAvatar \|\| '\/icon-512\.png'\}/);
@@ -25,7 +26,10 @@ test('media session publishes title, speaker, artwork and app album name', () =>
   assert.match(policy, /player\.dataset\.mediaArtwork/);
 });
 
-test('system playback controls support play pause and seeking', () => {
+test('system playback controls support play pause and seeking without desyncing React state', () => {
+  assert.match(policy, /toggleThroughApp/);
+  assert.match(policy, /getToggle/);
+  assert.match(policy, /toggle\.click\(\)/);
   assert.match(policy, /safeSetActionHandler\('play'/);
   assert.match(policy, /safeSetActionHandler\('pause'/);
   assert.match(policy, /safeSetActionHandler\('seekbackward'/);
