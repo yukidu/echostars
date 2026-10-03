@@ -251,6 +251,7 @@ export default function App() {
   // Tracks, Comments, Users from Backend API
   const [tracks, setTracks] = useState<Track[]>(() => readHomeCache()?.tracks || []);
   const tracksHistoryRef = useRef<Track[]>(tracks);
+  const locallyChangedTrackIds = useRef(new Set<string>());
   useEffect(() => {
     tracksHistoryRef.current = tracks;
   }, [tracks]);
@@ -437,8 +438,20 @@ export default function App() {
     second: -1
   });
   const durationRepairStartedRef = useRef(false);
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
-  const [selectedDetailTrack, setSelectedDetailTrack] = useState<Track | null>(null);
+  const [playingTrackSnapshot, setCurrentTrack] = useState<Track | null>(null);
+  const currentTrack = tracks.find(t => t.id === playingTrackSnapshot?.id) || playingTrackSnapshot;
+  const [detailTrackSnapshot, setSelectedDetailTrack] = useState<Track | null>(null);
+  const selectedDetailTrack = tracks.find(t => t.id === detailTrackSnapshot?.id) || detailTrackSnapshot;
+  const activeCommentsTrackIdRef = useRef<string | null>(null);
+  activeCommentsTrackIdRef.current = selectedDetailTrack?.id || currentTrack?.id || null;
+  const [detailNavigation, setDetailNavigation] = useState({ sequence: 0, target: 'audio-timeline' });
+  const [commentsTrackId, setCommentsTrackId] = useState<string | null>(null);
+  const openTrackDetail = (track: Track, commentId?: string) => {
+    setSelectedDetailTrack(track);
+    setCurrentTab('home');
+    setPlayerMode('expanded');
+    setDetailNavigation(prev => ({ sequence: prev.sequence + 1, target: commentId ? `comment-${commentId}` : 'audio-timeline' }));
+  };
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -449,7 +462,8 @@ export default function App() {
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
 
   // Requirement 15: Floating comment preview popup modal & member preview modal
-  const [commentPreviewTrack, setCommentPreviewTrack] = useState<Track | null>(null);
+  const [commentPreviewSnapshot, setCommentPreviewTrack] = useState<Track | null>(null);
+  const commentPreviewTrack = tracks.find(t => t.id === commentPreviewSnapshot?.id) || commentPreviewSnapshot;
   const [previewMember, setPreviewMember] = useState<UserProfile | null>(null);
 
   // Modals
@@ -477,6 +491,8 @@ export default function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
     const protectBack = shouldProtectBrowserBack();
     const homeState: AppHistoryState = { echostars: true, view: 'home' };
     const existing = window.history.state as AppHistoryState | null;
@@ -533,6 +549,7 @@ export default function App() {
           setCurrentTab('home');
           setSelectedDetailTrack(track);
           setPlayerModeState('expanded');
+          setDetailNavigation(prev => ({ sequence: prev.sequence + 1, target: 'audio-timeline' }));
         } else {
           showHomeFromHistory();
         }
@@ -564,7 +581,10 @@ export default function App() {
     };
 
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
   }, []);
 
   useEffect(() => {
@@ -623,7 +643,15 @@ export default function App() {
   }, []);
 
   // Requirement 5: 分類標籤同步函數 (後台增刪改後首頁下拉選單同步更新)
-  const fetchCategories = async (providedCategories?: string[]) => {
+  const fetchCategories = async (providedCategories?: string[], change?: { oldName: string; newName?: string }) => {
+    if (change) {
+      tracks.filter(t => t.categories?.includes(change.oldName)).forEach(track => {
+        updateTrackCopies(track.id, current => {
+          const categories = [...new Set((current.categories || []).flatMap(name => name === change.oldName ? (change.newName ? [change.newName] : []) : [name]))];
+          return { ...current, categories: categories.length ? categories : ['未分類'] };
+        });
+      });
+    }
     try {
       const cData = Array.isArray(providedCategories)
         ? providedCategories
@@ -635,7 +663,7 @@ export default function App() {
         const list = Array.from(new Set(['全部', ...cData]));
         setCategoryOptions(list);
         setSelectedCategory(prev => (list.includes(prev) ? prev : '全部'));
-        writeHomeCache(tracks, list, homeCacheValidatedAtRef.current || Date.now());
+
       }
     } catch (e) {
       console.error('Failed to sync categories:', e);
@@ -718,8 +746,11 @@ export default function App() {
           const tData = await tracksRes.json();
           if (Array.isArray(tData)) {
             homeCacheValidatedAtRef.current = Date.now();
-            setTracks(tData);
-            writeHomeCache(tData, nextCategories, homeCacheValidatedAtRef.current);
+            setTracks(previous => {
+              const changed = locallyChangedTrackIds.current;
+              const incoming = tData.filter((t: Track) => !changed.has(t.id));
+              return [...incoming, ...previous.filter(t => changed.has(t.id))];
+            });
 
             const memories: Record<string, AudioMemory> = {};
             tData.forEach((t: Track) => {
@@ -817,25 +848,26 @@ export default function App() {
   }, [currentTab, isAdminOpen, isProfileOpen, commentPreviewTrack, selectedDetailTrack]);
 
   useEffect(() => {
-    if (tracks.length > 0) {
+    if (!isLoading) {
       writeHomeCache(
         tracks,
         categoryOptions,
         homeCacheValidatedAtRef.current || readHomeCache()?.savedAt || Date.now()
       );
     }
-  }, [tracks, categoryOptions]);
+  }, [tracks, categoryOptions, isLoading]);
 
   useEffect(() => {
     const trackId = (selectedDetailTrack || currentTrack)?.id;
     setComments([]);
+    setCommentsTrackId(null);
     if (!trackId) return;
     const controller = new AbortController();
     apiJson(`/api/tracks/${encodeURIComponent(trackId)}/comments`, { signal: controller.signal })
-      .then(data => { if (!controller.signal.aborted) setComments(Array.isArray(data) ? data : []); })
-      .catch(error => { if (!controller.signal.aborted) console.error('Failed to load comments:', error); });
+      .then(data => { if (!controller.signal.aborted) { setComments(Array.isArray(data) ? data : []); setCommentsTrackId(trackId); } })
+      .catch(error => { if (!controller.signal.aborted) { console.error('Failed to load comments:', error); setCommentsTrackId(trackId); } });
     return () => controller.abort();
-  }, [currentTrack?.id, selectedDetailTrack?.id]);
+  }, [selectedDetailTrack?.id || currentTrack?.id]);
 
   // Requirement 10, 11, 12: 權限判定 (超級管理員全通、管理員鑽石級權限、未審核通過前僅能看公開)
   const checkCanAccess = (track: Track): boolean => {
@@ -887,6 +919,8 @@ export default function App() {
 
     // Preserve user preferred player mode (Requirement 14)
     const effectiveMode = targetMode || (playerMode === 'expanded' ? savedPreferredMode : playerMode);
+
+    if (effectiveMode === 'expanded') openTrackDetail(track);
 
     if (currentTrack?.id === track.id) {
       setPlayerMode(effectiveMode);
@@ -1096,9 +1130,11 @@ export default function App() {
 
   const pendingInteractions = useRef(new Set<string>());
   const updateTrackCopies = (trackId: string, change: (track: Track) => Track) => {
+    locallyChangedTrackIds.current.add(trackId);
     setTracks(prev => prev.map(t => t.id === trackId ? change(t) : t));
     setCurrentTrack(prev => prev?.id === trackId ? change(prev) : prev);
     setSelectedDetailTrack(prev => prev?.id === trackId ? change(prev) : prev);
+    setCommentPreviewTrack(prev => prev?.id === trackId ? change(prev) : prev);
   };
 
   // One-time v3.3 repair for legacy tracks that were all stored as 10 minutes.
@@ -1269,7 +1305,7 @@ export default function App() {
 
     const commentData = await res.json();
     const newComment = commentData.comment || commentData;
-    setComments(prev => [newComment, ...prev]);
+    if (activeCommentsTrackIdRef.current === targetTrackId) setComments(prev => [newComment, ...prev]);
     setAllComments(prev => [newComment, ...prev]);
 
     setTracks(prev =>
@@ -1323,14 +1359,12 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: newContent, userEmail: currentUser?.email, deviceId: visitor.deviceId })
     });
-    if (res.ok) {
-      setComments(prev =>
-        prev.map(c => (c.id === commentId ? { ...c, content: newContent } : c))
-      );
-      setAllComments(prev =>
-        prev.map(c => (c.id === commentId ? { ...c, content: newContent } : c))
-      );
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || '心得修改失敗');
     }
+    setComments(prev => prev.map(c => c.id === commentId ? { ...c, content: newContent } : c));
+    setAllComments(prev => prev.map(c => c.id === commentId ? { ...c, content: newContent } : c));
   };
 
   // Requirement 2: 在「最大化視窗」直接修改音檔資訊、備註與相關學習連結
@@ -1341,45 +1375,17 @@ export default function App() {
     updates: Partial<Track>,
     options?: { persist?: boolean }
   ) => {
-    const mergeLocalTrack = (patch: Partial<Track>) => {
-      setTracks(prev => prev.map(t => (t.id === trackId ? { ...t, ...patch } : t)));
-      if (currentTrack?.id === trackId) {
-        setCurrentTrack(prev => (prev ? { ...prev, ...patch } : prev));
-      }
-      if (selectedDetailTrack?.id === trackId) {
-        setSelectedDetailTrack(prev => (prev ? { ...prev, ...patch } : prev));
-      }
-    };
-
     if (options?.persist === false) {
-      mergeLocalTrack(updates);
+      updateTrackCopies(trackId, track => ({ ...track, ...updates }));
       return;
     }
-
-    try {
-      const res = await fetch(`/api/tracks/${encodeURIComponent(trackId)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...updates, userEmail: currentUser?.email })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err.error || '儲存失敗');
-        return;
-      }
-      const payload = await res.json();
-      const serverTrack =
-        payload?.track && typeof payload.track === 'object'
-          ? payload.track
-          : payload;
-
-      // Never replace a full track with a partial API object. Merge instead so a
-      // malformed/legacy response cannot blank title, speaker, cover or audio URL.
-      mergeLocalTrack(serverTrack && typeof serverTrack === 'object' ? serverTrack : updates);
-    } catch (err) {
-      console.error('Update track failed:', err);
-      alert('更新失敗，請檢查網路連線。');
-    }
+    const payload = await apiJson(`/api/tracks/${encodeURIComponent(trackId)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...updates, userEmail: currentUser?.email })
+    });
+    const saved = payload.track || payload;
+    if (saved.id !== trackId) throw new Error('伺服器未回傳已儲存的音檔，請重試。');
+    updateTrackCopies(trackId, track => ({ ...track, ...saved }));
   };
 
   // Requirement 11: 超級管理員指定或取消「管理員」身分
@@ -1415,6 +1421,10 @@ export default function App() {
           auditorEmail: currentUser?.email
         })
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '審核儲存失敗');
+      }
       if (res.ok) {
         const updated = await res.json();
         setAllUsers(prev => prev.map(u => (u.id === userId ? updated : u)));
@@ -1424,8 +1434,7 @@ export default function App() {
         }
       }
     } catch (e) {
-      alert('審核儲存失敗，請稍後再試。');
-      console.error('Approve rank failed:', e);
+      throw e;
     }
   };
 
@@ -1553,47 +1562,45 @@ export default function App() {
   const handleToggleContributor = (id: string) => updateMemberPermission(id,'contributor');
 
   const handleAdminUpdateUser = async (userId: string, profileData: Partial<UserProfile>) => {
-    const res = await fetch(`/api/users/${userId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(profileData)
+    const data = await apiJson(`/api/users/${encodeURIComponent(userId)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profileData)
     });
-    if (res.ok) {
-      const updated = await res.json();
-      setAllUsers(prev => prev.map(u => (u.id === userId ? updated : u)));
-      if (currentUser?.id === userId) {
-        setCurrentUser(prev => (prev ? { ...prev, ...profileData } : null));
-      }
+    const updated = data.user || data;
+    setAllUsers(prev => prev.map(u => u.id === userId ? { ...u, ...updated } : u));
+    if (currentUser?.id === userId) {
+      const next = { ...currentUser, ...updated };
+      setCurrentUser(next);
+      localStorage.setItem('sq_current_user_v1', JSON.stringify(next));
     }
   };
 
   // Requirement 24: Batch Update Users
   const handleBatchUpdateUsers = async (userIds: string[], updates: Partial<UserProfile>) => {
-    const res = await fetch('/api/admin/users/batch', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userIds, updates })
+    const data = await apiJson('/api/admin/users/batch', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userIds, updates, actorEmail: currentUser?.email })
     });
-    if (res.ok) {
-      setAllUsers(prev =>
-        prev.map(u => (userIds.includes(u.id) ? { ...u, ...updates } : u))
-      );
-      if (currentUser && userIds.includes(currentUser.id)) {
-        setCurrentUser(prev => (prev ? { ...prev, ...updates } : null));
-      }
+    const savedUsers: UserProfile[] = data.users;
+    if (!Array.isArray(savedUsers)) throw new Error('未收到已儲存的會員資料');
+    setAllUsers(prev => prev.map(u => savedUsers.find(saved => saved.id === u.id) || u));
+    const savedCurrent = savedUsers.find(u => u.id === currentUser?.id);
+    if (savedCurrent) {
+      setCurrentUser(savedCurrent);
+      localStorage.setItem('sq_current_user_v1', JSON.stringify(savedCurrent));
     }
   };
 
   const handleDeleteTrack = async (trackId: string) => {
     const userEmail = currentUser?.email || (isAdmin ? 'yukidu@gmail.com' : '');
-    const res = await fetch(`/api/tracks/${trackId}?userEmail=${encodeURIComponent(userEmail)}`, {
-      method: 'DELETE'
-    });
-    if (res.ok) {
-      setTracks(prev => prev.filter(t => t.id !== trackId));
-      if (currentTrack?.id === trackId) {
-        setCurrentTrack(null);
-      }
+    await apiJson(`/api/tracks/${encodeURIComponent(trackId)}?userEmail=${encodeURIComponent(userEmail)}`, { method: 'DELETE' });
+    locallyChangedTrackIds.current.add(trackId);
+    setTracks(prev => prev.filter(t => t.id !== trackId));
+    setSelectedDetailTrack(prev => prev?.id === trackId ? null : prev);
+    setCommentPreviewTrack(prev => prev?.id === trackId ? null : prev);
+    if (currentTrack?.id === trackId) {
+      audioRef.current?.pause();
+      setCurrentTrack(null);
+      setIsPlaying(false);
     }
   };
 
@@ -1901,11 +1908,7 @@ export default function App() {
             tracks={tracks}
             users={allUsers}
             comments={comments}
-            onSelectTrack={(track: Track) => {
-              setSelectedDetailTrack(track);
-              setPlayerMode('expanded');
-              setCurrentTab('home');
-            }}
+            onSelectTrack={openTrackDetail}
             onViewMember={user => setPreviewMember(user)}
           />
         ) : currentTab === 'notifications' ? (
@@ -1918,18 +1921,7 @@ export default function App() {
             onViewMember={user => setPreviewMember(user)}
             comments={allComments.length > 0 ? allComments : comments}
             tracks={tracks}
-            onSelectTrack={(t, commentId) => {
-              handlePlayTrack(t, 'expanded');
-              setCurrentTab('home');
-              if (commentId) {
-                setTimeout(() => {
-                  const el = document.getElementById(`comment-${commentId}`) || document.getElementById('comments-section');
-                  if (el) {
-                    el.scrollIntoView({ behavior: 'smooth' });
-                  }
-                }, 450);
-              }
-            }}
+            onSelectTrack={openTrackDetail}
             onAddComment={(trackId, content, replyToId, replyToAuthor) =>
               handleAddComment(content, replyToId, replyToAuthor, trackId)
             }
@@ -1948,6 +1940,9 @@ export default function App() {
 
             return (
               <DetailView
+                key={activeTrack.id}
+                navigation={detailNavigation}
+                commentsReady={commentsTrackId === activeTrack.id}
                 track={activeTrack}
                 comments={comments}
                 isPlaying={isPlayingActive}
@@ -2402,8 +2397,7 @@ export default function App() {
                       hasLiked={hasLiked}
                       onClick={() => {
                         // Requirement 8: 點擊資訊卡，不要播放音檔，「只會」最大化展開該曲目的詳細介面
-                        setSelectedDetailTrack(track);
-                        setPlayerMode('expanded');
+                        openTrackDetail(track);
                       }}
                       onTogglePlay={(anchor) => {
                         if (track.isPrivateVip && !isVipUnlocked) {
@@ -2458,9 +2452,7 @@ export default function App() {
           playerMode={playerMode === 'expanded' ? savedPreferredMode : playerMode}
           onSetPlayerMode={(m) => {
             if (m === 'expanded') {
-              setSelectedDetailTrack(currentTrack);
-              setCurrentTab('home');
-              requestAnimationFrame(()=>requestAnimationFrame(()=>document.getElementById('audio-timeline')?.scrollIntoView({behavior:'smooth',block:'center'})));
+              openTrackDetail(currentTrack);
             } else {
               setSelectedDetailTrack(null);
             }
@@ -2498,10 +2490,11 @@ export default function App() {
               )
             );
           }
-          if (currentTrack) {
+          const activeId = activeCommentsTrackIdRef.current;
+          if (activeId && activeId === commentPreviewTrack?.id) {
             try {
-              const res = await fetch(`/api/tracks/${currentTrack.id}/comments`);
-              if (res.ok) setComments(await res.json());
+              const data = await apiJson(`/api/tracks/${encodeURIComponent(activeId)}/comments`);
+              if (activeCommentsTrackIdRef.current === activeId) setComments(data);
             } catch {}
           }
         }}
@@ -2522,43 +2515,13 @@ export default function App() {
         onCategoriesUpdated={fetchCategories}
         onSuccess={rawTrack => {
           const trackData: any = (rawTrack as any)?.track || rawTrack;
-          const normalizedTrack: Track = {
-            id: trackData?.id || `t-${Date.now()}`,
-            title: trackData?.title || '新上傳音檔',
-            speaker: trackData?.speaker || '特邀講師',
-            speakerRank: trackData?.speakerRank || '無',
-            speakerAvatar: trackData?.speakerAvatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80',
-            categories: Array.isArray(trackData?.categories) && trackData.categories.length > 0 ? trackData.categories : ['未分類'],
-            keywords: Array.isArray(trackData?.keywords) ? trackData.keywords : [],
-            rating: typeof trackData?.rating === 'number' ? trackData.rating : 5.0,
-            ratingCount: typeof trackData?.ratingCount === 'number' ? trackData.ratingCount : 1,
-            commentsCount: typeof trackData?.commentsCount === 'number' ? trackData.commentsCount : 0,
-            likes: typeof trackData?.likes === 'number' ? trackData.likes : 0,
-            playCount: typeof trackData?.playCount === 'number' ? trackData.playCount : 0,
-            duration: trackData?.duration || '約 10 分鐘',
-            durationSeconds: trackData?.durationSeconds || 600,
-            series: trackData?.series || '精選系列',
-            speechDate: trackData?.speechDate || new Date().toISOString().split('T')[0],
-            requiredRank: trackData?.requiredRank || '無',
-            seriesOrder: trackData?.seriesOrder || '第 1 集',
-            uploadDate: trackData?.uploadDate || new Date().toISOString().split('T')[0],
-            description: trackData?.description || '',
-            audioUrl: trackData?.audioUrl || '',
-            likedBy: Array.isArray(trackData?.likedBy) ? trackData.likedBy : [],
-            ratings: typeof trackData?.ratings === 'object' && trackData.ratings !== null ? trackData.ratings : {},
-            externalVideos: Array.isArray(trackData?.externalVideos) ? trackData.externalVideos : [],
-            externalPpts: Array.isArray(trackData?.externalPpts) ? trackData.externalPpts : [],
-            externalFiles: Array.isArray(trackData?.externalFiles) ? trackData.externalFiles : [],
-            ...trackData
-          };
+          const normalizedTrack = trackData as Track;
 
           if (trackToEdit) {
-            setTracks(prev => prev.map(t => (t.id === normalizedTrack.id ? normalizedTrack : t)));
-            if (currentTrack?.id === normalizedTrack.id) {
-              setCurrentTrack(normalizedTrack);
-            }
+            updateTrackCopies(normalizedTrack.id, track => ({ ...track, ...normalizedTrack }));
             setTrackToEdit(null);
           } else {
+            locallyChangedTrackIds.current.add(normalizedTrack.id);
             setTracks(prev => [normalizedTrack, ...prev]);
             handlePlayTrack(normalizedTrack, savedPreferredMode);
           }
@@ -2603,7 +2566,7 @@ export default function App() {
         onLoginWithGoogle={handleLoginWithGoogle}
         onLogout={handleLogout}
         onUpdateProfile={handleUpdateProfile}
-        onSelectTrack={t => handlePlayTrack(t, 'expanded')}
+        onSelectTrack={openTrackDetail}
         onSelectCategory={cat => {
           setSelectedCategory(cat);
           setCurrentTab('home');

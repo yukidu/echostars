@@ -197,6 +197,10 @@ export const KeywordsTab: React.FC<KeywordsTabProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ keyword: trimmed })
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '儲存失敗，請稍後再試');
+      }
       if (res.ok) {
         const data = await res.json();
         if (onUpdateTrack) {
@@ -210,6 +214,8 @@ export const KeywordsTab: React.FC<KeywordsTabProps> = ({
         setSuccessMessage(`已成功為《${targetTrack.title}》新增關鍵字「${trimmed}」！`);
         setTimeout(() => setSuccessMessage(null), 3500);
       }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '儲存失敗，請稍後再試');
     } finally {
       setIsAddingNewKw(false);
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   Star,
   MessageSquare,
@@ -31,6 +31,8 @@ import { TwinklingStars } from './TwinklingStars';
 
 interface DetailViewProps {
   track: Track;
+  navigation?: { sequence: number; target: string };
+  commentsReady?: boolean;
   comments: Comment[];
   isPlaying: boolean;
   currentTime: number;
@@ -58,7 +60,7 @@ interface DetailViewProps {
   onEditComment: (commentId: string, newContent: string) => Promise<void>;
   onOpenBwExport: (mode: 'comments' | 'rated') => void;
   onViewMember?: (user: UserProfile) => void;
-  onUpdateTrack?: (trackId: string, updates: Partial<Track>) => Promise<void>;
+  onUpdateTrack?: (trackId: string, updates: Partial<Track>, options?: { persist?: boolean }) => Promise<void>;
   onSelectKeyword?: (keyword: string) => void;
   onEditTrack?: (track: Track) => void;
   isVipUnlocked?: boolean;
@@ -70,6 +72,8 @@ interface DetailViewProps {
 
 export const DetailView: React.FC<DetailViewProps> = ({
   track,
+  navigation = { sequence: 0, target: 'audio-timeline' },
+  commentsReady = true,
   comments,
   isPlaying,
   currentTime,
@@ -105,6 +109,22 @@ export const DetailView: React.FC<DetailViewProps> = ({
   allUsers = [],
   tracks = []
 }) => {
+  const completedNavigation = useRef('');
+  useLayoutEffect(() => {
+    const key = `${track.id}:${navigation.sequence}:${navigation.target}`;
+    if (completedNavigation.current === key) return;
+    if (navigation.target.startsWith('comment-') && !commentsReady) return;
+    const frame = requestAnimationFrame(() => {
+      const element = document.getElementById(navigation.target)
+        || document.getElementById(navigation.target.startsWith('comment-') ? 'comments-section' : 'audio-timeline');
+      if (element) {
+        element.scrollIntoView({ behavior: 'instant', block: 'start' });
+        completedNavigation.current = key;
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [track.id, navigation.sequence, navigation.target, commentsReady]);
+
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [isRatingSubmitting, setIsRatingSubmitting] = useState(false);
   const [optimisticRating, setOptimisticRating] = useState<number | null>(null);
@@ -211,7 +231,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
         setIsAddingKeyword(false);
         loadDbKeywords();
         if (onUpdateTrack) {
-          onUpdateTrack(track.id, { keywords: data.keywords });
+          await onUpdateTrack(track.id, { keywords: data.keywords }, { persist: false });
         }
       } else {
         const err = await res.json().catch(() => ({}));
@@ -239,17 +259,21 @@ export const DetailView: React.FC<DetailViewProps> = ({
           userId: currentUser?.id
         })
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '儲存失敗，請稍後再試');
+      }
       if (res.ok) {
         const data = await res.json();
         setTrackKeywords(data.keywords);
         setEditingKeywordOld(null);
         loadDbKeywords();
         if (onUpdateTrack) {
-          onUpdateTrack(track.id, { keywords: data.keywords });
+          await onUpdateTrack(track.id, { keywords: data.keywords }, { persist: false });
         }
       }
-    } catch {
-      // ignore
+    } catch (error) {
+      setKeywordError(error instanceof Error ? error.message : '儲存失敗，請稍後再試');
     }
   };
 
@@ -259,16 +283,20 @@ export const DetailView: React.FC<DetailViewProps> = ({
         `/api/tracks/${track.id}/keywords/${encodeURIComponent(kw)}?userEmail=${encodeURIComponent(currentUser?.email || '')}&userId=${encodeURIComponent(currentUser?.id || '')}`,
         { method: 'DELETE' }
       );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '儲存失敗，請稍後再試');
+      }
       if (res.ok) {
         const data = await res.json();
         setTrackKeywords(data.keywords);
         loadDbKeywords();
         if (onUpdateTrack) {
-          onUpdateTrack(track.id, { keywords: data.keywords });
+          await onUpdateTrack(track.id, { keywords: data.keywords }, { persist: false });
         }
       }
-    } catch {
-      // ignore
+    } catch (error) {
+      setKeywordError(error instanceof Error ? error.message : '儲存失敗，請稍後再試');
     }
   };
 
@@ -278,7 +306,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
   const [editDesc, setEditDesc] = useState(track.description || '');
   const [editSeries, setEditSeries] = useState(track.series || '');
   const [editSpeechDate, setEditSpeechDate] = useState(track.speechDate || '');
-  const [editSeriesOrder, setEditSeriesOrder] = useState(track.seriesOrder || '第 1 集');
+  const [editSeriesOrder, setEditSeriesOrder] = useState(track.seriesOrder ?? '');
   const [editVideos, setEditVideos] = useState<ExternalLinkItem[]>(track.externalVideos || []);
   const [editPpts, setEditPpts] = useState<ExternalLinkItem[]>(track.externalPpts || []);
   const [editFiles, setEditFiles] = useState<ExternalLinkItem[]>(track.externalFiles || []);
@@ -289,7 +317,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
     setEditDesc(track.description || '');
     setEditSeries(track.series || '');
     setEditSpeechDate(track.speechDate || '');
-    setEditSeriesOrder(track.seriesOrder || '第 1 集');
+    setEditSeriesOrder(track.seriesOrder ?? '');
     setEditVideos(track.externalVideos ? track.externalVideos.map(v => ({ ...v })) : []);
     setEditPpts(track.externalPpts ? track.externalPpts.map(p => ({ ...p })) : []);
     setEditFiles(track.externalFiles ? track.externalFiles.map(f => ({ ...f })) : []);
@@ -344,6 +372,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
         externalFiles: cleanFiles
       });
       setIsEditingTrack(false);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '儲存失敗，請稍後再試');
     } finally {
       setIsSavingTrack(false);
     }

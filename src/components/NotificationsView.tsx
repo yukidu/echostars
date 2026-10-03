@@ -197,6 +197,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     setIsSubmitting(true);
     try {
       await onApproveRank(userId);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '審核儲存失敗');
     } finally {
       setIsSubmitting(false);
     }
@@ -207,6 +209,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
     try {
       await onApproveRank(userId, modifiedRank);
       setEditingUserId(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '審核儲存失敗');
     } finally {
       setIsSubmitting(false);
     }

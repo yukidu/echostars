@@ -70,7 +70,7 @@ interface AdminModalProps {
     options?: { persist?: boolean }
   ) => Promise<void> | void;
   onSwitchToAdmin: () => void;
-  onCategoriesUpdated?: (categories?: string[]) => void;
+  onCategoriesUpdated?: (categories?: string[], change?: { oldName: string; newName?: string }) => void;
 }
 
 export const AdminModal: React.FC<AdminModalProps> = ({
@@ -418,12 +418,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newCatName.trim() })
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '儲存失敗，請稍後再試');
+      }
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         if (Array.isArray(data?.categories)) setCategoryList(data.categories);
         setNewCatName('');
         if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
       }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '儲存失敗，請稍後再試');
     } finally {
       setIsCatSubmitting(false);
     }
@@ -441,14 +447,18 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newName: editingCatNew.trim() })
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '儲存失敗，請稍後再試');
+      }
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         if (Array.isArray(data?.categories)) setCategoryList(data.categories);
         setEditingCatOld(null);
-        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined, { oldName, newName: editingCatNew.trim() });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '儲存失敗，請稍後再試');
     }
   };
 
@@ -458,13 +468,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       const res = await fetch(`/api/categories/${encodeURIComponent(catName)}`, {
         method: 'DELETE'
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || '儲存失敗，請稍後再試');
+      }
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         if (Array.isArray(data?.categories)) setCategoryList(data.categories);
-        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined);
+        if (onCategoriesUpdated) onCategoriesUpdated(Array.isArray(data?.categories) ? data.categories : undefined, { oldName: catName });
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '儲存失敗，請稍後再試');
     }
   };
 
@@ -544,13 +558,17 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const handleSaveUserForm = async () => {
     if (!editingUserId) return;
     const calc = calculateNumerology(userForm.birthday || '');
-    await onUpdateUserFull(editingUserId, {
-      ...userForm,
-      zodiac: calc?.zodiac,
-      talentNumber: calc?.talentNumber,
-      lifeNumber: calc?.lifeNumber
-    });
-    setEditingUserId(null);
+    try {
+      await onUpdateUserFull(editingUserId, {
+        ...userForm,
+        zodiac: calc?.zodiac,
+        talentNumber: calc?.talentNumber,
+        lifeNumber: calc?.lifeNumber
+      });
+      setEditingUserId(null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '會員儲存失敗');
+    }
   };
 
   // Batch Selection Handlers
@@ -590,6 +608,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       setBatchRank('');
       setBatchDiamondUpline('');
       setBatchContributor('');
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '批次儲存失敗');
     } finally {
       setIsBatchApplying(false);
     }
@@ -1431,9 +1451,11 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                                   setIsDeleting(true);
                                   try {
                                     await onDeleteTrack(t.id);
+                                    setDeletingTrackId(null);
+                                  } catch (error) {
+                                    alert(error instanceof Error ? error.message : '刪除失敗，請稍後再試');
                                   } finally {
                                     setIsDeleting(false);
-                                    setDeletingTrackId(null);
                                   }
                                 }}
                                 className="px-2 py-0.5 rounded-lg bg-rose-600 text-white text-[10px] font-bold hover:bg-rose-700 disabled:opacity-50"
