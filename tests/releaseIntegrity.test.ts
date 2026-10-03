@@ -22,11 +22,12 @@ test('service worker never caches API responses or personalized share HTML as ap
   assert.doesNotMatch(sw, /cacheableNavigation[\s\S]*url\.pathname\.startsWith\('\/share\/'\)/);
 });
 
-test('release verification keeps regression tests and the production build as the explicit gate', () => {
+test('release verification keeps regression tests and the production build as explicit gates', () => {
   assert.equal(pkg.scripts.verify, 'npm test && npm run build');
   assert.match(workflow, /run: npm test/);
   assert.match(workflow, /run: npm run build/);
-  assert.doesNotMatch(wrangler, /\[build\][\s\S]*command = "npm run verify"/);
+  assert.match(wrangler, /\[build\][\s\S]*command = "npm run build"/);
+  assert.doesNotMatch(wrangler, /command = "npm run verify"/);
 });
 
 test('preview configuration stays isolated from production storage bindings', () => {
