@@ -1,5 +1,5 @@
 export const JPEG_EXPORT_WIDTH = 1280;
-export const JPEG_EXPORT_QUALITY = 0.97;
+export const JPEG_EXPORT_QUALITY = 0.95;
 const MIN_LARGE_EXPORT_CANVAS_WIDTH = 700;
 
 type PatchedCanvasPrototype = typeof HTMLCanvasElement.prototype & {
