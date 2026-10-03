@@ -23,11 +23,15 @@ test('newcomer border shows a simultaneous 45-degree seven-color gradient that f
   assert.match(css, /animation:\s*newcomerRainbowFlow 2\.4s linear infinite/);
 });
 
-test('newcomer inner fill stays theme-colored while rainbow remains a 1px border', () => {
-  assert.match(css, /\.newcomer-rainbow-border::before/);
-  assert.match(css, /inset:\s*1px/);
-  assert.match(css, /background:\s*var\(--color-light-pill, #fae8ed\)/);
-  assert.match(css, /isolation:\s*isolate/);
+test('newcomer keeps its original fill and paints only a true 1px rainbow border', () => {
+  assert.match(css, /\.newcomer-rainbow-border\s*\{[\s\S]*background-image:\s*none !important;/);
+  assert.match(css, /\.newcomer-rainbow-border::after/);
+  assert.match(css, /inset:\s*0/);
+  assert.match(css, /padding:\s*1px/);
+  assert.match(css, /border-radius:\s*inherit/);
+  assert.match(css, /-webkit-mask-composite:\s*xor/);
+  assert.match(css, /mask-composite:\s*exclude/);
+  assert.doesNotMatch(css, /\.newcomer-rainbow-border::before/);
   assert.doesNotMatch(css, /border-(?:width|style):/);
   assert.doesNotMatch(css, /border:\s*\d/);
 });
