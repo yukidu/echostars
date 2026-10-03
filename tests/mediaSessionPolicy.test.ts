@@ -26,11 +26,11 @@ test('media session publishes title, speaker, artwork and app album name', () =>
 });
 
 test('system playback controls support play pause and seeking', () => {
-  assert.match(policy, /setActionHandler\('play'/);
-  assert.match(policy, /setActionHandler\('pause'/);
-  assert.match(policy, /seekbackward/);
-  assert.match(policy, /seekforward/);
-  assert.match(policy, /seekto/);
+  assert.match(policy, /safeSetActionHandler\('play'/);
+  assert.match(policy, /safeSetActionHandler\('pause'/);
+  assert.match(policy, /safeSetActionHandler\('seekbackward'/);
+  assert.match(policy, /safeSetActionHandler\('seekforward'/);
+  assert.match(policy, /safeSetActionHandler\('seekto'/);
   assert.match(policy, /setPositionState/);
   assert.match(policy, /playbackState/);
 });
