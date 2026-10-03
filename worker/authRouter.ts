@@ -208,12 +208,14 @@ async function handleGoogleLogin(request: Request, env: Env) {
 function protectedRoute(path: string, method: string) {
   if (method === 'POST' && path === '/api/r2/upload') return true;
   if (path === '/api/tracks' && method === 'POST') return true;
-  if (/^\/api\/tracks\/[^/]+$/.test(path) && method === 'PUT') return true;
-  if (/^\/api\/tracks\/[^/]+\/vip-share(?:\/reset)?$/.test(path) && method === 'POST') return true;
+  if (/^\/api\/tracks\/[^/]+$/.test(path) && (method === 'PUT' || method === 'DELETE')) return true;
+  if (/^\/api\/tracks\/[^/]+\/(?:vip-share(?:\/reset)?|reset-vip-token)$/.test(path) && method === 'POST') return true;
   if (/^\/api\/users\/[^/]+$/.test(path) && method === 'PUT') return true;
   if (/^\/api\/users\/[^/]+\/(?:contributor|admin-role|block|audit-rank)$/.test(path) && method === 'PUT') return true;
   if (path === '/api/admin/users/batch' && method === 'PUT') return true;
   if (/^\/api\/keywords(?:\/|$)/.test(path) && method !== 'GET') return true;
+  if (path === '/api/categories' && method === 'POST') return true;
+  if (/^\/api\/categories\/.+/.test(path) && (method === 'PUT' || method === 'DELETE')) return true;
   if (path === '/api/categories/order' && method === 'PUT') return true;
   return false;
 }
@@ -223,7 +225,16 @@ async function authorizeAndRewrite(request: Request, env: Env, user: any) {
   const path = url.pathname;
   const method = request.method.toUpperCase();
 
-  if (path === '/api/admin/users/batch' || /^\/api\/users\/[^/]+\/(?:contributor|admin-role|block)$/.test(path) || /^\/api\/keywords\/(?:rename|delete)$/.test(path) || path === '/api/categories/order') {
+  const categoryMutation =
+    (path === '/api/categories' && method === 'POST') ||
+    (/^\/api\/categories\/.+/.test(path) && (method === 'PUT' || method === 'DELETE'));
+
+  if (
+    path === '/api/admin/users/batch' ||
+    /^\/api\/users\/[^/]+\/(?:contributor|admin-role|block)$/.test(path) ||
+    /^\/api\/keywords\/(?:rename|delete)$/.test(path) ||
+    categoryMutation
+  ) {
     if (!isSuperAdmin(user)) return json({ error: '只有超級管理員可執行此操作' }, 403);
   }
 
@@ -232,13 +243,25 @@ async function authorizeAndRewrite(request: Request, env: Env, user: any) {
     if (!mayAudit) return json({ error: '沒有獎銜審核權限' }, 403);
   }
 
-  if ((path === '/api/r2/upload' && method === 'POST') || (path === '/api/tracks' && method === 'POST')) {
+  if (path === '/api/r2/upload' && method === 'POST') {
     if (!canUpload(user)) return json({ error: '沒有上傳音檔權限' }, 403);
     return request;
   }
 
+  if (path === '/api/tracks' && method === 'POST') {
+    if (!canUpload(user)) return json({ error: '沒有上傳音檔權限' }, 403);
+    const body = await requestBody(request);
+    return jsonRequest(request, {
+      ...body,
+      userEmail: user.email,
+      userId: user.id,
+      uploaderEmail: user.email,
+      uploaderId: user.id
+    });
+  }
+
   const trackWrite = path.match(/^\/api\/tracks\/([^/]+)$/);
-  if (trackWrite && method === 'PUT') {
+  if (trackWrite && (method === 'PUT' || method === 'DELETE')) {
     if (!canUpload(user)) return json({ error: '沒有修改音檔權限' }, 403);
     if (!isSuperAdmin(user) && env.DB) {
       const track: any = await env.DB.prepare('SELECT uploaderEmail FROM tracks WHERE id = ?')
@@ -247,8 +270,9 @@ async function authorizeAndRewrite(request: Request, env: Env, user: any) {
         return json({ error: '只能修改自己上傳的音檔' }, 403);
       }
     }
+    if (method === 'DELETE') return request;
     const body = await requestBody(request);
-    return jsonRequest(request, { ...body, userEmail: user.email, uploaderEmail: body.uploaderEmail || user.email });
+    return jsonRequest(request, { ...body, userEmail: user.email, userId: user.id, uploaderEmail: user.email, uploaderId: user.id });
   }
 
   const userWrite = path.match(/^\/api\/users\/([^/]+)$/);
@@ -276,7 +300,7 @@ async function authorizeAndRewrite(request: Request, env: Env, user: any) {
     return jsonRequest(request, safe);
   }
 
-  if (/^\/api\/tracks\/[^/]+\/vip-share(?:\/reset)?$/.test(path) && method === 'POST') {
+  if (/^\/api\/tracks\/[^/]+\/(?:vip-share(?:\/reset)?|reset-vip-token)$/.test(path) && method === 'POST') {
     const body = await requestBody(request);
     return jsonRequest(request, { ...body, userEmail: user.email });
   }
@@ -342,6 +366,10 @@ export default {
 
     if (path === '/api/users/google-sync' && method === 'POST') {
       return handleGoogleLogin(request, env);
+    }
+
+    if ((path === '/api/users' || path === '/api/users/profile') && method === 'POST') {
+      return json({ error: '會員註冊請使用 Google 官方登入' }, 403);
     }
 
     if (path === '/api/auth/session' && method === 'GET') {
