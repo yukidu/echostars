@@ -1,4 +1,5 @@
 import learningWorker from './learningCardRouter';
+import appWorker from './shareRouter';
 import type { Env } from './index';
 import {
   mergePlaybackRows,
@@ -8,6 +9,33 @@ import {
 } from '../shared/learningProgress';
 
 const ownershipSchemaReady = new WeakMap<object, Promise<void>>();
+const PLAYBACK_UPSERT_SQL = `
+  INSERT INTO playback_memories (
+    key, trackId, userIdentifier, memberId, currentTime, duration, progressPercent,
+    lastPlayedAt, completed, trackTitle, trackSpeaker, trackSpeakerRank,
+    firstListenDate, lastListenDate, finishDate
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(key) DO UPDATE SET
+    memberId = COALESCE(NULLIF(excluded.memberId, ''), playback_memories.memberId),
+    currentTime = MAX(COALESCE(playback_memories.currentTime, 0), excluded.currentTime),
+    duration = MAX(COALESCE(playback_memories.duration, 0), excluded.duration),
+    progressPercent = MAX(COALESCE(playback_memories.progressPercent, 0), excluded.progressPercent),
+    lastPlayedAt = MAX(COALESCE(playback_memories.lastPlayedAt, 0), excluded.lastPlayedAt),
+    completed = CASE WHEN playback_memories.completed = 1 OR excluded.completed = 1 THEN 1 ELSE 0 END,
+    trackTitle = COALESCE(NULLIF(excluded.trackTitle, ''), playback_memories.trackTitle),
+    trackSpeaker = COALESCE(NULLIF(excluded.trackSpeaker, ''), playback_memories.trackSpeaker),
+    trackSpeakerRank = COALESCE(NULLIF(excluded.trackSpeakerRank, ''), playback_memories.trackSpeakerRank),
+    firstListenDate = COALESCE(NULLIF(playback_memories.firstListenDate, ''), excluded.firstListenDate),
+    lastListenDate = CASE
+      WHEN COALESCE(playback_memories.lastPlayedAt, 0) > excluded.lastPlayedAt THEN playback_memories.lastListenDate
+      ELSE excluded.lastListenDate
+    END,
+    finishDate = CASE
+      WHEN playback_memories.finishDate IS NOT NULL AND TRIM(playback_memories.finishDate) <> '' THEN playback_memories.finishDate
+      WHEN excluded.completed = 1 THEN excluded.finishDate
+      ELSE playback_memories.finishDate
+    END
+`;
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -21,6 +49,11 @@ function json(data: unknown, status = 200) {
 
 function normalize(value: unknown) {
   return String(value || '').trim().toLowerCase();
+}
+
+function dateString() {
+  const now = new Date();
+  return `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
 }
 
 async function ensureOwnershipSchema(db: any) {
@@ -56,14 +89,12 @@ async function ensureOwnershipSchema(db: any) {
         db.prepare(`
           INSERT OR IGNORE INTO playback_identity_aliases(alias, memberId, aliasType, source, updatedAt)
           SELECT LOWER(TRIM(email)), id, 'email', 'users', ?
-          FROM users
-          WHERE email IS NOT NULL AND TRIM(email) <> ''
+          FROM users WHERE email IS NOT NULL AND TRIM(email) <> ''
         `).bind(now),
         db.prepare(`
           INSERT OR IGNORE INTO playback_identity_aliases(alias, memberId, aliasType, source, updatedAt)
           SELECT LOWER(TRIM(id)), id, 'userId', 'users', ?
-          FROM users
-          WHERE id IS NOT NULL AND TRIM(id) <> ''
+          FROM users WHERE id IS NOT NULL AND TRIM(id) <> ''
         `).bind(now),
         db.prepare(`
           INSERT OR IGNORE INTO playback_identity_aliases(alias, memberId, aliasType, source, updatedAt)
@@ -80,16 +111,14 @@ async function ensureOwnershipSchema(db: any) {
       await db.prepare(`
         UPDATE playback_memories
         SET memberId = (
-          SELECT a.memberId
-          FROM playback_identity_aliases a
+          SELECT a.memberId FROM playback_identity_aliases a
           WHERE LOWER(TRIM(playback_memories.userIdentifier)) = a.alias
              OR LOWER(SUBSTR(TRIM(playback_memories.key), 1, LENGTH(a.alias) + 1)) = a.alias || '_'
           LIMIT 1
         )
         WHERE (memberId IS NULL OR TRIM(memberId) = '')
           AND EXISTS (
-            SELECT 1
-            FROM playback_identity_aliases a
+            SELECT 1 FROM playback_identity_aliases a
             WHERE LOWER(TRIM(playback_memories.userIdentifier)) = a.alias
                OR LOWER(SUBSTR(TRIM(playback_memories.key), 1, LENGTH(a.alias) + 1)) = a.alias || '_'
           )
@@ -105,8 +134,7 @@ async function authenticatedUser(request: Request, env: Env) {
   const authorization = request.headers.get('Authorization') || '';
   if (!authorization) return null;
   const response = await learningWorker.fetch(new Request(new URL('/api/auth/session', request.url), {
-    method: 'GET',
-    headers: { Authorization: authorization }
+    method: 'GET', headers: { Authorization: authorization }
   }), env);
   if (!response.ok) return null;
   const data: any = await response.json().catch(() => ({}));
@@ -117,8 +145,7 @@ async function resolveMember(db: any, requestedId: string) {
   const requested = normalize(requestedId);
   if (!requested) return null;
   return db.prepare(`
-    SELECT id, email, name
-    FROM users
+    SELECT id, email, name FROM users
     WHERE LOWER(TRIM(id)) = ? OR LOWER(TRIM(email)) = ?
     LIMIT 1
   `).bind(requested, requested).first();
@@ -131,9 +158,8 @@ async function aliasesForMember(db: any, member: any) {
   if (id) aliases.add(id);
   if (email) aliases.add(email);
 
-  const stored = await db.prepare(`
-    SELECT alias FROM playback_identity_aliases WHERE memberId = ?
-  `).bind(String(member.id || '')).all();
+  const stored = await db.prepare('SELECT alias FROM playback_identity_aliases WHERE memberId = ?')
+    .bind(String(member.id || '')).all();
   for (const row of stored.results || []) {
     const alias = normalize((row as any).alias);
     if (alias) aliases.add(alias);
@@ -157,7 +183,6 @@ async function aliasesForMember(db: any, member: any) {
       if (alias) aliases.add(alias);
     }
   }
-
   return [...aliases];
 }
 
@@ -165,16 +190,10 @@ function legacyIdentityFilter(aliases: string[]) {
   const clauses: string[] = [];
   const bindings: string[] = [];
   for (const alias of aliases) {
-    clauses.push(`(
-      LOWER(TRIM(userIdentifier)) = ?
-      OR LOWER(SUBSTR(TRIM(key), 1, LENGTH(?) + 1)) = ?
-    )`);
+    clauses.push(`(LOWER(TRIM(userIdentifier)) = ? OR LOWER(SUBSTR(TRIM(key), 1, LENGTH(?) + 1)) = ?)`);
     bindings.push(alias, alias, `${alias}_`);
   }
-  return {
-    where: clauses.length ? clauses.join(' OR ') : '0',
-    bindings
-  };
+  return { where: clauses.length ? clauses.join(' OR ') : '0', bindings };
 }
 
 async function trackMetaMap(db: any, trackIds: string[]) {
@@ -200,13 +219,10 @@ async function canonicalRecordsForMember(env: Env, member: any): Promise<Record<
     WHERE memberId = ? OR ${legacy.where}
     ORDER BY COALESCE(lastPlayedAt, 0) ASC
   `).bind(String(member.id), ...legacy.bindings).all();
-
   const rows = result.results || [];
   const meta = await trackMetaMap(env.DB, rows.map((row: any) => String(row.trackId || '')));
   const merged = mergePlaybackRows(rows as any[], meta);
-  for (const [trackId, record] of Object.entries(merged)) {
-    record.isDeleted = !meta[trackId] || record.isDeleted;
-  }
+  for (const [trackId, record] of Object.entries(merged)) record.isDeleted = !meta[trackId] || record.isDeleted;
   return merged;
 }
 
@@ -222,20 +238,41 @@ async function resolveMemberForWrite(request: Request, env: Env, identifier: str
   if (!env.DB) return null;
   const auth = await authenticatedUser(request, env);
   if (auth?.id) return auth;
-
   const direct = await resolveMember(env.DB, identifier);
   if (direct) return direct;
-
   const alias = normalize(identifier);
   if (!alias) return null;
-  const row: any = await env.DB.prepare(`
+  return env.DB.prepare(`
     SELECT u.id, u.email, u.name
-    FROM playback_identity_aliases a
-    JOIN users u ON u.id = a.memberId
-    WHERE a.alias = ?
-    LIMIT 1
+    FROM playback_identity_aliases a JOIN users u ON u.id = a.memberId
+    WHERE a.alias = ? LIMIT 1
   `).bind(alias).first();
-  return row || null;
+}
+
+function playbackStatement(db: any, ownerIdentifier: string, memberId: string, track: any, current: number, duration: number, completedHint = false, playedAt = Date.now()) {
+  const safeDuration = Math.max(1, Number(duration) || Number(track?.durationSeconds) || 600);
+  const safeCurrent = Math.min(safeDuration, Math.max(0, Number(current) || 0));
+  const rawProgress = Math.min(100, Math.max(0, safeCurrent / safeDuration * 100));
+  const completed = completedHint || rawProgress >= 95;
+  const progressPercent = completed ? 100 : Math.round(rawProgress * 10) / 10;
+  const day = dateString();
+  return db.prepare(PLAYBACK_UPSERT_SQL).bind(
+    `${ownerIdentifier}_${track.id}`,
+    track.id,
+    ownerIdentifier,
+    memberId || null,
+    completed ? safeDuration : safeCurrent,
+    safeDuration,
+    progressPercent,
+    playedAt,
+    completed ? 1 : 0,
+    String(track.title || ''),
+    String(track.speaker || ''),
+    String(track.speakerRank || ''),
+    day,
+    day,
+    completed ? day : null
+  );
 }
 
 async function recordPlayback(request: Request, env: Env) {
@@ -245,89 +282,99 @@ async function recordPlayback(request: Request, env: Env) {
   const trackId = String(body.trackId || '').trim();
   const suppliedIdentifier = normalize(body.userIdOrDeviceId);
   if (!trackId || !suppliedIdentifier) return json({ error: '缺少必要參數 (trackId, userIdOrDeviceId)' }, 400);
-
   const member: any = await resolveMemberForWrite(request, env, suppliedIdentifier);
   const memberId = member?.id ? String(member.id) : '';
   const identifier = memberId || suppliedIdentifier;
-  const key = `${identifier}_${trackId}`;
-
-  const track: any = await env.DB.prepare(`
-    SELECT id, title, speaker, speakerRank, durationSeconds
-    FROM tracks WHERE id = ? LIMIT 1
-  `).bind(trackId).first();
+  const track: any = await env.DB.prepare(`SELECT id, title, speaker, speakerRank, durationSeconds FROM tracks WHERE id = ? LIMIT 1`)
+    .bind(trackId).first();
   if (!track) return json({ error: '找不到音檔' }, 404);
+  await playbackStatement(env.DB, identifier, memberId, track, Number(body.currentTime), Number(body.duration)).run();
+  const records = memberId ? await canonicalRecordsForMember(env, member) : {};
+  return json({ success: true, owner: memberId || null, record: records[trackId] || null });
+}
 
-  const incomingDuration = Number(body.duration);
-  const trackDuration = Number(track.durationSeconds);
-  const duration = Number.isFinite(incomingDuration) && incomingDuration > 0
-    ? incomingDuration
-    : Number.isFinite(trackDuration) && trackDuration > 0 ? trackDuration : 600;
-  const incomingCurrent = Number(body.currentTime);
-  const currentTime = Math.min(duration, Math.max(0, Number.isFinite(incomingCurrent) ? incomingCurrent : 0));
-  const rawProgress = Math.min(100, Math.max(0, (currentTime / Math.max(1, duration)) * 100));
-  const completed = rawProgress >= 95;
-  const progressPercent = completed ? 100 : Math.round(rawProgress * 10) / 10;
-  const now = new Date();
-  const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
-  const playedAt = Date.now();
-
-  await env.DB.prepare(`
-    INSERT INTO playback_memories (
-      key, trackId, userIdentifier, memberId, currentTime, duration, progressPercent,
-      lastPlayedAt, completed, trackTitle, trackSpeaker, trackSpeakerRank,
-      firstListenDate, lastListenDate, finishDate
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(key) DO UPDATE SET
-      memberId = COALESCE(NULLIF(excluded.memberId, ''), playback_memories.memberId),
-      currentTime = MAX(COALESCE(playback_memories.currentTime, 0), excluded.currentTime),
-      duration = MAX(COALESCE(playback_memories.duration, 0), excluded.duration),
-      progressPercent = MAX(COALESCE(playback_memories.progressPercent, 0), excluded.progressPercent),
-      lastPlayedAt = excluded.lastPlayedAt,
-      completed = CASE WHEN playback_memories.completed = 1 OR excluded.completed = 1 THEN 1 ELSE 0 END,
-      trackTitle = COALESCE(NULLIF(excluded.trackTitle, ''), playback_memories.trackTitle),
-      trackSpeaker = COALESCE(NULLIF(excluded.trackSpeaker, ''), playback_memories.trackSpeaker),
-      trackSpeakerRank = COALESCE(NULLIF(excluded.trackSpeakerRank, ''), playback_memories.trackSpeakerRank),
-      firstListenDate = COALESCE(NULLIF(playback_memories.firstListenDate, ''), excluded.firstListenDate),
-      lastListenDate = excluded.lastListenDate,
-      finishDate = CASE
-        WHEN playback_memories.finishDate IS NOT NULL AND TRIM(playback_memories.finishDate) <> '' THEN playback_memories.finishDate
-        WHEN excluded.completed = 1 THEN excluded.finishDate
-        ELSE playback_memories.finishDate
-      END
-  `).bind(
-    key,
-    trackId,
-    identifier,
-    memberId || null,
-    completed ? duration : currentTime,
-    duration,
-    progressPercent,
-    playedAt,
-    completed ? 1 : 0,
-    String(track.title || ''),
-    String(track.speaker || ''),
-    String(track.speakerRank || ''),
-    dateStr,
-    dateStr,
-    completed ? dateStr : null
-  ).run();
-
-  return json({
-    success: true,
-    owner: memberId || null,
-    record: {
-      trackId,
-      userIdOrDeviceId: identifier,
-      firstListenDate: dateStr,
-      lastListenDate: dateStr,
-      finishDate: completed ? dateStr : undefined,
-      progressPercent,
-      completed,
-      currentTime: completed ? duration : currentTime,
-      duration,
-      updatedAt: playedAt
-    }
+async function googleUserInfo(accessToken: string) {
+  if (!accessToken) return null;
+  const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` }
   });
+  if (!response.ok) return null;
+  const data: any = await response.json().catch(() => null);
+  const email = normalize(data?.email);
+  if (!email || data?.email_verified !== true) return null;
+  return { email, name: String(data.name || email.split('@')[0]), avatar: String(data.picture || '') };
+}
+
+async function verifiedGoogleSync(request: Request, env: Env) {
+  if (!env.DB) return json({ error: '資料庫尚未連線' }, 503);
+  await ensureOwnershipSchema(env.DB);
+  const body: any = await request.clone().json().catch(() => ({}));
+  const identity = await googleUserInfo(String(body.accessToken || ''));
+  if (!identity) return json({ error: 'Google 登入驗證失敗，請重新登入。' }, 401);
+
+  const verifiedRequest = new Request(new URL('/api/users/google-sync', request.url), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(identity)
+  });
+  const response = await appWorker.fetch(verifiedRequest, env);
+  const data: any = await response.clone().json().catch(() => ({}));
+  if (!response.ok || !data?.user?.id) return response;
+
+  const memberId = String(data.user.id);
+  const deviceId = normalize(body.deviceId);
+  let claimStatus = 'none';
+  let importedCount = 0;
+
+  if (deviceId) {
+    const existing: any = await env.DB.prepare('SELECT memberId FROM playback_identity_aliases WHERE alias = ? LIMIT 1')
+      .bind(deviceId).first();
+    if (existing && String(existing.memberId) !== memberId) {
+      claimStatus = 'conflict';
+    } else {
+      await env.DB.prepare(`
+        INSERT INTO playback_identity_aliases(alias, memberId, aliasType, source, updatedAt)
+        VALUES (?, ?, 'device', 'verified-google-login', ?)
+        ON CONFLICT(alias) DO UPDATE SET
+          memberId = excluded.memberId,
+          aliasType = excluded.aliasType,
+          source = excluded.source,
+          updatedAt = excluded.updatedAt
+        WHERE playback_identity_aliases.memberId = excluded.memberId
+      `).bind(deviceId, memberId, Date.now()).run();
+
+      // Existing D1 rows under this device can now be attributed safely.
+      await env.DB.prepare(`
+        UPDATE playback_memories SET memberId = ?
+        WHERE (memberId IS NULL OR TRIM(memberId) = '')
+          AND (
+            LOWER(TRIM(userIdentifier)) = ?
+            OR LOWER(SUBSTR(TRIM(key), 1, LENGTH(?) + 1)) = ?
+          )
+      `).bind(memberId, deviceId, deviceId, `${deviceId}_`).run();
+
+      const localRows = Array.isArray(body.localPlayback) ? body.localPlayback.slice(0, 300) : [];
+      const ids = [...new Set(localRows.map((row: any) => String(row?.trackId || '').trim()).filter(Boolean))];
+      const meta = await trackMetaMap(env.DB, ids);
+      const statements = [];
+      for (const row of localRows) {
+        const trackId = String(row?.trackId || '').trim();
+        const track = meta[trackId];
+        if (!track) continue;
+        const duration = Number(row?.duration) || Number(track.durationSeconds) || 0;
+        const current = Number(row?.currentTime) || (duration > 0 ? duration * Math.max(0, Math.min(100, Number(row?.percentage) || 0)) / 100 : 0);
+        const completed = Boolean(row?.completed) || Number(row?.percentage) >= 95;
+        statements.push(playbackStatement(env.DB, memberId, memberId, track, current, duration, completed));
+      }
+      if (statements.length) {
+        await env.DB.batch(statements);
+        importedCount = statements.length;
+      }
+      claimStatus = 'claimed';
+    }
+  }
+
+  return json({ ...data, playbackClaim: claimStatus, importedPlaybackCount: importedCount });
 }
 
 async function memberStats(request: Request, env: Env) {
@@ -338,23 +385,14 @@ async function memberStats(request: Request, env: Env) {
   let member: any = requested ? await resolveMember(env.DB, requested) : null;
   if (!member) member = await authenticatedUser(request, env);
   if (!member?.id) return json({ error: '找不到會員' }, 404);
-
   const records = await canonicalRecordsForMember(env, member);
   const summary = summarizePlaybackRecords(records);
   const email = normalize(member.email);
-  const comments: any = await env.DB.prepare(`
-    SELECT COUNT(*) AS count FROM comments WHERE LOWER(TRIM(authorEmail)) = ?
-  `).bind(email).first();
-  const shares: any = await env.DB.prepare(`
-    SELECT COUNT(*) AS count FROM share_events
-    WHERE userId = ? OR LOWER(TRIM(userEmail)) = ?
-  `).bind(String(member.id), email).first();
-
-  return json({
-    ...summary,
-    commentCount: Number(comments?.count) || 0,
-    shareCount: Number(shares?.count) || 0
-  });
+  const comments: any = await env.DB.prepare('SELECT COUNT(*) AS count FROM comments WHERE LOWER(TRIM(authorEmail)) = ?')
+    .bind(email).first();
+  const shares: any = await env.DB.prepare(`SELECT COUNT(*) AS count FROM share_events WHERE userId = ? OR LOWER(TRIM(userEmail)) = ?`)
+    .bind(String(member.id), email).first();
+  return json({ ...summary, commentCount: Number(comments?.count) || 0, shareCount: Number(shares?.count) || 0 });
 }
 
 export default {
@@ -363,19 +401,13 @@ export default {
     const path = url.pathname;
     const method = request.method.toUpperCase();
 
-    if (path === '/api/playback/record' && method === 'POST') {
-      return recordPlayback(request, env);
-    }
-
+    if (path === '/api/users/google-sync' && method === 'POST') return verifiedGoogleSync(request, env);
+    if (path === '/api/playback/record' && method === 'POST') return recordPlayback(request, env);
     if (path.startsWith('/api/playback/history/') && method === 'GET') {
       const requestedId = decodeURIComponent(path.slice('/api/playback/history/'.length));
       return publicHistory(requestedId, env);
     }
-
-    if (path === '/api/member-learning-card-stats' && method === 'GET') {
-      return memberStats(request, env);
-    }
-
+    if (path === '/api/member-learning-card-stats' && method === 'GET') return memberStats(request, env);
     return learningWorker.fetch(request, env);
   }
 };
