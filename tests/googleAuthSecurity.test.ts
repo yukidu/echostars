@@ -27,9 +27,17 @@ test('browser uses Google Identity Services credential flow and authenticated AP
   assert.match(bridge, /google\.accounts\.id\.initialize/);
   assert.match(bridge, /google\.accounts\.id\.renderButton/);
   assert.match(bridge, /JSON\.stringify\(\{ credential \}\)/);
-  assert.match(bridge, /Authorization`, `Bearer \$\{token\}`|Authorization: `Bearer \$\{user\._authToken\}`/);
+  assert.match(bridge, /headers\.set\('Authorization', `Bearer \$\{token\}`\)/);
   assert.doesNotMatch(bridge, /initTokenClient/);
   assert.match(profile, /initTokenClient/); // legacy UI code remains unreachable behind the migration bridge
+});
+
+test('sensitive write routes bind identity to the verified session', () => {
+  assert.match(authRouter, /uploaderEmail:\s*user\.email/);
+  assert.match(authRouter, /uploaderId:\s*user\.id/);
+  assert.match(authRouter, /actorEmail:\s*user\.email/);
+  assert.match(authRouter, /userEmail:\s*user\.email/);
+  assert.match(authRouter, /只有超級管理員可執行此操作/);
 });
 
 test('secure auth wrapper is the Worker entry and loads before React', () => {
