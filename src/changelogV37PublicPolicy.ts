@@ -1,4 +1,6 @@
-export const PUBLIC_V37_CHANGELOG = {
+import { DEFAULT_CHANGELOG_DATA, VersionLog } from './components/ChangelogModal';
+
+export const PUBLIC_V37_CHANGELOG: VersionLog = {
   version: 'v3.7',
   date: '2026/10/02',
   summary: '這一版主要改善手機與電腦的使用體驗：安裝到桌面更直覺、首頁排序與篩選更好操作、評價與權限顯示更穩定，新手教學與版面也更加清楚。',
@@ -24,78 +26,81 @@ export const PUBLIC_V37_CHANGELOG = {
     '移除會打斷使用者的版本更新確認視窗，改為安靜地在背景更新。',
     '移除安裝流程中重複、過長或容易讓人混淆的技術說明。'
   ]
-} as const;
-
-const findTextElement = (root: ParentNode, exactText: string) =>
-  Array.from(root.querySelectorAll<HTMLElement>('span, h3, div, p')).find(
-    element => element.textContent?.trim() === exactText
-  );
-
-const renderList = (list: HTMLUListElement, items: readonly string[]) => {
-  list.innerHTML = '';
-  for (const item of items) {
-    const li = document.createElement('li');
-    li.className = 'flex items-start gap-2 text-slate-700 dark:text-slate-200 leading-relaxed';
-
-    const dot = document.createElement('span');
-    dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-400 mt-1.5 shrink-0';
-
-    const text = document.createElement('span');
-    text.textContent = item;
-
-    li.append(dot, text);
-    list.appendChild(li);
-  }
 };
 
-const replaceSection = (
-  modal: HTMLElement,
-  prefix: '增加功能' | '修改功能' | '刪除功能',
-  items: readonly string[]
+const runtime = window as Window &
+  typeof globalThis & {
+    __ECHOSTARS_V37_CHANGELOG_PATCH__?: boolean;
+  };
+
+const replaceV37 = (log: VersionLog): VersionLog =>
+  log.version === 'v3.7'
+    ? {
+        ...log,
+        ...PUBLIC_V37_CHANGELOG,
+        isLatest: log.isLatest
+      }
+    : log;
+
+// Keep the shipped fallback safe even when /api/changelog is unavailable.
+const shippedV37Index = DEFAULT_CHANGELOG_DATA.findIndex(log => log.version === 'v3.7');
+if (shippedV37Index >= 0) {
+  DEFAULT_CHANGELOG_DATA[shippedV37Index] = replaceV37(DEFAULT_CHANGELOG_DATA[shippedV37Index]);
+}
+
+const normalizePayload = (data: unknown): VersionLog[] => {
+  const list = Array.isArray(data)
+    ? data.filter(item => item && typeof item === 'object') as VersionLog[]
+    : [];
+
+  const normalized = list.map(replaceV37);
+  if (!normalized.some(log => log.version === 'v3.7')) {
+    normalized.push({ ...PUBLIC_V37_CHANGELOG, isLatest: false });
+  }
+  return normalized;
+};
+
+const isChangelogGet = (
+  input: Parameters<typeof fetch>[0],
+  init?: Parameters<typeof fetch>[1]
 ) => {
-  const heading = Array.from(modal.querySelectorAll<HTMLElement>('span')).find(element =>
-    element.textContent?.trim().startsWith(prefix)
-  );
-  if (!heading) return;
+  const method = String(init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+  if (method !== 'GET') return false;
 
-  heading.textContent = `${prefix} (${items.length})`;
-  const section = heading.closest('div.rounded-2xl');
-  const list = section?.querySelector<HTMLUListElement>('ul');
-  if (list) renderList(list, items);
+  try {
+    const rawUrl = input instanceof Request ? input.url : String(input);
+    const url = new URL(rawUrl, window.location.origin);
+    return url.origin === window.location.origin && url.pathname === '/api/changelog';
+  } catch {
+    return false;
+  }
 };
 
-const applyPublicV37 = () => {
-  const modalHeader = findTextElement(document, '版本改版歷程紀錄');
-  const modal = modalHeader?.closest<HTMLElement>('.app-modal-overlay');
-  if (!modal) return;
+if (!runtime.__ECHOSTARS_V37_CHANGELOG_PATCH__) {
+  runtime.__ECHOSTARS_V37_CHANGELOG_PATCH__ = true;
+  const previousFetch = window.fetch.bind(window);
 
-  const editing = Array.from(modal.querySelectorAll<HTMLElement>('button')).some(
-    button => button.textContent?.trim().includes('編輯中')
-  );
-  if (editing) {
-    modal.dataset.v37Public = '0';
-    return;
-  }
+  window.fetch = (async (...args: Parameters<typeof fetch>) => {
+    const [input, init] = args;
+    if (!isChangelogGet(input, init)) return previousFetch(...args);
 
-  const v37Heading = findTextElement(modal, 'v3.7 改版重點');
-  if (!v37Heading) {
-    modal.dataset.v37Public = '0';
-    return;
-  }
-  if (modal.dataset.v37Public === '1') return;
+    const response = await previousFetch(...args);
+    if (!response.ok) return response;
 
-  const summaryCard = v37Heading.closest<HTMLElement>('div.rounded-2xl');
-  const summary = summaryCard?.querySelector<HTMLParagraphElement>('p');
-  if (summary) summary.textContent = PUBLIC_V37_CHANGELOG.summary;
+    try {
+      const data = await response.clone().json();
+      const headers = new Headers(response.headers);
+      headers.set('Content-Type', 'application/json; charset=utf-8');
+      headers.delete('Content-Length');
+      headers.delete('Content-Encoding');
 
-  replaceSection(modal, '增加功能', PUBLIC_V37_CHANGELOG.added);
-  replaceSection(modal, '修改功能', PUBLIC_V37_CHANGELOG.modified);
-  replaceSection(modal, '刪除功能', PUBLIC_V37_CHANGELOG.removed);
-
-  modal.dataset.v37Public = '1';
-};
-
-const observer = new MutationObserver(() => applyPublicV37());
-observer.observe(document.documentElement, { childList: true, subtree: true });
-document.addEventListener('click', () => queueMicrotask(applyPublicV37), true);
-applyPublicV37();
+      return new Response(JSON.stringify(normalizePayload(data)), {
+        status: response.status,
+        statusText: response.statusText,
+        headers
+      });
+    } catch {
+      return response;
+    }
+  }) as typeof window.fetch;
+}
