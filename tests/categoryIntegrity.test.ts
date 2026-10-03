@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const router = readFileSync(new URL('../worker/categoryIntegrityRouter.ts', import.meta.url), 'utf8');
 const privacyRouter = readFileSync(new URL('../worker/privacyCrawlerRouter.ts', import.meta.url), 'utf8');
 const bootstrap = readFileSync(new URL('../src/categoryIntegrityBootstrap.ts', import.meta.url), 'utf8');
+const audioCard = readFileSync(new URL('../src/components/AudioCard.tsx', import.meta.url), 'utf8');
 const wrangler = readFileSync(new URL('../wrangler.toml', import.meta.url), 'utf8');
 const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
@@ -46,6 +47,12 @@ test('client track writes and track-list reads are sanitized against live catego
   assert.match(bootstrap, /sanitizeTrackListResponse/);
   assert.match(bootstrap, /pathname\.startsWith\('\/api\/categories'\)/);
   assert.doesNotMatch(bootstrap, /return allowed\.has\('未分類'\)/);
+});
+
+test('home cards keep a valid empty category list instead of showing a made-up category', () => {
+  assert.match(audioCard, /Array\.isArray\(track\.categories\)/);
+  assert.match(audioCard, /categories\.length > 0/);
+  assert.doesNotMatch(audioCard, /track\.category \? \[track\.category\] : \['未分類'\]/);
 });
 
 test('schema reruns cannot recreate categories deleted by an administrator', () => {
