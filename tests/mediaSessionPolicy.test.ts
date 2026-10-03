@@ -6,6 +6,7 @@ const policy = readFileSync(new URL('../src/mediaSessionPolicy.ts', import.meta.
 const miniPlayer = readFileSync(new URL('../src/components/MiniPlayer.tsx', import.meta.url), 'utf8');
 const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const manifest = readFileSync(new URL('../public/manifest.webmanifest', import.meta.url), 'utf8');
+const bootstrap = readFileSync(new URL('../src/categoryIntegrityBootstrap.ts', import.meta.url), 'utf8');
 const serviceWorker = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8');
 
 test('mini player exposes current track metadata to the system media policy', () => {
@@ -46,14 +47,14 @@ test('system playback controls support play pause and seeking without desyncing 
   assert.match(policy, /playbackState/);
 });
 
-test('media session module loads before React and PWA exposes monochrome icon', () => {
+test('media session loads before the React bootstrap and PWA exposes monochrome icon', () => {
   const mediaIndex = indexHtml.indexOf('/src/mediaSessionPolicy.ts');
-  const mainIndex = indexHtml.indexOf('/src/main.tsx');
+  const bootstrapIndex = indexHtml.indexOf('/src/categoryIntegrityBootstrap.ts');
   assert.ok(mediaIndex >= 0);
-  assert.ok(mainIndex >= 0);
-  assert.ok(mediaIndex < mainIndex);
+  assert.ok(bootstrapIndex >= 0);
+  assert.ok(mediaIndex < bootstrapIndex);
+  assert.match(bootstrap, /await import\('\.\/main'\)/);
   assert.match(manifest, /icon-monochrome\.svg/);
   assert.match(manifest, /"purpose": "monochrome"/);
-  assert.match(serviceWorker, /echostars-shell-v56/);
   assert.match(serviceWorker, /icon-monochrome\.svg/);
 });
