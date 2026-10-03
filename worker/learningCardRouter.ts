@@ -1,5 +1,11 @@
 import authWorker from './authRouter';
 import type { Env } from './index';
+import {
+  mergePlaybackRows,
+  summarizePlaybackRecords,
+  type CanonicalPlaybackRecord,
+  type TrackProgressMeta
+} from '../shared/learningProgress';
 
 const learningSchemaReady = new WeakMap<object, Promise<void>>();
 
@@ -11,6 +17,10 @@ function json(data: unknown, status = 200) {
       'Cache-Control': 'no-store'
     }
   });
+}
+
+function normalizeIdentity(value: unknown) {
+  return String(value || '').trim().toLowerCase();
 }
 
 async function ensureLearningSchema(db: any) {
@@ -28,18 +38,33 @@ async function ensureLearningSchema(db: any) {
         }
       }
 
-      // Legacy rows never stored a first-listen date. The true historic first
-      // timestamp cannot be reconstructed, so use the oldest date that was
-      // actually persisted on that row instead of continuing to export blanks.
+      // Legacy rows did not always preserve the first date. Fill only missing data.
       await db.prepare(`
         UPDATE playback_memories
         SET firstListenDate = COALESCE(NULLIF(firstListenDate, ''), NULLIF(lastListenDate, ''), NULLIF(finishDate, ''))
         WHERE firstListenDate IS NULL OR TRIM(firstListenDate) = ''
       `).run();
 
-      // The existing playback UPSERT does not mention firstListenDate. This
-      // trigger fills it exactly once on the first INSERT; later progress writes
-      // never overwrite it.
+      // Repair old rows that were already marked complete but later had their
+      // progress/currentTime overwritten by a replay from the beginning.
+      await db.prepare(`
+        UPDATE playback_memories
+        SET
+          completed = 1,
+          progressPercent = 100,
+          currentTime = CASE
+            WHEN COALESCE(duration, 0) > 0 THEN MAX(COALESCE(currentTime, 0), duration)
+            ELSE COALESCE(currentTime, 0)
+          END
+        WHERE
+          (completed = 1 OR (finishDate IS NOT NULL AND TRIM(finishDate) <> ''))
+          AND (
+            COALESCE(progressPercent, 0) < 100
+            OR (COALESCE(duration, 0) > 0 AND COALESCE(currentTime, 0) < duration)
+            OR completed <> 1
+          )
+      `).run();
+
       await db.prepare(`
         CREATE TRIGGER IF NOT EXISTS playback_first_listen_date
         AFTER INSERT ON playback_memories
@@ -50,6 +75,9 @@ async function ensureLearningSchema(db: any) {
           WHERE key = NEW.key;
         END
       `).run();
+
+      await db.prepare('CREATE INDEX IF NOT EXISTS playback_memories_user ON playback_memories(userIdentifier)').run();
+      await db.prepare('CREATE INDEX IF NOT EXISTS playback_memories_track ON playback_memories(trackId)').run();
 
       await db.prepare(`
         CREATE TABLE IF NOT EXISTS share_events (
@@ -81,71 +109,177 @@ async function authenticatedUser(request: Request, env: Env) {
   return data?.user || null;
 }
 
-function playbackWhere() {
-  return `(userIdentifier = ? OR userIdentifier = ? OR key LIKE ? OR key LIKE ?)`;
+function aliasesFor(user: any, requestedId = '') {
+  const aliases = new Set<string>();
+  if (user) {
+    const email = normalizeIdentity(user.email);
+    const id = normalizeIdentity(user.id);
+    if (email) aliases.add(email);
+    if (id) aliases.add(id);
+  } else {
+    const requested = normalizeIdentity(requestedId);
+    if (requested) aliases.add(requested);
+  }
+  return [...aliases];
 }
 
-function playbackBindings(user: any) {
-  const email = String(user?.email || '').trim().toLowerCase();
-  const id = String(user?.id || '').trim();
-  return [email, id, `${email}_%`, `${id}_%`];
+async function trackMetaMap(db: any, trackIds: string[]) {
+  const ids = [...new Set(trackIds.filter(Boolean))];
+  if (!ids.length) return {} as Record<string, TrackProgressMeta>;
+  const placeholders = ids.map(() => '?').join(',');
+  const { results } = await db.prepare(`
+    SELECT id, title, speaker, speakerRank, durationSeconds
+    FROM tracks
+    WHERE id IN (${placeholders})
+  `).bind(...ids).all();
+  const map: Record<string, TrackProgressMeta> = {};
+  for (const row of results || []) map[String((row as any).id)] = row as TrackProgressMeta;
+  return map;
 }
 
-async function historyResponse(id: string, env: Env) {
-  if (!env.DB || !id) return json({});
+async function canonicalRecords(env: Env, aliases: string[]): Promise<Record<string, CanonicalPlaybackRecord>> {
+  if (!env.DB || !aliases.length) return {};
   await ensureLearningSchema(env.DB);
+  const placeholders = aliases.map(() => '?').join(',');
   const { results } = await env.DB.prepare(`
     SELECT * FROM playback_memories
-    WHERE userIdentifier = ? OR key LIKE ?
-    ORDER BY COALESCE(lastPlayedAt, 0) DESC
-  `).bind(id, `${id}_%`).all();
+    WHERE LOWER(TRIM(userIdentifier)) IN (${placeholders})
+    ORDER BY COALESCE(lastPlayedAt, 0) ASC
+  `).bind(...aliases).all();
 
-  const recordsMap: Record<string, any> = {};
-  for (const row of results || []) {
-    const r: any = row;
-    recordsMap[String(r.trackId)] = {
-      trackId: r.trackId,
-      userIdOrDeviceId: r.userIdentifier,
-      firstListenDate: r.firstListenDate || r.lastListenDate || r.finishDate || '',
-      lastListenDate: r.lastListenDate || '',
-      finishDate: r.finishDate || undefined,
-      progressPercent: Number(r.progressPercent) || 0,
-      completed: Boolean(r.completed) || Number(r.progressPercent) >= 95,
-      currentTime: Number(r.currentTime) || 0,
-      duration: Number(r.duration) || 0,
-      clickCount: 1,
-      isDeleted: Boolean(r.isDeleted),
-      trackTitle: r.trackTitle || '',
-      trackSpeaker: r.trackSpeaker || '',
-      trackSpeakerRank: r.trackSpeakerRank || '',
-      updatedAt: Number(r.lastPlayedAt) || 0
-    };
+  const rows = results || [];
+  const meta = await trackMetaMap(env.DB, rows.map((row: any) => String(row.trackId || '')));
+  const merged = mergePlaybackRows(rows as any[], meta);
+  for (const [trackId, record] of Object.entries(merged)) {
+    record.isDeleted = !meta[trackId] || record.isDeleted;
   }
-  return json(recordsMap);
+  return merged;
+}
+
+async function historyResponse(request: Request, requestedId: string, env: Env) {
+  if (!env.DB || !requestedId) return json({});
+  const user = await authenticatedUser(request, env);
+  if (!user && requestedId.includes('@')) return json({ error: '請先登入會員' }, 401);
+  const aliases = aliasesFor(user, requestedId);
+  return json(await canonicalRecords(env, aliases));
+}
+
+async function deleteHistory(request: Request, requestedId: string, env: Env) {
+  if (!env.DB || !requestedId) return json({ error: '缺少使用者識別' }, 400);
+  const user = await authenticatedUser(request, env);
+  if (!user && requestedId.includes('@')) return json({ error: '請先登入會員' }, 401);
+  const aliases = aliasesFor(user, requestedId);
+  if (!aliases.length) return json({ success: true });
+  await ensureLearningSchema(env.DB);
+  const placeholders = aliases.map(() => '?').join(',');
+  const statements = [
+    env.DB.prepare(`DELETE FROM playback_memories WHERE LOWER(TRIM(userIdentifier)) IN (${placeholders})`).bind(...aliases)
+  ];
+  if (user) {
+    statements.push(
+      env.DB.prepare('UPDATE users SET playCount = 0 WHERE id = ? OR LOWER(TRIM(email)) = ?')
+        .bind(String(user.id || ''), normalizeIdentity(user.email))
+    );
+  }
+  await env.DB.batch(statements);
+  return json({ success: true });
+}
+
+async function recordPlayback(request: Request, env: Env) {
+  if (!env.DB) return json({ error: '資料庫尚未連線' }, 503);
+  await ensureLearningSchema(env.DB);
+  const body: any = await request.clone().json().catch(() => ({}));
+  const trackId = String(body.trackId || '').trim();
+  const user = await authenticatedUser(request, env);
+  const identifier = user
+    ? (normalizeIdentity(user.email) || normalizeIdentity(user.id))
+    : normalizeIdentity(body.userIdOrDeviceId);
+  if (!trackId || !identifier) return json({ error: '缺少必要參數 (trackId, userIdOrDeviceId)' }, 400);
+
+  const track: any = await env.DB.prepare(`
+    SELECT id, title, speaker, speakerRank, durationSeconds
+    FROM tracks WHERE id = ? LIMIT 1
+  `).bind(trackId).first();
+  const incomingDuration = Number(body.duration);
+  const trackDuration = Number(track?.durationSeconds);
+  const duration = Number.isFinite(incomingDuration) && incomingDuration > 0
+    ? incomingDuration
+    : Number.isFinite(trackDuration) && trackDuration > 0 ? trackDuration : 600;
+  const incomingCurrent = Number(body.currentTime);
+  const currentTime = Math.min(duration, Math.max(0, Number.isFinite(incomingCurrent) ? incomingCurrent : 0));
+  const rawProgress = Math.min(100, Math.max(0, (currentTime / Math.max(1, duration)) * 100));
+  const completed = rawProgress >= 95;
+  const progressPercent = completed ? 100 : Math.round(rawProgress);
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
+  const key = `${identifier}_${trackId}`;
+  const playedAt = Date.now();
+
+  await env.DB.prepare(`
+    INSERT INTO playback_memories (
+      key, trackId, userIdentifier, currentTime, duration, progressPercent,
+      lastPlayedAt, completed, trackTitle, trackSpeaker, trackSpeakerRank,
+      firstListenDate, lastListenDate, finishDate
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET
+      currentTime = MAX(COALESCE(playback_memories.currentTime, 0), excluded.currentTime),
+      duration = MAX(COALESCE(playback_memories.duration, 0), excluded.duration),
+      progressPercent = MAX(COALESCE(playback_memories.progressPercent, 0), excluded.progressPercent),
+      lastPlayedAt = excluded.lastPlayedAt,
+      completed = CASE WHEN playback_memories.completed = 1 OR excluded.completed = 1 THEN 1 ELSE 0 END,
+      trackTitle = COALESCE(NULLIF(excluded.trackTitle, ''), playback_memories.trackTitle),
+      trackSpeaker = COALESCE(NULLIF(excluded.trackSpeaker, ''), playback_memories.trackSpeaker),
+      trackSpeakerRank = COALESCE(NULLIF(excluded.trackSpeakerRank, ''), playback_memories.trackSpeakerRank),
+      firstListenDate = COALESCE(NULLIF(playback_memories.firstListenDate, ''), excluded.firstListenDate),
+      lastListenDate = excluded.lastListenDate,
+      finishDate = CASE
+        WHEN playback_memories.finishDate IS NOT NULL AND TRIM(playback_memories.finishDate) <> '' THEN playback_memories.finishDate
+        WHEN excluded.completed = 1 THEN excluded.finishDate
+        ELSE playback_memories.finishDate
+      END
+  `).bind(
+    key,
+    trackId,
+    identifier,
+    completed ? duration : currentTime,
+    duration,
+    progressPercent,
+    playedAt,
+    completed ? 1 : 0,
+    String(track?.title || ''),
+    String(track?.speaker || ''),
+    String(track?.speakerRank || ''),
+    dateStr,
+    dateStr,
+    completed ? dateStr : null
+  ).run();
+
+  return json({
+    success: true,
+    record: {
+      trackId,
+      userIdOrDeviceId: identifier,
+      firstListenDate: dateStr,
+      lastListenDate: dateStr,
+      finishDate: completed ? dateStr : undefined,
+      progressPercent,
+      completed,
+      currentTime: completed ? duration : currentTime,
+      duration,
+      updatedAt: playedAt
+    }
+  });
 }
 
 async function memberStats(request: Request, env: Env) {
   if (!env.DB) return json({ error: '資料庫尚未連線' }, 503);
   const user = await authenticatedUser(request, env);
   if (!user) return json({ error: '請先登入會員' }, 401);
-  await ensureLearningSchema(env.DB);
+  const aliases = aliasesFor(user);
+  const records = await canonicalRecords(env, aliases);
+  const summary = summarizePlaybackRecords(records);
+  const email = normalizeIdentity(user.email);
 
-  const bindings = playbackBindings(user);
-  const playback: any = await env.DB.prepare(`
-    SELECT
-      COUNT(*) AS totalCount,
-      SUM(CASE WHEN completed = 1 OR progressPercent >= 95 THEN 1 ELSE 0 END) AS completedCount,
-      SUM(CASE WHEN completed = 1 OR progressPercent >= 95 THEN 0 ELSE 1 END) AS unfinishedCount,
-      SUM(CASE
-        WHEN currentTime IS NULL OR currentTime < 0 THEN 0
-        WHEN duration IS NOT NULL AND duration > 0 AND currentTime > duration THEN duration
-        ELSE currentTime
-      END) AS listenedSeconds
-    FROM playback_memories
-    WHERE ${playbackWhere()}
-  `).bind(...bindings).first();
-
-  const email = String(user.email || '').trim().toLowerCase();
   const comments: any = await env.DB.prepare(`
     SELECT COUNT(*) AS count
     FROM comments
@@ -159,9 +293,7 @@ async function memberStats(request: Request, env: Env) {
   `).bind(String(user.id || ''), email).first();
 
   return json({
-    completedCount: Number(playback?.completedCount) || 0,
-    unfinishedCount: Number(playback?.unfinishedCount) || 0,
-    listenedHours: Math.round(((Number(playback?.listenedSeconds) || 0) / 3600) * 10) / 10,
+    ...summary,
     commentCount: Number(comments?.count) || 0,
     shareCount: Number(shares?.count) || 0
   });
@@ -181,7 +313,7 @@ async function recordShare(request: Request, env: Env) {
   `).bind(
     `share-${crypto.randomUUID()}`,
     String(user.id || ''),
-    String(user.email || '').trim().toLowerCase(),
+    normalizeIdentity(user.email),
     trackId,
     Date.now()
   ).run();
@@ -194,13 +326,14 @@ export default {
     const path = url.pathname;
     const method = request.method.toUpperCase();
 
-    if (env.DB && (path === '/api/playback/record' || path.startsWith('/api/playback/history/'))) {
-      await ensureLearningSchema(env.DB);
+    if (path === '/api/playback/record' && method === 'POST') {
+      return recordPlayback(request, env);
     }
 
-    if (path.startsWith('/api/playback/history/') && method === 'GET') {
-      const id = decodeURIComponent(path.slice('/api/playback/history/'.length));
-      return historyResponse(id, env);
+    if (path.startsWith('/api/playback/history/')) {
+      const requestedId = decodeURIComponent(path.slice('/api/playback/history/'.length));
+      if (method === 'GET') return historyResponse(request, requestedId, env);
+      if (method === 'DELETE') return deleteHistory(request, requestedId, env);
     }
 
     if (path === '/api/member-learning-card-stats' && method === 'GET') {
