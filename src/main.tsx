@@ -156,7 +156,7 @@ function startVipShareAutoplay() {
     }
 
     audio.autoplay = true;
-    audio.playsInline = true;
+    audio.setAttribute('playsinline', '');
 
     const onPlaying = () => {
       finished = true;
