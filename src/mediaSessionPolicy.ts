@@ -1,4 +1,5 @@
 const MEDIA_PLAYER_SELECTOR = '[data-echostars-media-session="1"]';
+const MEDIA_TOGGLE_SELECTOR = '[data-echostars-media-toggle="1"]';
 const DEFAULT_ARTWORK = '/icon-512.png';
 const APP_TITLE = '繁星回聲';
 
@@ -21,6 +22,7 @@ const getMediaSession = (): any => {
 
 const getAudio = () => document.querySelector<HTMLAudioElement>('audio');
 const getPlayer = () => document.querySelector<HTMLElement>(MEDIA_PLAYER_SELECTOR);
+const getToggle = () => document.querySelector<HTMLButtonElement>(MEDIA_TOGGLE_SELECTOR);
 
 let boundAudio: HTMLAudioElement | null = null;
 let lastPositionSecond = -1;
@@ -88,9 +90,23 @@ function safeSetActionHandler(action: MediaSessionActionName, handler: ((details
   } catch {}
 }
 
+function toggleThroughApp(audio: HTMLAudioElement, desiredState: 'play' | 'pause') {
+  const shouldToggle = desiredState === 'play' ? audio.paused : !audio.paused;
+  if (!shouldToggle) return;
+
+  const toggle = getToggle();
+  if (toggle) {
+    toggle.click();
+    return;
+  }
+
+  if (desiredState === 'play') void audio.play().catch(() => {});
+  else audio.pause();
+}
+
 function bindSystemControls(audio: HTMLAudioElement) {
-  safeSetActionHandler('play', () => { void audio.play().catch(() => {}); });
-  safeSetActionHandler('pause', () => audio.pause());
+  safeSetActionHandler('play', () => toggleThroughApp(audio, 'play'));
+  safeSetActionHandler('pause', () => toggleThroughApp(audio, 'pause'));
   safeSetActionHandler('seekbackward', (details: any) => {
     const offset = Number(details?.seekOffset) || 10;
     audio.currentTime = Math.max(0, audio.currentTime - offset);
