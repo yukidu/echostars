@@ -19,13 +19,18 @@
 
 .audio-card h3 {
   color: var(--color-primary, #c06c84) !important;
-  font-size: 1.125rem !important;
+  font-size: 1.25rem !important;
   font-weight: 900 !important;
+}
+
+/* 只固定按讚數文字為黑色；Heart SVG 的既有主色/填色邏輯不受影響。 */
+.audio-card .reaction-button[aria-pressed] span {
+  color: #000 !important;
 }
 
 @media (min-width: 640px) {
   .audio-card h3 {
-    font-size: 1.25rem !important;
+    font-size: 1.375rem !important;
   }
 }
 
