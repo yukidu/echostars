@@ -152,6 +152,8 @@ async function sanitizeTrackListResponse(response: Response): Promise<Response> 
     ));
     const headers = new Headers(response.headers);
     headers.set('Content-Type', 'application/json; charset=utf-8');
+    headers.delete('Content-Length');
+    headers.delete('Content-Encoding');
     return new Response(JSON.stringify(sanitized), {
       status: response.status,
       statusText: response.statusText,
