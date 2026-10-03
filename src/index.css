@@ -361,3 +361,26 @@ input[type="range"].audio-scrubber::-moz-range-thumb {
   .audio-card-grid .audio-card > div > div:first-child > button { width: 5rem; height: 5rem; }
   .audio-card-grid .audio-card .order-2 { flex-wrap: wrap; }
 }
+
+/* Mobile hamburger drawer: keep it on the right and use only half of the viewport. */
+@media (max-width: 767px) {
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] {
+    width: 50vw !important;
+    max-width: 50vw !important;
+    margin-left: auto !important;
+    margin-right: 0 !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    border-left: 1px solid var(--theme-border-subtle, #f1e7ea);
+    border-bottom-left-radius: 1rem;
+  }
+
+  .dark header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] {
+    border-left-color: #1e293b;
+  }
+
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] button,
+  header > div[class~="md:hidden"][class*="slide-in-from-top-2"][class*="space-y-1"] span {
+    min-width: 0;
+  }
+}
