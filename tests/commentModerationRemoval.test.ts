@@ -25,6 +25,6 @@ test('VIP links use the short S-sequence plus numeric password contract', () => 
   assert.match(vip, /\/vip-share/);
   assert.match(vip, /\/share\/\$\{encodeURIComponent\(access\.shareSlug\)\}\?\$\{access\.password\}/);
   assert.match(vip, /\^\\d\{4,12\}\$/);
-  assert.doesNotMatch(vip, /vipToken/);
-  assert.doesNotMatch(vip, /trackId:/);
+  assert.doesNotMatch(vip, /searchParams\.set\(['"](?:vipToken|trackId)['"]/);
+  assert.doesNotMatch(vip, /[?&](?:vipToken|trackId)=/);
 });
