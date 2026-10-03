@@ -35,6 +35,22 @@ function sanitizeCategories(input: unknown, allowed: string[]): string[] {
     .slice(0, 3);
 }
 
+async function reconcileAllTrackCategories(db: any, allowed = await liveCategories(db)) {
+  const { results: rows } = await db.prepare('SELECT id, categories FROM tracks').all();
+  const statements: any[] = [];
+  for (const row of rows || []) {
+    const before = parseCategories((row as any).categories);
+    const after = sanitizeCategories(before, allowed);
+    if (JSON.stringify(before) !== JSON.stringify(after)) {
+      statements.push(
+        db.prepare('UPDATE tracks SET categories = ? WHERE id = ?')
+          .bind(JSON.stringify(after), (row as any).id)
+      );
+    }
+  }
+  if (statements.length) await db.batch(statements);
+}
+
 async function ensureCategoryIntegrity(db: any) {
   if (!db) return;
   const key = db as object;
@@ -49,26 +65,10 @@ async function ensureCategoryIntegrity(db: any) {
       // The categories table is the only source of truth. This one-time v71
       // reconciliation safely removes stale/deleted category names from old
       // track rows. A track with no valid category stays as an empty array.
-      const allowed = await liveCategories(db);
-      const { results: rows } = await db.prepare('SELECT id, categories FROM tracks').all();
-      const statements: any[] = [];
-
-      for (const row of rows || []) {
-        const before = parseCategories((row as any).categories);
-        const after = sanitizeCategories(before, allowed);
-        if (JSON.stringify(before) !== JSON.stringify(after)) {
-          statements.push(
-            db.prepare('UPDATE tracks SET categories = ? WHERE id = ?')
-              .bind(JSON.stringify(after), (row as any).id)
-          );
-        }
-      }
-
-      statements.push(
-        db.prepare('INSERT OR IGNORE INTO app_migrations(name) VALUES (?)')
-          .bind(CATEGORY_INTEGRITY_MIGRATION)
-      );
-      await db.batch(statements);
+      await reconcileAllTrackCategories(db);
+      await db.prepare('INSERT OR IGNORE INTO app_migrations(name) VALUES (?)')
+        .bind(CATEGORY_INTEGRITY_MIGRATION)
+        .run();
     })();
     initialized.set(key, task);
     task.catch(() => initialized.delete(key));
@@ -104,6 +104,40 @@ async function sanitizeTrackWrite(request: Request, env: Env): Promise<Request> 
   });
 }
 
+function jsonResponse(data: unknown, base?: Response) {
+  const headers = new Headers(base?.headers);
+  headers.set('Content-Type', 'application/json; charset=utf-8');
+  headers.set('Access-Control-Allow-Origin', '*');
+  headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  return new Response(JSON.stringify(data), {
+    status: base?.status || 200,
+    statusText: base?.statusText,
+    headers
+  });
+}
+
+async function repairCreatedTrackResponse(response: Response, env: Env): Promise<Response> {
+  if (!env.DB || !response.ok) return response;
+  try {
+    const data: any = await response.clone().json();
+    const track = data?.track || data;
+    const id = String(track?.id || '').trim();
+    if (!id) return response;
+    const allowed = await liveCategories(env.DB);
+    const categories = sanitizeCategories(track?.categories, allowed);
+    if (JSON.stringify(categories) !== JSON.stringify(track?.categories || [])) {
+      await env.DB.prepare('UPDATE tracks SET categories = ? WHERE id = ?')
+        .bind(JSON.stringify(categories), id)
+        .run();
+    }
+    const fixedTrack = { ...track, categories };
+    return jsonResponse(data?.track ? { ...data, track: fixedTrack, categories } : fixedTrack, response);
+  } catch {
+    return response;
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -121,11 +155,49 @@ export default {
       }
     }
 
+    // Do not allow a legacy fallback list to become visible when D1 is present.
+    // The table itself is authoritative, including the valid empty-list state.
+    if (env.DB && url.pathname === '/api/categories' && method === 'GET') {
+      try {
+        return jsonResponse(await liveCategories(env.DB));
+      } catch (error) {
+        console.warn('Authoritative category read failed:', error);
+        return jsonResponse([], new Response(null, { status: 503 }));
+      }
+    }
+
     const nextRequest =
       method === 'POST' || method === 'PUT'
         ? await sanitizeTrackWrite(request, env)
         : request;
 
-    return appWorker.fetch(nextRequest, env);
+    let response = await appWorker.fetch(nextRequest, env);
+
+    if (!env.DB) return response;
+
+    // The older inner route used to append 「未分類」 after deleting the last
+    // category from a track. Reconcile immediately after category mutations so
+    // that behavior can never leak back into D1.
+    if (
+      url.pathname.startsWith('/api/categories/') &&
+      url.pathname !== '/api/categories/order' &&
+      (method === 'PUT' || method === 'DELETE') &&
+      response.ok
+    ) {
+      try {
+        const allowed = await liveCategories(env.DB);
+        await reconcileAllTrackCategories(env.DB, allowed);
+      } catch (error) {
+        console.warn('Post-mutation category reconciliation failed:', error);
+      }
+    }
+
+    // A legacy create route also used to turn [] back into [「未分類」]. Repair
+    // the just-created row and response without adding any extra default label.
+    if (url.pathname === '/api/tracks' && method === 'POST') {
+      response = await repairCreatedTrackResponse(response, env);
+    }
+
+    return response;
   }
 };
