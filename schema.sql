@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS tracks (
   speaker TEXT NOT NULL,
   speakerRank TEXT,
   speakerAvatar TEXT,
+  shareSlug TEXT,
   categories TEXT, -- JSON Array: ["事業", "心態思維"]
   keywordMeta TEXT DEFAULT '{}', -- JSON keyword creator and added timestamp
   keywords TEXT,   -- JSON Array: ["目標", "行動"]
@@ -81,6 +82,10 @@ CREATE TABLE IF NOT EXISTS tracks (
   likedBy TEXT,        -- JSON Array of user emails/IDs
   ratings TEXT         -- JSON Object: {"user@gmail.com": 5}
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS tracks_share_slug_unique
+  ON tracks(shareSlug)
+  WHERE shareSlug IS NOT NULL AND shareSlug <> '';
 
 -- 3. 留言表 (comments)
 CREATE TABLE IF NOT EXISTS comments (

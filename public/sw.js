@@ -1,4 +1,4 @@
-const CACHE_NAME = 'echostars-shell-v33';
+const CACHE_NAME = 'echostars-shell-v34';
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', event => {
@@ -37,7 +37,10 @@ self.addEventListener('fetch', event => {
   event.respondWith((async () => {
     try {
       const response = await fetch(event.request);
-      if (response.ok) {
+      // Never store a personalized /share/* HTML response as the generic app
+      // shell. Doing so can reopen the wrong recording on a later offline load.
+      const cacheableNavigation = navigation && (url.pathname === '/' || url.pathname === '/index.html');
+      if (response.ok && (!navigation || cacheableNavigation)) {
         const cache = await caches.open(CACHE_NAME);
         await cache.put(navigation ? '/index.html' : event.request, response.clone());
       }

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Share2, Copy, Check, X, Smartphone } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Share2, Copy, Check, X, Smartphone, RefreshCw } from 'lucide-react';
 import { Track, UserProfile } from '../types';
 import { VisitorIdentity, getRandomExcitement } from '../utils/visitor';
 
@@ -19,17 +19,64 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [excitement] = useState(() => getRandomExcitement());
+  const [shareSlug, setShareSlug] = useState<string | null>(null);
+  const [isPreparingShare, setIsPreparingShare] = useState(false);
+  const [shareError, setShareError] = useState('');
+  const [retryNonce, setRetryNonce] = useState(0);
+  const providedShareSlug = String((track as Track & { shareSlug?: string }).shareSlug || '').trim();
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+    const cacheKey = `echostars_share_slug_${track.id}`;
+    let cachedSlug = '';
+    try { cachedSlug = localStorage.getItem(cacheKey) || ''; } catch {}
+    const rememberedSlug = providedShareSlug || cachedSlug;
+
+    if (rememberedSlug) {
+      setShareSlug(rememberedSlug);
+      setShareError('');
+      setIsPreparingShare(false);
+      return;
+    }
+
+    setShareSlug(null);
+    setShareError('');
+    setIsPreparingShare(true);
+
+    fetch(`/api/tracks/${encodeURIComponent(track.id)}/share-slug`, { method: 'POST' })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data?.shareSlug) {
+          throw new Error(data?.error || '建立分享連結失敗');
+        }
+        const slug = String(data.shareSlug);
+        if (cancelled) return;
+        setShareSlug(slug);
+        try { localStorage.setItem(cacheKey, slug); } catch {}
+      })
+      .catch(error => {
+        if (!cancelled) setShareError(error instanceof Error ? error.message : '建立分享連結失敗');
+      })
+      .finally(() => {
+        if (!cancelled) setIsPreparingShare(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [isOpen, track.id, providedShareSlug, retryNonce]);
 
   if (!isOpen) return null;
 
   const currentHost = typeof window !== 'undefined' ? window.location.origin : '';
-  const shareUrl = `${currentHost}/share/${encodeURIComponent(track.id)}`;
+  const shareUrl = shareSlug ? `${currentHost}/share/${shareSlug}` : '';
 
   const categoryName = track.categories?.[0] || track.category || '演講';
   // Requirement 4: 如果未登入的訪客，則預覽訊息不顯示暱稱，取消輸入暱稱的框框
   const shareText = `${track.speaker}《${track.title}》`;
 
   const handleNativeShare = async () => {
+    if (!shareUrl) return;
     if (navigator.share) {
       try {
         await navigator.share({
@@ -40,13 +87,14 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         onClose();
         return;
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (error instanceof DOMException && error.name === 'AbortError') return;
       }
     }
     handleCopy();
   };
 
   const handleCopy = async () => {
+    if (!shareUrl) return;
     try { await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`); } catch { return; }
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
@@ -68,7 +116,6 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm sm:text-base truncate">
                 分享此音檔給學習夥伴
               </h3>
-
             </div>
           </div>
           <button
@@ -108,16 +155,33 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate mt-0.5">
                 {track.speaker}《{track.title}》
               </p>
-              <p className="text-[10px] text-slate-400 font-mono truncate">{shareUrl}</p>
+              <p className="text-[10px] text-slate-400 font-mono truncate">
+                {shareUrl || (isPreparingShare ? '正在建立分享連結…' : '分享連結尚未建立')}
+              </p>
             </div>
           </div>
+
+          {shareError && (
+            <div className="rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 px-3 py-2 flex items-center justify-between gap-2">
+              <span className="text-xs text-rose-700 dark:text-rose-300">{shareError}</span>
+              <button
+                type="button"
+                onClick={() => setRetryNonce(value => value + 1)}
+                className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-rose-700 dark:text-rose-300"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                重試
+              </button>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-2.5 pt-1">
             <button
               type="button"
               onClick={handleCopy}
-              className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer"
+              disabled={!shareUrl || isPreparingShare}
+              className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {copied ? (
                 <>
@@ -127,7 +191,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               ) : (
                 <>
                   <Copy className="w-4 h-4" />
-                  <span>複製分享文案</span>
+                  <span>{isPreparingShare ? '建立連結中…' : '複製分享文案'}</span>
                 </>
               )}
             </button>
@@ -135,7 +199,8 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             <button
               type="button"
               onClick={handleNativeShare}
-              className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+              disabled={!shareUrl || isPreparingShare}
+              className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-2xl text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: 'var(--color-primary, #c06c84)' }}
             >
               <Smartphone className="w-4 h-4" />
