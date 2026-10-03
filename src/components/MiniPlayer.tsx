@@ -57,6 +57,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           {/* Rotating Photo when playing (Clicking photo toggles play/pause) */}
           <button
             type="button"
+            data-echostars-media-toggle="1"
             onClick={(e) => {
               e.stopPropagation();
               onTogglePlay();
