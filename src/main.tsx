@@ -4,9 +4,10 @@ import App from './App.tsx';
 import './index.css';
 
 // Old long VIP links (?vipToken=...&trackId=...) are retired. Strip those
-// parameters before React starts so the legacy client-side unlock path can no
-// longer be used from a normal page URL.
-if (!window.location.pathname.startsWith('/share/')) {
+// named parameters before React starts, including when somebody appends them
+// to an otherwise valid public share URL. A new VIP password such as ?1234 is
+// a bare query key and is intentionally left untouched.
+{
   const legacyUrl = new URL(window.location.href);
   if (legacyUrl.searchParams.has('vipToken') || legacyUrl.searchParams.has('trackId')) {
     legacyUrl.searchParams.delete('vipToken');
